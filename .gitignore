@@ -1,0 +1,315 @@
+# API Intelligence Plane - Git Ignore File
+
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+.env.local
+.env.*.local
+
+# ============================================================================
+# Node.js / JavaScript / TypeScript
+# ============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+.yarn-integrity
+
+# Frontend Build Output
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+
+# ============================================================================
+# Java / Maven
+# ============================================================================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# ============================================================================
+# IDEs and Editors
+# ============================================================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ============================================================================
+# Operating System
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+# Environment & Secrets
+# ============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# ============================================================================
+# Docker
+# ============================================================================
+.dockerignore
+docker-compose.override.yml
+
+# ============================================================================
+# Database & Data
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+data/
+*.csv
+*.xlsx
+
+# ============================================================================
+# Logs
+# ============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ============================================================================
+# Testing
+# ============================================================================
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.hypothesis/
+coverage/
+*.lcov
+.nyc_output
+
+# ============================================================================
+# Temporary Files
+# ============================================================================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# ============================================================================
+# Build Artifacts
+# ============================================================================
+dist/
+build/
+out/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# ============================================================================
+# OpenSearch / Elasticsearch
+# ============================================================================
+opensearch-data/
+elasticsearch-data/
+
+# ============================================================================
+# Project Specific
+# ============================================================================
+# MCP Server specific
+mcp-servers/__pycache__/
+mcp-servers/*.pyc
+
+# Backend specific
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/htmlcov/
+
+# Frontend specific
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Demo Gateway specific
+demo-gateway/target/
+demo-gateway/.mvn/
+
+# Test outputs
+tests/__pycache__/
+tests/*.pyc
+tests/reports/
+tests/screenshots/
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+
+# Kubernetes secrets
+k8s/secrets/
+k8s/*.secret.yaml
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# ============================================================================
+# Keep These Files
+# ============================================================================
+!.gitkeep
+!.gitignore
+!.env.example

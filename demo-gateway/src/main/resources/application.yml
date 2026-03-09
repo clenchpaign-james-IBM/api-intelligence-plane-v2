@@ -1,0 +1,89 @@
+# Demo API Gateway Configuration
+# Spring Boot application configuration for the Demo Gateway
+
+spring:
+  application:
+    name: demo-api-gateway
+  
+  # Server configuration
+  server:
+    port: 8081
+    servlet:
+      context-path: /
+  
+  # Jackson JSON configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# OpenSearch Configuration
+opensearch:
+  host: ${OPENSEARCH_HOST:localhost}
+  port: ${OPENSEARCH_PORT:9200}
+  scheme: ${OPENSEARCH_SCHEME:http}
+  username: ${OPENSEARCH_USERNAME:}
+  password: ${OPENSEARCH_PASSWORD:}
+  connection-timeout: 5000
+  socket-timeout: 60000
+  
+  # Index names
+  indices:
+    apis: api-inventory
+    metrics: api-metrics
+    policies: rate-limit-policies
+
+# Gateway Configuration
+gateway:
+  # Gateway identification
+  id: ${GATEWAY_ID:demo-gateway-001}
+  name: ${GATEWAY_NAME:Demo API Gateway}
+  version: 1.0.0
+  
+  # Metrics collection
+  metrics:
+    enabled: true
+    collection-interval-seconds: 60
+    retention-days: 90
+  
+  # Rate limiting
+  rate-limiting:
+    enabled: true
+    default-requests-per-second: 100
+    default-burst-size: 200
+  
+  # Health monitoring
+  health:
+    check-interval-seconds: 30
+
+# Actuator Configuration (for health checks and metrics)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.example.gateway: DEBUG
+    org.springframework: INFO
+    org.opensearch: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/demo-gateway.log
+    max-size: 10MB
+    max-history: 30
+
+# Made with Bob

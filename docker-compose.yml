@@ -46,7 +46,7 @@ services:
       opensearch:
         condition: service_healthy
 
-  # Backend API
+  # Backend API - Commented out until Phase 2 implementation
   backend:
     build:
       context: ./backend
@@ -72,11 +72,11 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Frontend
+  # Frontend - React SPA with Vite
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: aip-frontend
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
@@ -89,118 +89,117 @@ services:
       - aip-network
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0
 
-  # MCP Servers
-  mcp-discovery:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-discovery
-    environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-      - MCP_SERVER_NAME=discovery
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8001:8000"
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+  # MCP Servers - Commented out until Phase 2 implementation
+  # mcp-discovery:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-discovery
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=discovery
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8001:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
 
-  mcp-metrics:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-metrics
-    environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-      - MCP_SERVER_NAME=metrics
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8002:8000"
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+  # mcp-metrics:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-metrics
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=metrics
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8002:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
 
-  mcp-security:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-security
-    environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-      - MCP_SERVER_NAME=security
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8003:8000"
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+  # mcp-security:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-security
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=security
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8003:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
 
-  mcp-optimization:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-optimization
-    environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-      - MCP_SERVER_NAME=optimization
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8004:8000"
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+  # mcp-optimization:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-optimization
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=optimization
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8004:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
 
-  # Demo Gateway
-  demo-gateway:
-    build:
-      context: ./demo-gateway
-      dockerfile: Dockerfile
-    container_name: aip-demo-gateway
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-    volumes:
-      - ./demo-gateway:/app
-      - maven-cache:/root/.m2
-    ports:
-      - "8080:8080"
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+  # Demo Gateway - Commented out until Phase 2 implementation
+  # demo-gateway:
+  #   build:
+  #     context: ./demo-gateway
+  #     dockerfile: Dockerfile
+  #   container_name: aip-demo-gateway
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=dev
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #   volumes:
+  #     - ./demo-gateway:/app
+  #     - maven-cache:/root/.m2
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
 
 networks:
   aip-network:

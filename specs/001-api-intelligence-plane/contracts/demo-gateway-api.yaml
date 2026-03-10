@@ -1,0 +1,761 @@
+openapi: 3.0.3
+info:
+  title: Native API Gateway - Demo Gateway
+  description: |
+    Demo API Gateway ("Native API Gateway") for testing and demonstrating 
+    API Intelligence Plane integration. Provides REST API management with 
+    policies, monitoring, and metrics export.
+  version: 1.0.0
+  contact:
+    name: Native API Gateway Team
+
+servers:
+  - url: http://localhost:9000
+    description: Local development
+  - url: https://gateway.example.com
+    description: Production
+
+tags:
+  - name: Gateway Management
+    description: Gateway configuration and status
+  - name: API Management
+    description: API registration and lifecycle
+  - name: Policies
+    description: API policies and rules
+  - name: Metrics
+    description: Metrics and monitoring
+  - name: Health
+    description: Health and status endpoints
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Gateway health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Gateway is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /gateway/info:
+    get:
+      tags: [Gateway Management]
+      summary: Get gateway information
+      operationId: getGatewayInfo
+      responses:
+        '200':
+          description: Gateway information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayInfo'
+
+  /gateway/capabilities:
+    get:
+      tags: [Gateway Management]
+      summary: List gateway capabilities
+      operationId: getCapabilities
+      responses:
+        '200':
+          description: List of capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilitiesResponse'
+
+  /apis:
+    get:
+      tags: [API Management]
+      summary: List all registered APIs
+      operationId: listAPIs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, deprecated]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of APIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIListResponse'
+
+    post:
+      tags: [API Management]
+      summary: Register a new API
+      operationId: registerAPI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAPIRequest'
+      responses:
+        '201':
+          description: API registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /apis/{api_id}:
+    get:
+      tags: [API Management]
+      summary: Get API details
+      operationId: getAPI
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      responses:
+        '200':
+          description: API details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [API Management]
+      summary: Update API configuration
+      operationId: updateAPI
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAPIRequest'
+      responses:
+        '200':
+          description: API updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+    delete:
+      tags: [API Management]
+      summary: Unregister API
+      operationId: deleteAPI
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      responses:
+        '204':
+          description: API deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /apis/{api_id}/policies:
+    get:
+      tags: [Policies]
+      summary: List API policies
+      operationId: listAPIPolicies
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      responses:
+        '200':
+          description: List of policies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyListResponse'
+
+    post:
+      tags: [Policies]
+      summary: Add policy to API
+      operationId: addAPIPolicy
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPolicyRequest'
+      responses:
+        '201':
+          description: Policy added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponse'
+
+  /apis/{api_id}/policies/{policy_id}:
+    delete:
+      tags: [Policies]
+      summary: Remove policy from API
+      operationId: removeAPIPolicy
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+        - $ref: '#/components/parameters/PolicyIdParam'
+      responses:
+        '204':
+          description: Policy removed
+
+  /metrics/apis:
+    get:
+      tags: [Metrics]
+      summary: Get metrics for all APIs
+      operationId: getAllAPIMetrics
+      parameters:
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h]
+            default: 5m
+      responses:
+        '200':
+          description: Aggregated metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregatedMetricsResponse'
+
+  /metrics/apis/{api_id}:
+    get:
+      tags: [Metrics]
+      summary: Get metrics for specific API
+      operationId: getAPIMetrics
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: API metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIMetricsResponse'
+
+  /metrics/realtime:
+    get:
+      tags: [Metrics]
+      summary: Get real-time metrics stream
+      operationId: getRealtimeMetrics
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /logs/apis/{api_id}:
+    get:
+      tags: [Metrics]
+      summary: Get API access logs
+      operationId: getAPILogs
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [error, warn, info, debug]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: API logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+
+components:
+  parameters:
+    APIIdParam:
+      name: api_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PolicyIdParam:
+      name: policy_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        components:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [healthy, unhealthy]
+            cache:
+              type: string
+              enum: [healthy, unhealthy]
+
+    GatewayInfo:
+      type: object
+      required: [name, version, vendor]
+      properties:
+        name:
+          type: string
+          example: "Native API Gateway"
+        version:
+          type: string
+          example: "1.0.0"
+        vendor:
+          type: string
+          example: "native"
+        description:
+          type: string
+        api_count:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+    CapabilitiesResponse:
+      type: object
+      required: [capabilities]
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: string
+          example:
+            - api_discovery
+            - metrics_collection
+            - log_streaming
+            - policy_management
+            - rate_limiting
+            - authentication_management
+            - ssl_termination
+            - caching
+            - transformation
+            - monitoring
+
+    APIResponse:
+      type: object
+      required: [id, name, base_path, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        base_path:
+          type: string
+        upstream_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [active, inactive, deprecated]
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Endpoint'
+        authentication:
+          $ref: '#/components/schemas/Authentication'
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicySummary'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Endpoint:
+      type: object
+      required: [path, method]
+      properties:
+        path:
+          type: string
+          example: "/users/{id}"
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD]
+        description:
+          type: string
+        timeout_ms:
+          type: integer
+          default: 30000
+
+    Authentication:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [none, basic, bearer, oauth2, api_key]
+        config:
+          type: object
+
+    RegisterAPIRequest:
+      type: object
+      required: [name, base_path, upstream_url]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        base_path:
+          type: string
+        upstream_url:
+          type: string
+          format: uri
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Endpoint'
+        authentication:
+          $ref: '#/components/schemas/Authentication'
+
+    UpdateAPIRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        upstream_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [active, inactive, deprecated]
+
+    APIListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    PolicyResponse:
+      type: object
+      required: [id, type, enabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - protocol_translation
+            - authentication
+            - request_validation
+            - routing
+            - logging
+            - rate_limiting
+            - monitoring
+            - throttling
+            - response_validation
+            - transformation
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        priority:
+          type: integer
+        configuration:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    PolicySummary:
+      type: object
+      required: [id, type, enabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        name:
+          type: string
+        enabled:
+          type: boolean
+
+    AddPolicyRequest:
+      type: object
+      required: [type, configuration]
+      properties:
+        type:
+          type: string
+          enum:
+            - protocol_translation
+            - authentication
+            - request_validation
+            - routing
+            - logging
+            - rate_limiting
+            - monitoring
+            - throttling
+            - response_validation
+            - transformation
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        priority:
+          type: integer
+          default: 100
+        configuration:
+          type: object
+
+    PolicyListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyResponse'
+
+    APIMetricsResponse:
+      type: object
+      required: [api_id, metrics]
+      properties:
+        api_id:
+          type: string
+          format: uuid
+        time_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricDataPoint'
+
+    MetricDataPoint:
+      type: object
+      required: [timestamp]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        request_count:
+          type: integer
+        response_time_p50:
+          type: number
+          description: 50th percentile response time in ms
+        response_time_p95:
+          type: number
+          description: 95th percentile response time in ms
+        response_time_p99:
+          type: number
+          description: 99th percentile response time in ms
+        error_count:
+          type: integer
+        error_rate:
+          type: number
+          description: Error rate (0-1)
+        throughput:
+          type: number
+          description: Requests per second
+        status_codes:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            "200": 950
+            "404": 30
+            "500": 20
+
+    AggregatedMetricsResponse:
+      type: object
+      required: [metrics]
+      properties:
+        time_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              api_id:
+                type: string
+                format: uuid
+              api_name:
+                type: string
+              data_points:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MetricDataPoint'
+
+    LogsResponse:
+      type: object
+      required: [logs]
+      properties:
+        api_id:
+          type: string
+          format: uuid
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        total:
+          type: integer
+
+    LogEntry:
+      type: object
+      required: [timestamp, level, message]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [error, warn, info, debug]
+        message:
+          type: string
+        request_id:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        status_code:
+          type: integer
+        response_time_ms:
+          type: number
+        client_ip:
+          type: string
+        user_agent:
+          type: string
+        metadata:
+          type: object
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# Made with Bob

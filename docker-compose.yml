@@ -1,0 +1,237 @@
+# API Intelligence Plane - Local Development Environment
+version: '3.8'
+
+services:
+  # OpenSearch - Data Store
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: aip-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - aip-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # OpenSearch Dashboards - UI for OpenSearch
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.18.0
+    container_name: aip-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  # Backend API - Commented out until Phase 2 implementation
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aip-backend
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    ports:
+      - "8000:8000"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend - React SPA with Vite
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: aip-frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - aip-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # MCP Servers - Commented out until Phase 2 implementation
+  mcp-discovery:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-discovery
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - MCP_SERVER_NAME=discovery
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+    ports:
+      - "8001:8000"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  mcp-metrics:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-metrics
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - MCP_SERVER_NAME=metrics
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+    ports:
+      - "8002:8000"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # mcp-security:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-security
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=security
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8003:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
+
+  # mcp-optimization:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-optimization
+  #   environment:
+  #     - OPENSEARCH_HOST=opensearch
+  #     - OPENSEARCH_PORT=9200
+  #     - OPENSEARCH_SCHEME=http
+  #     - MCP_SERVER_NAME=optimization
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8004:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
+
+  # Demo Gateway - Commented out until Phase 2 implementation
+  demo-gateway:
+    build:
+      context: ./demo-gateway
+      dockerfile: Dockerfile
+    container_name: aip-demo-gateway
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+    ports:
+      - "8080:8080"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+networks:
+  aip-network:
+    driver: bridge
+
+volumes:
+  opensearch-data:
+    driver: local
+  backend-cache:
+    driver: local
+  maven-cache:
+    driver: local
+
+# Made with Bob

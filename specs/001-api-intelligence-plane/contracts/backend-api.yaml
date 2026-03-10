@@ -1,0 +1,914 @@
+openapi: 3.0.3
+info:
+  title: API Intelligence Plane - Backend API
+  description: REST API for the API Intelligence Plane backend service
+  version: 1.0.0
+  contact:
+    name: API Intelligence Plane Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.intelligence-plane.example.com
+    description: Production
+
+tags:
+  - name: Gateways
+    description: API Gateway management
+  - name: APIs
+    description: Discovered API management
+  - name: Metrics
+    description: API metrics and performance data
+  - name: Predictions
+    description: Failure predictions
+  - name: Security
+    description: Security vulnerabilities and scanning
+  - name: Optimization
+    description: Performance optimization recommendations
+  - name: Rate Limiting
+    description: Rate limiting policies
+  - name: Query
+    description: Natural language query interface
+  - name: Health
+    description: System health and status
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check endpoint
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /gateways:
+    get:
+      tags: [Gateways]
+      summary: List all connected API Gateways
+      operationId: listGateways
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [connected, disconnected, error, maintenance]
+      responses:
+        '200':
+          description: List of gateways
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayListResponse'
+
+    post:
+      tags: [Gateways]
+      summary: Register a new API Gateway
+      operationId: createGateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGatewayRequest'
+      responses:
+        '201':
+          description: Gateway created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gateway'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /gateways/{gateway_id}:
+    get:
+      tags: [Gateways]
+      summary: Get gateway details
+      operationId: getGateway
+      parameters:
+        - $ref: '#/components/parameters/GatewayIdParam'
+      responses:
+        '200':
+          description: Gateway details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gateway'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Gateways]
+      summary: Update gateway configuration
+      operationId: updateGateway
+      parameters:
+        - $ref: '#/components/parameters/GatewayIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGatewayRequest'
+      responses:
+        '200':
+          description: Gateway updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gateway'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Gateways]
+      summary: Remove gateway
+      operationId: deleteGateway
+      parameters:
+        - $ref: '#/components/parameters/GatewayIdParam'
+      responses:
+        '204':
+          description: Gateway deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /apis:
+    get:
+      tags: [APIs]
+      summary: List all discovered APIs
+      operationId: listAPIs
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: gateway_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, deprecated, failed]
+        - name: is_shadow
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of APIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIListResponse'
+
+  /apis/{api_id}:
+    get:
+      tags: [APIs]
+      summary: Get API details
+      operationId: getAPI
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+      responses:
+        '200':
+          description: API details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/API'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /apis/{api_id}/metrics:
+    get:
+      tags: [Metrics]
+      summary: Get API metrics
+      operationId: getAPIMetrics
+      parameters:
+        - $ref: '#/components/parameters/APIIdParam'
+        - $ref: '#/components/parameters/StartTimeParam'
+        - $ref: '#/components/parameters/EndTimeParam'
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 1d]
+            default: 5m
+      responses:
+        '200':
+          description: API metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /predictions:
+    get:
+      tags: [Predictions]
+      summary: List failure predictions
+      operationId: listPredictions
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: api_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resolved, false_positive, expired]
+      responses:
+        '200':
+          description: List of predictions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionListResponse'
+
+  /predictions/{prediction_id}:
+    get:
+      tags: [Predictions]
+      summary: Get prediction details
+      operationId: getPrediction
+      parameters:
+        - $ref: '#/components/parameters/PredictionIdParam'
+      responses:
+        '200':
+          description: Prediction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prediction'
+
+  /vulnerabilities:
+    get:
+      tags: [Security]
+      summary: List security vulnerabilities
+      operationId: listVulnerabilities
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: api_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, remediated, accepted_risk, false_positive]
+      responses:
+        '200':
+          description: List of vulnerabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityListResponse'
+
+  /vulnerabilities/{vulnerability_id}/remediate:
+    post:
+      tags: [Security]
+      summary: Trigger automated remediation
+      operationId: remediateVulnerability
+      parameters:
+        - $ref: '#/components/parameters/VulnerabilityIdParam'
+      responses:
+        '202':
+          description: Remediation initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemediationResponse'
+
+  /recommendations:
+    get:
+      tags: [Optimization]
+      summary: List optimization recommendations
+      operationId: listRecommendations
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: api_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, implemented, rejected, expired]
+      responses:
+        '200':
+          description: List of recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationListResponse'
+
+  /rate-limits:
+    get:
+      tags: [Rate Limiting]
+      summary: List rate limit policies
+      operationId: listRateLimitPolicies
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: api_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of rate limit policies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitPolicyListResponse'
+
+    post:
+      tags: [Rate Limiting]
+      summary: Create rate limit policy
+      operationId: createRateLimitPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRateLimitPolicyRequest'
+      responses:
+        '201':
+          description: Policy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitPolicy'
+
+  /query:
+    post:
+      tags: [Query]
+      summary: Execute natural language query
+      operationId: executeQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+components:
+  parameters:
+    GatewayIdParam:
+      name: gateway_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    APIIdParam:
+      name: api_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PredictionIdParam:
+      name: prediction_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    VulnerabilityIdParam:
+      name: vulnerability_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    StartTimeParam:
+      name: start_time
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+
+    EndTimeParam:
+      name: end_time
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              message:
+                type: string
+
+    Gateway:
+      type: object
+      required: [id, name, vendor, connection_url, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        vendor:
+          type: string
+          enum: [native, kong, apigee, aws, azure, custom]
+        version:
+          type: string
+        connection_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [connected, disconnected, error, maintenance]
+        api_count:
+          type: integer
+        capabilities:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateGatewayRequest:
+      type: object
+      required: [name, vendor, connection_url, credentials]
+      properties:
+        name:
+          type: string
+        vendor:
+          type: string
+          enum: [native, kong, apigee, aws, azure, custom]
+        connection_url:
+          type: string
+          format: uri
+        credentials:
+          type: object
+          properties:
+            type:
+              type: string
+            api_key:
+              type: string
+            username:
+              type: string
+            password:
+              type: string
+
+    UpdateGatewayRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        connection_url:
+          type: string
+          format: uri
+        credentials:
+          type: object
+
+    GatewayListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Gateway'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    API:
+      type: object
+      required: [id, gateway_id, name, base_path, status, health_score]
+      properties:
+        id:
+          type: string
+          format: uuid
+        gateway_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        base_path:
+          type: string
+        endpoints:
+          type: array
+          items:
+            type: object
+        methods:
+          type: array
+          items:
+            type: string
+        authentication_type:
+          type: string
+        is_shadow:
+          type: boolean
+        status:
+          type: string
+          enum: [active, inactive, deprecated, failed]
+        health_score:
+          type: number
+          format: float
+        current_metrics:
+          type: object
+        discovered_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    APIListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/API'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    MetricsResponse:
+      type: object
+      required: [api_id, metrics]
+      properties:
+        api_id:
+          type: string
+          format: uuid
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              response_time_p50:
+                type: number
+              response_time_p95:
+                type: number
+              response_time_p99:
+                type: number
+              error_rate:
+                type: number
+              throughput:
+                type: number
+              availability:
+                type: number
+
+    Prediction:
+      type: object
+      required: [id, api_id, prediction_type, predicted_time, confidence_score, severity]
+      properties:
+        id:
+          type: string
+          format: uuid
+        api_id:
+          type: string
+          format: uuid
+        prediction_type:
+          type: string
+          enum: [failure, degradation, capacity, security]
+        predicted_at:
+          type: string
+          format: date-time
+        predicted_time:
+          type: string
+          format: date-time
+        confidence_score:
+          type: number
+          format: float
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        status:
+          type: string
+          enum: [active, resolved, false_positive, expired]
+        contributing_factors:
+          type: array
+          items:
+            type: object
+        recommended_actions:
+          type: array
+          items:
+            type: string
+
+    PredictionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prediction'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    Vulnerability:
+      type: object
+      required: [id, api_id, vulnerability_type, severity, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        api_id:
+          type: string
+          format: uuid
+        vulnerability_type:
+          type: string
+        cve_id:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, remediated, accepted_risk, false_positive]
+        detected_at:
+          type: string
+          format: date-time
+
+    VulnerabilityListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vulnerability'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    RemediationResponse:
+      type: object
+      required: [vulnerability_id, status]
+      properties:
+        vulnerability_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [initiated, in_progress, completed, failed]
+        message:
+          type: string
+
+    Recommendation:
+      type: object
+      required: [id, api_id, recommendation_type, title, priority, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        api_id:
+          type: string
+          format: uuid
+        recommendation_type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        estimated_impact:
+          type: object
+        implementation_effort:
+          type: string
+          enum: [low, medium, high]
+        status:
+          type: string
+          enum: [pending, in_progress, implemented, rejected, expired]
+
+    RecommendationListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    RateLimitPolicy:
+      type: object
+      required: [id, api_id, policy_name, policy_type, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        api_id:
+          type: string
+          format: uuid
+        policy_name:
+          type: string
+        policy_type:
+          type: string
+          enum: [fixed, adaptive, priority_based, burst_allowance]
+        status:
+          type: string
+          enum: [active, inactive, testing]
+        limit_thresholds:
+          type: object
+        enforcement_action:
+          type: string
+          enum: [throttle, reject, queue]
+
+    CreateRateLimitPolicyRequest:
+      type: object
+      required: [api_id, policy_name, policy_type, limit_thresholds]
+      properties:
+        api_id:
+          type: string
+          format: uuid
+        policy_name:
+          type: string
+        policy_type:
+          type: string
+          enum: [fixed, adaptive, priority_based, burst_allowance]
+        limit_thresholds:
+          type: object
+        enforcement_action:
+          type: string
+          enum: [throttle, reject, queue]
+
+    RateLimitPolicyListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RateLimitPolicy'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    QueryRequest:
+      type: object
+      required: [query_text]
+      properties:
+        query_text:
+          type: string
+        session_id:
+          type: string
+          format: uuid
+
+    QueryResponse:
+      type: object
+      required: [query_id, response_text, confidence_score]
+      properties:
+        query_id:
+          type: string
+          format: uuid
+        query_text:
+          type: string
+        response_text:
+          type: string
+        confidence_score:
+          type: number
+          format: float
+        results:
+          type: object
+        follow_up_queries:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# Made with Bob

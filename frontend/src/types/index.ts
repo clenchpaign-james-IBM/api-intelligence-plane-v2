@@ -134,25 +134,56 @@ export interface EndpointMetric {
 export interface Prediction {
   id: string;
   api_id: string;
+  api_name?: string;
   prediction_type: PredictionType;
   predicted_at: string;
-  prediction_window_hours: number;
-  confidence_score: number;
-  predicted_value: number;
-  actual_value?: number;
-  is_accurate?: boolean;
-  factors: PredictionFactor[];
+  predicted_time: string;
+  confidence: number;
+  severity: PredictionSeverity;
+  status: PredictionStatus;
+  description?: string;
+  contributing_factors: ContributingFactor[];
+  recommended_actions: string[];
+  actual_outcome?: ActualOutcome;
+  actual_time?: string;
+  accuracy_score?: number;
+  model_version: string;
   metadata?: Record<string, any>;
   created_at: string;
+  updated_at: string;
 }
 
-export interface PredictionFactor {
-  name: string;
-  impact: number;
-  description: string;
+export interface ContributingFactor {
+  factor: string;
+  current_value: number;
+  threshold: number;
+  trend: string;
+  weight: number;
 }
 
-export type PredictionType = 'failure' | 'performance_degradation' | 'traffic_spike' | 'resource_exhaustion';
+export type PredictionType = 'failure' | 'degradation' | 'capacity' | 'security';
+export type PredictionSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type PredictionStatus = 'active' | 'resolved' | 'false_positive' | 'expired';
+export type ActualOutcome = 'occurred' | 'prevented' | 'false_alarm';
+
+// Prediction List Response
+export interface PredictionListResponse {
+  items: Prediction[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+// Prediction Statistics Response
+export interface PredictionStatsResponse {
+  total_predictions: number;
+  active_predictions: number;
+  accuracy_rate: number;
+  by_severity: Record<PredictionSeverity, number>;
+  by_type: Record<PredictionType, number>;
+  by_outcome: Record<ActualOutcome, number>;
+}
 
 // Vulnerability Entity
 export interface Vulnerability {

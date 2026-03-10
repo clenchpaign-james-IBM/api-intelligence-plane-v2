@@ -6,10 +6,10 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import Dashboard from './pages/Dashboard';
 import APIs from './pages/APIs';
 import Gateways from './pages/Gateways';
+import Predictions from './pages/Predictions';
 
 // Placeholder components for routes (will be implemented in user stories)
 const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
-const Predictions = () => <div className="p-6"><h1 className="text-2xl font-bold">Predictions</h1></div>;
 const Security = () => <div className="p-6"><h1 className="text-2xl font-bold">Security</h1></div>;
 const Query = () => <div className="p-6"><h1 className="text-2xl font-bold">Natural Language Query</h1></div>;
 const NotFound = () => <div className="p-6"><h1 className="text-2xl font-bold">404 - Page Not Found</h1></div>;

@@ -201,34 +201,40 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Prediction Service
 
-- [ ] T095 [P] [US2] Create Prediction repository in backend/app/db/repositories/prediction_repository.py with CRUD and query operations
-- [ ] T096 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with ML-based prediction logic
-- [ ] T097 [US2] Create Prediction Agent in backend/app/agents/prediction_agent.py using LangChain/LangGraph
-- [ ] T098 [US2] Implement prediction generation workflow in backend/app/agents/prediction_agent.py with contributing factors analysis
-- [ ] T099 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes)
-- [ ] T100 [US2] Implement prediction accuracy tracking in backend/app/services/prediction_service.py
+- [X] T095 [P] [US2] Create Prediction repository in backend/app/db/repositories/prediction_repository.py with CRUD and query operations
+- [X] T096 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with ML-based prediction logic
+- [-] T097 [US2] Create Prediction Agent in backend/app/agents/prediction_agent.py using LangChain/LangGraph
+- [X] T098 [US2] Implement prediction generation workflow in backend/app/agents/prediction_agent.py with contributing factors analysis
+- [X] T099 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes)
+- [X] T100 [US2] Implement prediction accuracy tracking in backend/app/services/prediction_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T101 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id})
+- [X] T101 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id})
 
 ### MCP - Optimization Server (Predictions)
 
-- [ ] T102 [US2] Create Optimization MCP server in mcp-servers/optimization_server.py with FastMCP
-- [ ] T103 [P] [US2] Implement generate_predictions tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [X] T102 [US2] Create Optimization MCP server in mcp-servers/optimization_server.py with FastMCP
+- [X] T103 [P] [US2] Implement generate_predictions tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Frontend - Predictions View
 
-- [ ] T104 [US2] Create Predictions page in frontend/src/pages/Predictions.tsx with prediction list and filters
-- [ ] T105 [P] [US2] Create prediction card component in frontend/src/components/predictions/PredictionCard.tsx
-- [ ] T106 [P] [US2] Create prediction timeline component in frontend/src/components/predictions/PredictionTimeline.tsx
-- [ ] T107 [P] [US2] Create contributing factors visualization in frontend/src/components/predictions/FactorsChart.tsx
+- [X] T104 [US2] Create Predictions page in frontend/src/pages/Predictions.tsx with prediction list and filters
+- [X] T105 [P] [US2] Create prediction card component in frontend/src/components/predictions/PredictionCard.tsx
+- [X] T106 [P] [US2] Create prediction timeline component in frontend/src/components/predictions/PredictionTimeline.tsx
+- [X] T107 [P] [US2] Create contributing factors visualization in frontend/src/components/predictions/FactorsChart.tsx
+
+### Test Data Generation
+
+- [X] T107a [P] [US2] Create mock prediction data generator in backend/scripts/generate_mock_predictions.py
+- [X] T107b [P] [US2] Create test fixtures for prediction scenarios in backend/tests/fixtures/prediction_fixtures.py
+- [X] T107c [P] [US2] Create degrading metrics generator utility in backend/tests/utils/metrics_generator.py
 
 ### Integration & Validation
 
-- [ ] T108 [US2] Create integration test for prediction generation in tests/integration/test_prediction_generation.py
-- [ ] T109 [US2] Create end-to-end test for prediction workflow in tests/e2e/test_prediction_workflow.py
-- [ ] T110 [US2] Validate User Story 2 independently with simulated degrading conditions
+- [X] T108 [US2] Create integration test for prediction generation in tests/integration/test_prediction_generation.py
+- [X] T109 [US2] Create end-to-end test for prediction workflow in tests/e2e/test_prediction_workflow.py
+- [X] T110 [US2] Validate User Story 2 independently with simulated degrading conditions
 
 **Checkpoint**: User Story 2 complete - Predictions are generated and displayed independently
 

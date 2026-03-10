@@ -144,11 +144,12 @@ async def root():
 
 
 # API v1 routes
-from app.api.v1 import gateways, apis, metrics
+from app.api.v1 import gateways, apis, metrics, predictions
 
 app.include_router(gateways.router, prefix="/api/v1", tags=["Gateways"])
 app.include_router(apis.router, prefix="/api/v1", tags=["APIs"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
+app.include_router(predictions.router, prefix="/api/v1", tags=["Predictions"])
 
 
 if __name__ == "__main__":

@@ -162,6 +162,7 @@ export const api = {
     list: (params?: any) => api.get('/api/v1/predictions', params),
     get: (id: string) => api.get(`/api/v1/predictions/${id}`),
     create: (data: any) => api.post('/api/v1/predictions', data),
+    generate: (params?: any) => api.post('/api/v1/predictions/generate', params),
   },
 
   // Security endpoints

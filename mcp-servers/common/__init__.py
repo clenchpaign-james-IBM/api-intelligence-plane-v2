@@ -6,9 +6,9 @@ This package provides shared functionality for all MCP servers including:
 - Health check utilities
 """
 
-from mcp_servers.common.health import HealthChecker, create_health_tool, create_info_tool
-from mcp_servers.common.mcp_base import BaseMCPServer
-from mcp_servers.common.opensearch import MCPOpenSearchClient
+from common.health import HealthChecker, create_health_tool, create_info_tool
+from common.mcp_base import BaseMCPServer
+from common.opensearch import MCPOpenSearchClient
 
 __all__ = [
     "BaseMCPServer",

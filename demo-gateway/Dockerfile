@@ -23,8 +23,8 @@ WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 
 # Create non-root user
-RUN groupadd -g 1000 appuser && \
-    useradd -r -u 1000 -g appuser appuser && \
+RUN groupadd -g 1001 appuser && \
+    useradd -r -u 1001 -g appuser appuser && \
     chown -R appuser:appuser /app
 
 USER appuser

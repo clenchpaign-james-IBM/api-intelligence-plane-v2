@@ -3,6 +3,7 @@
 
 # MCP Framework
 mcp>=1.1.0,<2.0.0
+fastmcp>=3.0.0,<4.0.0
 
 # Database
 opensearch-py>=2.7.0,<3.0.0

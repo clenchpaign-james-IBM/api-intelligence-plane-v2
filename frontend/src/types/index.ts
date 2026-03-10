@@ -1,0 +1,301 @@
+/**
+ * TypeScript type definitions for API Intelligence Plane frontend.
+ * 
+ * These types match the backend data models and API responses.
+ */
+
+// API Entity
+export interface API {
+  id: string;
+  gateway_id: string;
+  name: string;
+  version?: string;
+  base_path: string;
+  endpoints: Endpoint[];
+  methods: string[];
+  authentication_type: AuthenticationType;
+  authentication_config?: Record<string, any>;
+  ownership?: Ownership;
+  tags?: string[];
+  is_shadow: boolean;
+  discovery_method: DiscoveryMethod;
+  discovered_at: string;
+  last_seen_at: string;
+  status: APIStatus;
+  health_score: number;
+  current_metrics: CurrentMetrics;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Endpoint {
+  path: string;
+  method: string;
+  description?: string;
+  parameters?: Parameter[];
+  response_codes?: number[];
+}
+
+export interface Parameter {
+  name: string;
+  type: 'path' | 'query' | 'header' | 'body';
+  data_type: string;
+  required: boolean;
+}
+
+export interface Ownership {
+  team?: string;
+  contact?: string;
+  repository?: string;
+}
+
+export interface CurrentMetrics {
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  error_rate: number;
+  throughput: number;
+  availability: number;
+  last_error?: string;
+  measured_at: string;
+}
+
+export type AuthenticationType = 'none' | 'basic' | 'bearer' | 'oauth2' | 'api_key' | 'custom';
+export type DiscoveryMethod = 'registered' | 'traffic_analysis' | 'log_analysis';
+export type APIStatus = 'active' | 'inactive' | 'deprecated' | 'failed';
+
+// Gateway Entity
+export interface Gateway {
+  id: string;
+  name: string;
+  vendor: GatewayVendor;
+  version?: string;
+  connection_url: string;
+  connection_type: ConnectionType;
+  credentials: GatewayCredentials;
+  capabilities: string[];
+  status: GatewayStatus;
+  last_connected_at?: string;
+  last_error?: string;
+  api_count: number;
+  metrics_enabled: boolean;
+  security_scanning_enabled: boolean;
+  rate_limiting_enabled: boolean;
+  configuration?: Record<string, any>;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GatewayCredentials {
+  type: string;
+  api_key?: string;
+  username?: string;
+  password?: string;
+  token?: string;
+  [key: string]: any;
+}
+
+export type GatewayVendor = 'native' | 'kong' | 'apigee' | 'aws' | 'azure' | 'custom';
+export type ConnectionType = 'rest_api' | 'grpc' | 'graphql';
+export type GatewayStatus = 'connected' | 'disconnected' | 'error' | 'maintenance';
+
+// Metric Entity
+export interface Metric {
+  id: string;
+  api_id: string;
+  gateway_id: string;
+  timestamp: string;
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  error_rate: number;
+  error_count: number;
+  request_count: number;
+  throughput: number;
+  availability: number;
+  status_codes: Record<string, number>;
+  endpoint_metrics?: EndpointMetric[];
+  metadata?: Record<string, any>;
+}
+
+export interface EndpointMetric {
+  endpoint: string;
+  method: string;
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  error_rate: number;
+  request_count: number;
+}
+
+// Prediction Entity
+export interface Prediction {
+  id: string;
+  api_id: string;
+  prediction_type: PredictionType;
+  predicted_at: string;
+  prediction_window_hours: number;
+  confidence_score: number;
+  predicted_value: number;
+  actual_value?: number;
+  is_accurate?: boolean;
+  factors: PredictionFactor[];
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface PredictionFactor {
+  name: string;
+  impact: number;
+  description: string;
+}
+
+export type PredictionType = 'failure' | 'performance_degradation' | 'traffic_spike' | 'resource_exhaustion';
+
+// Vulnerability Entity
+export interface Vulnerability {
+  id: string;
+  api_id: string;
+  severity: VulnerabilitySeverity;
+  category: VulnerabilityCategory;
+  title: string;
+  description: string;
+  cve_id?: string;
+  cvss_score?: number;
+  affected_endpoints: string[];
+  remediation: string;
+  status: VulnerabilityStatus;
+  detected_at: string;
+  resolved_at?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+export type VulnerabilityCategory = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'other';
+export type VulnerabilityStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive' | 'accepted_risk';
+
+// Recommendation Entity
+export interface Recommendation {
+  id: string;
+  api_id: string;
+  type: RecommendationType;
+  priority: RecommendationPriority;
+  title: string;
+  description: string;
+  rationale: string;
+  implementation_steps: string[];
+  estimated_impact: EstimatedImpact;
+  status: RecommendationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EstimatedImpact {
+  performance_improvement?: number;
+  cost_reduction?: number;
+  reliability_improvement?: number;
+}
+
+export type RecommendationType = 'caching' | 'rate_limiting' | 'load_balancing' | 'circuit_breaker' | 'retry_policy' | 'timeout_adjustment' | 'resource_scaling' | 'other';
+export type RecommendationPriority = 'critical' | 'high' | 'medium' | 'low';
+export type RecommendationStatus = 'pending' | 'in_progress' | 'implemented' | 'rejected';
+
+// Rate Limit Policy Entity
+export interface RateLimitPolicy {
+  id: string;
+  api_id: string;
+  name: string;
+  limit_type: RateLimitType;
+  requests_per_window: number;
+  window_seconds: number;
+  burst_size?: number;
+  scope: RateLimitScope;
+  identifier_key: string;
+  status: PolicyStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RateLimitType = 'fixed_window' | 'sliding_window' | 'token_bucket' | 'leaky_bucket';
+export type RateLimitScope = 'global' | 'per_user' | 'per_ip' | 'per_api_key';
+export type PolicyStatus = 'active' | 'inactive';
+
+// Query History Entity
+export interface QueryHistory {
+  id: string;
+  query_text: string;
+  query_type: QueryType;
+  results_count: number;
+  execution_time_ms: number;
+  status: QueryStatus;
+  error_message?: string;
+  created_at: string;
+}
+
+export type QueryType = 'discovery' | 'metrics' | 'security' | 'recommendations' | 'general';
+export type QueryStatus = 'success' | 'error' | 'timeout';
+
+// Dashboard Statistics
+export interface DashboardStats {
+  total_apis: number;
+  active_apis: number;
+  shadow_apis: number;
+  total_gateways: number;
+  active_gateways: number;
+  avg_health_score: number;
+  avg_response_time: number;
+  total_requests_24h: number;
+  error_rate_24h: number;
+  critical_vulnerabilities: number;
+  high_priority_recommendations: number;
+}
+
+// Generic Paginated Response
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  skip?: number;
+  limit?: number;
+}
+
+// API List Response
+export interface APIListResponse {
+  items: API[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+// Gateway List Response
+export interface GatewayListResponse {
+  items: Gateway[];
+  total: number;
+}
+
+// Metrics Time Series Response
+export interface MetricsTimeSeriesResponse {
+  api_id: string;
+  start: string;
+  end: string;
+  interval_minutes: number;
+  data_points: number;
+  metrics: TimeSeriesDataPoint[];
+}
+
+export interface TimeSeriesDataPoint {
+  timestamp: string;
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  error_rate: number;
+  throughput: number;
+  availability: number;
+  sample_count?: number;
+}
+
+// Made with Bob

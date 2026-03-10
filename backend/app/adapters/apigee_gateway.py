@@ -7,9 +7,9 @@ This will be fully implemented in a future phase.
 import logging
 from typing import Any, Optional
 
-from backend.app.adapters.base import BaseGatewayAdapter
-from backend.app.models.api import API
-from backend.app.models.metric import Metric
+from app.adapters.base import BaseGatewayAdapter
+from app.models.api import API
+from app.models.metric import Metric
 
 logger = logging.getLogger(__name__)
 

@@ -126,60 +126,68 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Discovery Service
 
-- [ ] T054 [P] [US1] Create API repository in backend/app/db/repositories/api_repository.py with CRUD and search operations
-- [ ] T055 [P] [US1] Create Gateway repository in backend/app/db/repositories/gateway_repository.py with CRUD operations
-- [ ] T056 [P] [US1] Create Metrics repository in backend/app/db/repositories/metrics_repository.py with time-series operations
-- [ ] T057 [US1] Implement Discovery Service in backend/app/services/discovery_service.py with API discovery logic
-- [ ] T058 [US1] Implement Metrics Service in backend/app/services/metrics_service.py with metrics collection and aggregation
-- [ ] T059 [US1] Create discovery scheduler job in backend/app/scheduler/discovery_jobs.py (runs every 5 minutes)
-- [ ] T060 [US1] Create metrics collection scheduler job in backend/app/scheduler/metrics_jobs.py (runs every 1 minute)
+- [X] T054 [P] [US1] Create API repository in backend/app/db/repositories/api_repository.py with CRUD and search operations
+- [X] T055 [P] [US1] Create Gateway repository in backend/app/db/repositories/gateway_repository.py with CRUD operations
+- [X] T056 [P] [US1] Create Metrics repository in backend/app/db/repositories/metrics_repository.py with time-series operations
+- [X] T057 [US1] Implement Discovery Service in backend/app/services/discovery_service.py with API discovery logic
+- [X] T058 [US1] Implement Metrics Service in backend/app/services/metrics_service.py with metrics collection and aggregation
+- [X] T059 [US1] Create discovery scheduler job in backend/app/scheduler/discovery_jobs.py (runs every 5 minutes)
+- [X] T060 [US1] Create metrics collection scheduler job in backend/app/scheduler/metrics_jobs.py (runs every 1 minute)
 
 ### Backend - REST API Endpoints
 
-- [ ] T061 [P] [US1] Implement Gateway endpoints in backend/app/api/v1/gateways.py per backend-api.yaml (POST, GET, PUT, DELETE /gateways)
-- [ ] T062 [P] [US1] Implement API endpoints in backend/app/api/v1/apis.py per backend-api.yaml (GET /apis, GET /apis/{id})
-- [ ] T063 [P] [US1] Implement Metrics endpoints in backend/app/api/v1/metrics.py per backend-api.yaml (GET /apis/{id}/metrics)
+- [X] T061 [P] [US1] Implement Gateway endpoints in backend/app/api/v1/gateways.py per backend-api.yaml (POST, GET, PUT, DELETE /gateways)
+- [X] T062 [P] [US1] Implement API endpoints in backend/app/api/v1/apis.py per backend-api.yaml (GET /apis, GET /apis/{id})
+- [X] T063 [P] [US1] Implement Metrics endpoints in backend/app/api/v1/metrics.py per backend-api.yaml (GET /apis/{id}/metrics)
 
 ### MCP - Discovery Server
 
-- [ ] T064 [US1] Create Discovery MCP server in mcp-servers/discovery_server.py with FastMCP
-- [ ] T065 [P] [US1] Implement discover_apis tool in mcp-servers/discovery_server.py per mcp-tools.md
-- [ ] T066 [P] [US1] Implement get_api_inventory tool in mcp-servers/discovery_server.py per mcp-tools.md
-- [ ] T067 [P] [US1] Implement search_apis tool in mcp-servers/discovery_server.py per mcp-tools.md
+- [X] T064 [US1] Create Discovery MCP server in mcp-servers/discovery_server.py with FastMCP
+- [X] T065 [P] [US1] Implement discover_apis tool in mcp-servers/discovery_server.py per mcp-tools.md
+- [X] T066 [P] [US1] Implement get_api_inventory tool in mcp-servers/discovery_server.py per mcp-tools.md
+- [X] T067 [P] [US1] Implement search_apis tool in mcp-servers/discovery_server.py per mcp-tools.md
 
 ### MCP - Metrics Server
 
-- [ ] T068 [US1] Create Metrics MCP server in mcp-servers/metrics_server.py with FastMCP
-- [ ] T069 [P] [US1] Implement collect_metrics tool in mcp-servers/metrics_server.py per mcp-tools.md
-- [ ] T070 [P] [US1] Implement get_metrics_timeseries tool in mcp-servers/metrics_server.py per mcp-tools.md
-- [ ] T071 [P] [US1] Implement analyze_trends tool in mcp-servers/metrics_server.py per mcp-tools.md
+- [X] T068 [US1] Create Metrics MCP server in mcp-servers/metrics_server.py with FastMCP
+- [X] T069 [P] [US1] Implement collect_metrics tool in mcp-servers/metrics_server.py per mcp-tools.md
+- [X] T070 [P] [US1] Implement get_metrics_timeseries tool in mcp-servers/metrics_server.py per mcp-tools.md
+- [X] T071 [P] [US1] Implement analyze_trends tool in mcp-servers/metrics_server.py per mcp-tools.md
 
 ### Demo Gateway - API Management
 
-- [ ] T072 [US1] Implement Gateway info endpoint in demo-gateway/src/main/java/com/example/gateway/controller/GatewayController.java (GET /gateway/info, GET /gateway/capabilities)
-- [ ] T073 [US1] Implement API management endpoints in demo-gateway/src/main/java/com/example/gateway/controller/APIController.java (POST, GET, PUT, DELETE /apis)
-- [ ] T074 [US1] Implement API service layer in demo-gateway/src/main/java/com/example/gateway/service/APIService.java
-- [ ] T075 [US1] Implement metrics collection in demo-gateway/src/main/java/com/example/gateway/service/MetricsService.java
-- [ ] T076 [US1] Implement metrics export endpoint in demo-gateway/src/main/java/com/example/gateway/controller/MetricsController.java (GET /metrics/apis, GET /metrics/apis/{id})
+- [X] T072 [US1] Implement Gateway info endpoint in demo-gateway/src/main/java/com/example/gateway/controller/GatewayController.java (GET /gateway/info, GET /gateway/capabilities)
+- [X] T073 [US1] Implement API management endpoints in demo-gateway/src/main/java/com/example/gateway/controller/APIController.java (POST, GET, PUT, DELETE /apis)
+- [X] T074 [US1] Implement API service layer in demo-gateway/src/main/java/com/example/gateway/service/APIService.java
+- [X] T075 [US1] Implement metrics collection in demo-gateway/src/main/java/com/example/gateway/service/MetricsService.java
+- [X] T076 [US1] Implement metrics export endpoint in demo-gateway/src/main/java/com/example/gateway/controller/MetricsController.java (GET /metrics/apis, GET /metrics/apis/{id})
 
 ### Frontend - Dashboard & API Views
 
-- [ ] T077 [US1] Create Dashboard page in frontend/src/pages/Dashboard.tsx with overview widgets
-- [ ] T078 [US1] Create APIs page in frontend/src/pages/APIs.tsx with API list and filters
-- [ ] T079 [US1] Create Gateways page in frontend/src/pages/Gateways.tsx with gateway management
-- [ ] T080 [P] [US1] Create API list component in frontend/src/components/apis/APIList.tsx
-- [ ] T081 [P] [US1] Create API detail component in frontend/src/components/apis/APIDetail.tsx
-- [ ] T082 [P] [US1] Create health metrics chart component in frontend/src/components/metrics/HealthChart.tsx using Recharts
-- [ ] T083 [P] [US1] Create Gateway service client in frontend/src/services/gateway.ts
-- [ ] T084 [P] [US1] Create Metrics service client in frontend/src/services/metrics.ts
-- [ ] T085 [US1] Implement real-time metrics updates using WebSocket or SSE in frontend/src/hooks/useRealtimeMetrics.ts
+- [X] T077 [US1] Create Dashboard page in frontend/src/pages/Dashboard.tsx with overview widgets
+- [X] T078 [US1] Create APIs page in frontend/src/pages/APIs.tsx with API list and filters
+- [X] T079 [US1] Create Gateways page in frontend/src/pages/Gateways.tsx with gateway management
+- [X] T080 [P] [US1] Create API list component in frontend/src/components/apis/APIList.tsx
+- [X] T081 [P] [US1] Create API detail component in frontend/src/components/apis/APIDetail.tsx
+- [X] T082 [P] [US1] Create health metrics chart component in frontend/src/components/metrics/HealthChart.tsx using Recharts
+- [X] T083 [P] [US1] Create Gateway service client in frontend/src/services/gateway.ts
+- [X] T084 [P] [US1] Create Metrics service client in frontend/src/services/metrics.ts
+- [X] T085 [US1] Implement real-time metrics updates using WebSocket or SSE in frontend/src/hooks/useRealtimeMetrics.ts
+
+### Frontend - Gateway Management UI
+
+- [X] T086 [P] [US1] Create AddGatewayForm component in frontend/src/components/gateways/AddGatewayForm.tsx with form validation
+- [X] T087 [P] [US1] Add "Add Gateway" button to Dashboard page in frontend/src/pages/Dashboard.tsx
+- [X] T088 [P] [US1] Add "Add Gateway" button to Gateways page in frontend/src/pages/Gateways.tsx
+- [X] T089 [US1] Implement gateway sync endpoint in backend/app/api/v1/gateways.py (POST /gateways/{id}/sync)
+- [X] T090 [US1] Add gateway sync button handlers in frontend/src/pages/Gateways.tsx
 
 ### Integration & Validation
 
-- [ ] T086 [US1] Create integration test for discovery flow in tests/integration/test_discovery_flow.py
-- [ ] T087 [US1] Create integration test for metrics collection in tests/integration/test_metrics_collection.py
-- [ ] T088 [US1] Create traffic generator script in backend/scripts/generate_traffic.py for testing
-- [ ] T089 [US1] Validate User Story 1 using quickstart.md steps 1-4
+- [X] T091 [US1] Create integration test for discovery flow in tests/integration/test_discovery_flow.py
+- [X] T092 [US1] Create integration test for metrics collection in tests/integration/test_metrics_collection.py
+- [X] T093 [US1] Create traffic generator script in backend/scripts/generate_traffic.py for testing
+- [X] T094 [US1] Validate User Story 1 using quickstart.md steps 1-4
 
 **Checkpoint**: User Story 1 complete - APIs can be discovered and monitored independently
 
@@ -193,34 +201,34 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Prediction Service
 
-- [ ] T090 [P] [US2] Create Prediction repository in backend/app/db/repositories/prediction_repository.py with CRUD and query operations
-- [ ] T091 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with ML-based prediction logic
-- [ ] T092 [US2] Create Prediction Agent in backend/app/agents/prediction_agent.py using LangChain/LangGraph
-- [ ] T093 [US2] Implement prediction generation workflow in backend/app/agents/prediction_agent.py with contributing factors analysis
-- [ ] T094 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes)
-- [ ] T095 [US2] Implement prediction accuracy tracking in backend/app/services/prediction_service.py
+- [ ] T095 [P] [US2] Create Prediction repository in backend/app/db/repositories/prediction_repository.py with CRUD and query operations
+- [ ] T096 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with ML-based prediction logic
+- [ ] T097 [US2] Create Prediction Agent in backend/app/agents/prediction_agent.py using LangChain/LangGraph
+- [ ] T098 [US2] Implement prediction generation workflow in backend/app/agents/prediction_agent.py with contributing factors analysis
+- [ ] T099 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes)
+- [ ] T100 [US2] Implement prediction accuracy tracking in backend/app/services/prediction_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T096 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id})
+- [ ] T101 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id})
 
 ### MCP - Optimization Server (Predictions)
 
-- [ ] T097 [US2] Create Optimization MCP server in mcp-servers/optimization_server.py with FastMCP
-- [ ] T098 [P] [US2] Implement generate_predictions tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [ ] T102 [US2] Create Optimization MCP server in mcp-servers/optimization_server.py with FastMCP
+- [ ] T103 [P] [US2] Implement generate_predictions tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Frontend - Predictions View
 
-- [ ] T099 [US2] Create Predictions page in frontend/src/pages/Predictions.tsx with prediction list and filters
-- [ ] T100 [P] [US2] Create prediction card component in frontend/src/components/predictions/PredictionCard.tsx
-- [ ] T101 [P] [US2] Create prediction timeline component in frontend/src/components/predictions/PredictionTimeline.tsx
-- [ ] T102 [P] [US2] Create contributing factors visualization in frontend/src/components/predictions/FactorsChart.tsx
+- [ ] T104 [US2] Create Predictions page in frontend/src/pages/Predictions.tsx with prediction list and filters
+- [ ] T105 [P] [US2] Create prediction card component in frontend/src/components/predictions/PredictionCard.tsx
+- [ ] T106 [P] [US2] Create prediction timeline component in frontend/src/components/predictions/PredictionTimeline.tsx
+- [ ] T107 [P] [US2] Create contributing factors visualization in frontend/src/components/predictions/FactorsChart.tsx
 
 ### Integration & Validation
 
-- [ ] T103 [US2] Create integration test for prediction generation in tests/integration/test_prediction_generation.py
-- [ ] T104 [US2] Create end-to-end test for prediction workflow in tests/e2e/test_prediction_workflow.py
-- [ ] T105 [US2] Validate User Story 2 independently with simulated degrading conditions
+- [ ] T108 [US2] Create integration test for prediction generation in tests/integration/test_prediction_generation.py
+- [ ] T109 [US2] Create end-to-end test for prediction workflow in tests/e2e/test_prediction_workflow.py
+- [ ] T110 [US2] Validate User Story 2 independently with simulated degrading conditions
 
 **Checkpoint**: User Story 2 complete - Predictions are generated and displayed independently
 
@@ -234,36 +242,36 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Security Service
 
-- [ ] T106 [P] [US3] Create Vulnerability repository in backend/app/db/repositories/vulnerability_repository.py with CRUD and query operations
-- [ ] T107 [US3] Implement Security Service in backend/app/services/security_service.py with vulnerability scanning logic
-- [ ] T108 [US3] Create Security Agent in backend/app/agents/security_agent.py using LangChain/LangGraph
-- [ ] T109 [US3] Implement automated remediation workflow in backend/app/agents/security_agent.py
-- [ ] T110 [US3] Create security scanning scheduler job in backend/app/scheduler/security_jobs.py (runs every 1 hour)
-- [ ] T111 [US3] Implement remediation verification in backend/app/services/security_service.py
+- [ ] T111 [P] [US3] Create Vulnerability repository in backend/app/db/repositories/vulnerability_repository.py with CRUD and query operations
+- [ ] T112 [US3] Implement Security Service in backend/app/services/security_service.py with vulnerability scanning logic
+- [ ] T113 [US3] Create Security Agent in backend/app/agents/security_agent.py using LangChain/LangGraph
+- [ ] T114 [US3] Implement automated remediation workflow in backend/app/agents/security_agent.py
+- [ ] T115 [US3] Create security scanning scheduler job in backend/app/scheduler/security_jobs.py (runs every 1 hour)
+- [ ] T116 [US3] Implement remediation verification in backend/app/services/security_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T112 [P] [US3] Implement Security endpoints in backend/app/api/v1/security.py per backend-api.yaml (GET /vulnerabilities, POST /vulnerabilities/{id}/remediate)
+- [ ] T117 [P] [US3] Implement Security endpoints in backend/app/api/v1/security.py per backend-api.yaml (GET /vulnerabilities, POST /vulnerabilities/{id}/remediate)
 
 ### MCP - Security Server
 
-- [ ] T113 [US3] Create Security MCP server in mcp-servers/security_server.py with FastMCP
-- [ ] T114 [P] [US3] Implement scan_api_security tool in mcp-servers/security_server.py per mcp-tools.md
-- [ ] T115 [P] [US3] Implement remediate_vulnerability tool in mcp-servers/security_server.py per mcp-tools.md
-- [ ] T116 [P] [US3] Implement get_security_posture tool in mcp-servers/security_server.py per mcp-tools.md
+- [ ] T118 [US3] Create Security MCP server in mcp-servers/security_server.py with FastMCP
+- [ ] T119 [P] [US3] Implement scan_api_security tool in mcp-servers/security_server.py per mcp-tools.md
+- [ ] T120 [P] [US3] Implement remediate_vulnerability tool in mcp-servers/security_server.py per mcp-tools.md
+- [ ] T121 [P] [US3] Implement get_security_posture tool in mcp-servers/security_server.py per mcp-tools.md
 
 ### Frontend - Security View
 
-- [ ] T117 [US3] Create Security page in frontend/src/pages/Security.tsx with vulnerability list and security posture
-- [ ] T118 [P] [US3] Create vulnerability card component in frontend/src/components/security/VulnerabilityCard.tsx
-- [ ] T119 [P] [US3] Create security posture dashboard in frontend/src/components/security/SecurityDashboard.tsx
-- [ ] T120 [P] [US3] Create remediation status tracker in frontend/src/components/security/RemediationTracker.tsx
+- [ ] T122 [US3] Create Security page in frontend/src/pages/Security.tsx with vulnerability list and security posture
+- [ ] T123 [P] [US3] Create vulnerability card component in frontend/src/components/security/VulnerabilityCard.tsx
+- [ ] T124 [P] [US3] Create security posture dashboard in frontend/src/components/security/SecurityDashboard.tsx
+- [ ] T125 [P] [US3] Create remediation status tracker in frontend/src/components/security/RemediationTracker.tsx
 
 ### Integration & Validation
 
-- [ ] T121 [US3] Create integration test for security scanning in tests/integration/test_security_scanning.py
-- [ ] T122 [US3] Create end-to-end test for remediation workflow in tests/e2e/test_remediation_workflow.py
-- [ ] T123 [US3] Validate User Story 3 independently with known vulnerabilities
+- [ ] T126 [US3] Create integration test for security scanning in tests/integration/test_security_scanning.py
+- [ ] T127 [US3] Create end-to-end test for remediation workflow in tests/e2e/test_remediation_workflow.py
+- [ ] T128 [US3] Validate User Story 3 independently with known vulnerabilities
 
 **Checkpoint**: User Story 3 complete - Security scanning and remediation work independently
 
@@ -277,32 +285,32 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Optimization Service
 
-- [ ] T124 [P] [US4] Create OptimizationRecommendation repository in backend/app/db/repositories/recommendation_repository.py
-- [ ] T125 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with recommendation generation
-- [ ] T126 [US4] Create Optimization Agent in backend/app/agents/optimization_agent.py using LangChain/LangGraph
-- [ ] T127 [US4] Implement optimization analysis workflow in backend/app/agents/optimization_agent.py
-- [ ] T128 [US4] Create optimization scheduler job in backend/app/scheduler/optimization_jobs.py (runs every 30 minutes)
-- [ ] T129 [US4] Implement recommendation validation and impact tracking in backend/app/services/optimization_service.py
+- [ ] T129 [P] [US4] Create OptimizationRecommendation repository in backend/app/db/repositories/recommendation_repository.py
+- [ ] T130 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with recommendation generation
+- [ ] T131 [US4] Create Optimization Agent in backend/app/agents/optimization_agent.py using LangChain/LangGraph
+- [ ] T132 [US4] Implement optimization analysis workflow in backend/app/agents/optimization_agent.py
+- [ ] T133 [US4] Create optimization scheduler job in backend/app/scheduler/optimization_jobs.py (runs every 30 minutes)
+- [ ] T134 [US4] Implement recommendation validation and impact tracking in backend/app/services/optimization_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T130 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
+- [ ] T135 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
 
 ### MCP - Optimization Server (Recommendations)
 
-- [ ] T131 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [ ] T136 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Frontend - Optimization View
 
-- [ ] T132 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with recommendations list
-- [ ] T133 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
-- [ ] T134 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
-- [ ] T135 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
+- [ ] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with recommendations list
+- [ ] T138 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
+- [ ] T139 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
+- [ ] T140 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
 
 ### Integration & Validation
 
-- [ ] T136 [US4] Create integration test for optimization recommendations in tests/integration/test_optimization.py
-- [ ] T137 [US4] Validate User Story 4 independently with various load patterns
+- [ ] T141 [US4] Create integration test for optimization recommendations in tests/integration/test_optimization.py
+- [ ] T142 [US4] Validate User Story 4 independently with various load patterns
 
 **Checkpoint**: User Story 4 complete - Optimization recommendations work independently
 
@@ -316,35 +324,35 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Rate Limiting Service
 
-- [ ] T138 [P] [US5] Create RateLimitPolicy repository in backend/app/db/repositories/rate_limit_repository.py
-- [ ] T139 [US5] Implement Rate Limiting Service in backend/app/services/rate_limit_service.py with adaptive logic
-- [ ] T140 [US5] Implement rate limit policy management in backend/app/services/rate_limit_service.py
-- [ ] T141 [US5] Create rate limit effectiveness tracking in backend/app/services/rate_limit_service.py
+- [ ] T143 [P] [US5] Create RateLimitPolicy repository in backend/app/db/repositories/rate_limit_repository.py
+- [ ] T144 [US5] Implement Rate Limiting Service in backend/app/services/rate_limit_service.py with adaptive logic
+- [ ] T145 [US5] Implement rate limit policy management in backend/app/services/rate_limit_service.py
+- [ ] T146 [US5] Create rate limit effectiveness tracking in backend/app/services/rate_limit_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T142 [P] [US5] Implement Rate Limiting endpoints in backend/app/api/v1/rate_limits.py per backend-api.yaml (GET /rate-limits, POST /rate-limits)
+- [ ] T147 [P] [US5] Implement Rate Limiting endpoints in backend/app/api/v1/rate_limits.py per backend-api.yaml (GET /rate-limits, POST /rate-limits)
 
 ### MCP - Optimization Server (Rate Limiting)
 
-- [ ] T143 [P] [US5] Implement manage_rate_limit tool in mcp-servers/optimization_server.py per mcp-tools.md
-- [ ] T144 [P] [US5] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [ ] T148 [P] [US5] Implement manage_rate_limit tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [ ] T149 [P] [US5] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Demo Gateway - Rate Limiting
 
-- [ ] T145 [US5] Implement rate limiting policy engine in demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java
-- [ ] T146 [US5] Integrate rate limiting with API routing in demo-gateway/src/main/java/com/example/gateway/service/RoutingService.java
+- [ ] T150 [US5] Implement rate limiting policy engine in demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java
+- [ ] T151 [US5] Integrate rate limiting with API routing in demo-gateway/src/main/java/com/example/gateway/service/RoutingService.java
 
 ### Frontend - Rate Limiting View
 
-- [ ] T147 [US5] Add rate limiting section to Optimization page in frontend/src/pages/Optimization.tsx
-- [ ] T148 [P] [US5] Create rate limit policy component in frontend/src/components/optimization/RateLimitPolicy.tsx
-- [ ] T149 [P] [US5] Create rate limit effectiveness chart in frontend/src/components/optimization/RateLimitChart.tsx
+- [ ] T152 [US5] Add rate limiting section to Optimization page in frontend/src/pages/Optimization.tsx
+- [ ] T153 [P] [US5] Create rate limit policy component in frontend/src/components/optimization/RateLimitPolicy.tsx
+- [ ] T154 [P] [US5] Create rate limit effectiveness chart in frontend/src/components/optimization/RateLimitChart.tsx
 
 ### Integration & Validation
 
-- [ ] T150 [US5] Create integration test for rate limiting in tests/integration/test_rate_limiting.py
-- [ ] T151 [US5] Validate User Story 5 independently with traffic simulation
+- [ ] T155 [US5] Create integration test for rate limiting in tests/integration/test_rate_limiting.py
+- [ ] T156 [US5] Validate User Story 5 independently with traffic simulation
 
 **Checkpoint**: User Story 5 complete - Rate limiting works independently
 
@@ -358,30 +366,30 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Query Service
 
-- [ ] T152 [P] [US6] Create Query repository in backend/app/db/repositories/query_repository.py
-- [ ] T153 [US6] Implement Query Service in backend/app/services/query_service.py with NLP processing
-- [ ] T154 [US6] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
-- [ ] T155 [US6] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
-- [ ] T156 [US6] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
-- [ ] T157 [US6] Implement response generation with LLM in backend/app/services/query_service.py
+- [ ] T157 [P] [US6] Create Query repository in backend/app/db/repositories/query_repository.py
+- [ ] T158 [US6] Implement Query Service in backend/app/services/query_service.py with NLP processing
+- [ ] T159 [US6] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
+- [ ] T160 [US6] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
+- [ ] T161 [US6] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
+- [ ] T162 [US6] Implement response generation with LLM in backend/app/services/query_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T158 [P] [US6] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
+- [ ] T163 [P] [US6] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
 
 ### Frontend - Query Interface
 
-- [ ] T159 [US6] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
-- [ ] T160 [P] [US6] Create query input component in frontend/src/components/query/QueryInput.tsx
-- [ ] T161 [P] [US6] Create query response component in frontend/src/components/query/QueryResponse.tsx
-- [ ] T162 [P] [US6] Create query history component in frontend/src/components/query/QueryHistory.tsx
-- [ ] T163 [P] [US6] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
+- [ ] T164 [US6] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
+- [ ] T165 [P] [US6] Create query input component in frontend/src/components/query/QueryInput.tsx
+- [ ] T166 [P] [US6] Create query response component in frontend/src/components/query/QueryResponse.tsx
+- [ ] T167 [P] [US6] Create query history component in frontend/src/components/query/QueryHistory.tsx
+- [ ] T168 [P] [US6] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
 
 ### Integration & Validation
 
-- [ ] T164 [US6] Create integration test for query processing in tests/integration/test_query_processing.py
-- [ ] T165 [US6] Create end-to-end test for complete query workflow in tests/e2e/test_complete_workflow.py
-- [ ] T166 [US6] Validate User Story 6 independently with various query types
+- [ ] T169 [US6] Create integration test for query processing in tests/integration/test_query_processing.py
+- [ ] T170 [US6] Create end-to-end test for complete query workflow in tests/e2e/test_complete_workflow.py
+- [ ] T171 [US6] Validate User Story 6 independently with various query types
 
 **Checkpoint**: All user stories complete - Full system functional
 
@@ -393,50 +401,50 @@ This is a distributed web application with microservices architecture:
 
 ### Documentation
 
-- [ ] T167 [P] Create architecture documentation in docs/architecture.md
-- [ ] T168 [P] Create API reference documentation in docs/api-reference.md
-- [ ] T169 [P] Create deployment guide in docs/deployment.md
-- [ ] T170 [P] Create contributing guidelines in docs/contributing.md
-- [ ] T171 [P] Update README.md with comprehensive project information
+- [ ] T172 [P] Create architecture documentation in docs/architecture.md
+- [ ] T173 [P] Create API reference documentation in docs/api-reference.md
+- [ ] T174 [P] Create deployment guide in docs/deployment.md
+- [ ] T175 [P] Create contributing guidelines in docs/contributing.md
+- [ ] T176 [P] Update README.md with comprehensive project information
 
 ### Security & Compliance
 
-- [ ] T172 [P] Implement TLS 1.3 configuration for all services
-- [ ] T173 [P] Configure FIPS 140-3 compliant cryptography in backend/app/utils/crypto.py
-- [ ] T174 [P] Setup encryption at rest for OpenSearch
-- [ ] T175 [P] Implement audit logging for all operations in backend/app/middleware/audit.py
+- [ ] T177 [P] Implement TLS 1.3 configuration for all services
+- [ ] T178 [P] Configure FIPS 140-3 compliant cryptography in backend/app/utils/crypto.py
+- [ ] T179 [P] Setup encryption at rest for OpenSearch
+- [ ] T180 [P] Implement audit logging for all operations in backend/app/middleware/audit.py
 
 ### Monitoring & Observability
 
-- [ ] T176 [P] Setup Prometheus exporters for all services
-- [ ] T177 [P] Create Grafana dashboards in k8s/monitoring/dashboards/
-- [ ] T178 [P] Implement OpenTelemetry tracing in backend/app/middleware/tracing.py
-- [ ] T179 [P] Configure log aggregation to OpenSearch
+- [ ] T181 [P] Setup Prometheus exporters for all services
+- [ ] T182 [P] Create Grafana dashboards in k8s/monitoring/dashboards/
+- [ ] T183 [P] Implement OpenTelemetry tracing in backend/app/middleware/tracing.py
+- [ ] T184 [P] Configure log aggregation to OpenSearch
 
 ### Deployment
 
-- [ ] T180 [P] Create Kubernetes namespace manifest in k8s/namespace.yaml
-- [ ] T181 [P] Create OpenSearch Kubernetes manifests in k8s/opensearch/
-- [ ] T182 [P] Create Backend Kubernetes manifests in k8s/backend/
-- [ ] T183 [P] Create Frontend Kubernetes manifests in k8s/frontend/
-- [ ] T184 [P] Create MCP servers Kubernetes manifests in k8s/mcp-servers/
-- [ ] T185 [P] Create Demo Gateway Kubernetes manifests in k8s/demo-gateway/
-- [ ] T186 [P] Create production Docker Compose file in docker-compose.prod.yml
+- [ ] T185 [P] Create Kubernetes namespace manifest in k8s/namespace.yaml
+- [ ] T186 [P] Create OpenSearch Kubernetes manifests in k8s/opensearch/
+- [ ] T187 [P] Create Backend Kubernetes manifests in k8s/backend/
+- [ ] T188 [P] Create Frontend Kubernetes manifests in k8s/frontend/
+- [ ] T189 [P] Create MCP servers Kubernetes manifests in k8s/mcp-servers/
+- [ ] T190 [P] Create Demo Gateway Kubernetes manifests in k8s/demo-gateway/
+- [ ] T191 [P] Create production Docker Compose file in docker-compose.prod.yml
 
 ### Testing & Validation
 
-- [ ] T187 [P] Create integration test for Gateway integration in tests/integration/test_gateway_integration.py
-- [ ] T188 [P] Create end-to-end test fixtures in tests/e2e/fixtures/
-- [ ] T189 [P] Run complete quickstart.md validation
-- [ ] T190 [P] Perform load testing with 1000+ APIs
-- [ ] T191 [P] Validate 90-day data retention policy
+- [ ] T192 [P] Create integration test for Gateway integration in tests/integration/test_gateway_integration.py
+- [ ] T193 [P] Create end-to-end test fixtures in tests/e2e/fixtures/
+- [ ] T194 [P] Run complete quickstart.md validation
+- [ ] T195 [P] Perform load testing with 1000+ APIs
+- [ ] T196 [P] Validate 90-day data retention policy
 
 ### Code Quality
 
-- [ ] T192 [P] Code cleanup and refactoring across all components
-- [ ] T193 [P] Performance optimization for query latency (<5s target)
-- [ ] T194 [P] Security hardening review
-- [ ] T195 [P] Update AGENTS.md with final technology stack
+- [ ] T197 [P] Code cleanup and refactoring across all components
+- [ ] T198 [P] Performance optimization for query latency (<5s target)
+- [ ] T199 [P] Security hardening review
+- [ ] T200 [P] Update AGENTS.md with final technology stack
 
 ---
 

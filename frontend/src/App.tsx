@@ -1,18 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
-// Page imports (will be created in user story implementation)
-// import Dashboard from './pages/Dashboard';
-// import APIs from './pages/APIs';
-// import Metrics from './pages/Metrics';
-// import Predictions from './pages/Predictions';
-// import Security from './pages/Security';
-// import Query from './pages/Query';
+// Page imports
+import Dashboard from './pages/Dashboard';
+import APIs from './pages/APIs';
+import Gateways from './pages/Gateways';
 
-// Placeholder components for routes
-const Dashboard = () => <div className="p-6"><h1 className="text-2xl font-bold">Dashboard</h1></div>;
-const APIs = () => <div className="p-6"><h1 className="text-2xl font-bold">APIs</h1></div>;
+// Placeholder components for routes (will be implemented in user stories)
 const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
 const Predictions = () => <div className="p-6"><h1 className="text-2xl font-bold">Predictions</h1></div>;
 const Security = () => <div className="p-6"><h1 className="text-2xl font-bold">Security</h1></div>;
@@ -58,42 +53,48 @@ function App() {
                     </h1>
                   </div>
                   <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    <a
-                      href="/"
+                    <Link
+                      to="/"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Dashboard
-                    </a>
-                    <a
-                      href="/apis"
+                    </Link>
+                    <Link
+                      to="/apis"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       APIs
-                    </a>
-                    <a
-                      href="/metrics"
+                    </Link>
+                    <Link
+                      to="/gateways"
+                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                    >
+                      Gateways
+                    </Link>
+                    <Link
+                      to="/metrics"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Metrics
-                    </a>
-                    <a
-                      href="/predictions"
+                    </Link>
+                    <Link
+                      to="/predictions"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Predictions
-                    </a>
-                    <a
-                      href="/security"
+                    </Link>
+                    <Link
+                      to="/security"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Security
-                    </a>
-                    <a
-                      href="/query"
+                    </Link>
+                    <Link
+                      to="/query"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Query
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -105,6 +106,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/apis" element={<APIs />} />
+              <Route path="/gateways" element={<Gateways />} />
               <Route path="/metrics" element={<Metrics />} />
               <Route path="/predictions" element={<Predictions />} />
               <Route path="/security" element={<Security />} />

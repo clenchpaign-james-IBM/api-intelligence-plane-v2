@@ -4,7 +4,7 @@ This package contains all Pydantic models representing the core entities
 of the API Intelligence Plane system.
 """
 
-from backend.app.models.api import (
+from app.models.api import (
     API,
     APIStatus,
     AuthenticationType,
@@ -14,15 +14,15 @@ from backend.app.models.api import (
     EndpointParameter,
     OwnershipInfo,
 )
-from backend.app.models.gateway import (
+from app.models.gateway import (
     ConnectionType,
     Gateway,
     GatewayCredentials,
     GatewayStatus,
     GatewayVendor,
 )
-from backend.app.models.metric import EndpointMetric, Metric
-from backend.app.models.prediction import (
+from app.models.metric import EndpointMetric, Metric
+from app.models.prediction import (
     ActualOutcome,
     ContributingFactor,
     Prediction,
@@ -30,7 +30,7 @@ from backend.app.models.prediction import (
     PredictionStatus,
     PredictionType,
 )
-from backend.app.models.query import (
+from app.models.query import (
     InterpretedIntent,
     Query,
     QueryResults,
@@ -38,7 +38,7 @@ from backend.app.models.query import (
     TimeRange,
     UserFeedback,
 )
-from backend.app.models.rate_limit import (
+from app.models.rate_limit import (
     AdaptationParameters,
     ConsumerTier,
     EnforcementAction,
@@ -48,7 +48,7 @@ from backend.app.models.rate_limit import (
     PriorityRule,
     RateLimitPolicy,
 )
-from backend.app.models.recommendation import (
+from app.models.recommendation import (
     ActualImpact,
     EstimatedImpact,
     ImplementationEffort,
@@ -58,7 +58,7 @@ from backend.app.models.recommendation import (
     RecommendationType,
     ValidationResults,
 )
-from backend.app.models.vulnerability import (
+from app.models.vulnerability import (
     DetectionMethod,
     RemediationAction,
     RemediationType,

@@ -7,9 +7,9 @@ based on vendor type.
 import logging
 from typing import Type
 
-from backend.app.adapters.base import BaseGatewayAdapter
-from backend.app.adapters.native_gateway import NativeGatewayAdapter
-from backend.app.models.gateway import Gateway, GatewayVendor
+from app.adapters.base import BaseGatewayAdapter
+from app.adapters.native_gateway import NativeGatewayAdapter
+from app.models.gateway import Gateway, GatewayVendor
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,9 @@ following the Strategy pattern for multi-vendor Gateway support.
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from backend.app.models.api import API
-from backend.app.models.gateway import Gateway
-from backend.app.models.metric import Metric
+from app.models.api import API
+from app.models.gateway import Gateway
+from app.models.metric import Metric
 
 
 class BaseGatewayAdapter(ABC):

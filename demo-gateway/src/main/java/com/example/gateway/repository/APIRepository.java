@@ -134,7 +134,7 @@ public class APIRepository {
                 .query(q -> q
                     .term(t -> t
                         .field("status")
-                        .value(status)
+                        .value(v -> v.stringValue(status))
                     )
                 )
                 .size(1000)

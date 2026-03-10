@@ -89,51 +89,69 @@ services:
       - aip-network
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # MCP Servers - Commented out until Phase 2 implementation
-  # mcp-discovery:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-discovery
-  #   environment:
-  #     - OPENSEARCH_HOST=opensearch
-  #     - OPENSEARCH_PORT=9200
-  #     - OPENSEARCH_SCHEME=http
-  #     - MCP_SERVER_NAME=discovery
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8001:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_healthy
+  mcp-discovery:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-discovery
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - MCP_SERVER_NAME=discovery
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+    ports:
+      - "8001:8000"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
-  # mcp-metrics:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-metrics
-  #   environment:
-  #     - OPENSEARCH_HOST=opensearch
-  #     - OPENSEARCH_PORT=9200
-  #     - OPENSEARCH_SCHEME=http
-  #     - MCP_SERVER_NAME=metrics
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8002:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_healthy
+  mcp-metrics:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-metrics
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - MCP_SERVER_NAME=metrics
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+    ports:
+      - "8002:8000"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # mcp-security:
   #   build:
@@ -180,26 +198,29 @@ services:
   #       condition: service_healthy
 
   # Demo Gateway - Commented out until Phase 2 implementation
-  # demo-gateway:
-  #   build:
-  #     context: ./demo-gateway
-  #     dockerfile: Dockerfile
-  #   container_name: aip-demo-gateway
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=dev
-  #     - OPENSEARCH_HOST=opensearch
-  #     - OPENSEARCH_PORT=9200
-  #     - OPENSEARCH_SCHEME=http
-  #   volumes:
-  #     - ./demo-gateway:/app
-  #     - maven-cache:/root/.m2
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_healthy
+  demo-gateway:
+    build:
+      context: ./demo-gateway
+      dockerfile: Dockerfile
+    container_name: aip-demo-gateway
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+    ports:
+      - "8080:8080"
+    networks:
+      - aip-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
 networks:
   aip-network:

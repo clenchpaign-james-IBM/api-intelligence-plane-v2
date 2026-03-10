@@ -143,12 +143,12 @@ async def root():
     }
 
 
-# API v1 routes will be added here
-# Example:
-# from app.api.v1 import gateways, apis, metrics, predictions, security, optimization, rate_limits, query
-# app.include_router(gateways.router, prefix="/api/v1", tags=["Gateways"])
-# app.include_router(apis.router, prefix="/api/v1", tags=["APIs"])
-# etc.
+# API v1 routes
+from app.api.v1 import gateways, apis, metrics
+
+app.include_router(gateways.router, prefix="/api/v1", tags=["Gateways"])
+app.include_router(apis.router, prefix="/api/v1", tags=["APIs"])
+app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
 
 
 if __name__ == "__main__":

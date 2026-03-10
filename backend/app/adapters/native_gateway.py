@@ -11,8 +11,8 @@ from uuid import uuid4
 
 import httpx
 
-from backend.app.adapters.base import BaseGatewayAdapter
-from backend.app.models.api import (
+from app.adapters.base import BaseGatewayAdapter
+from app.models.api import (
     API,
     APIStatus,
     AuthenticationType,
@@ -20,7 +20,7 @@ from backend.app.models.api import (
     DiscoveryMethod,
     Endpoint,
 )
-from backend.app.models.metric import Metric
+from app.models.metric import Metric
 
 logger = logging.getLogger(__name__)
 

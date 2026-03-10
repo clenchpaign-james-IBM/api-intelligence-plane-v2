@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from litellm import acompletion, completion_cost
 
-from backend.app.config import Settings
+from app.config import Settings
 
 logger = logging.getLogger(__name__)
 

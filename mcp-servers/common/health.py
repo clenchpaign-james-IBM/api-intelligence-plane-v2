@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from mcp_servers.common.opensearch import MCPOpenSearchClient
+from common.opensearch import MCPOpenSearchClient
 
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import APIs from './pages/APIs';
 import Gateways from './pages/Gateways';
 import Predictions from './pages/Predictions';
+import Optimization from './pages/Optimization';
 
 // Placeholder components for routes (will be implemented in user stories)
 const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
@@ -84,6 +85,12 @@ function App() {
                       Predictions
                     </Link>
                     <Link
+                      to="/optimization"
+                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                    >
+                      Optimization
+                    </Link>
+                    <Link
                       to="/security"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
@@ -109,6 +116,7 @@ function App() {
               <Route path="/gateways" element={<Gateways />} />
               <Route path="/metrics" element={<Metrics />} />
               <Route path="/predictions" element={<Predictions />} />
+              <Route path="/optimization" element={<Optimization />} />
               <Route path="/security" element={<Security />} />
               <Route path="/query" element={<Query />} />
               <Route path="/404" element={<NotFound />} />

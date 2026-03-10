@@ -6,7 +6,8 @@ for each entity type.
 """
 
 from .base import BaseRepository
+from .recommendation_repository import RecommendationRepository
 
-__all__ = ["BaseRepository"]
+__all__ = ["BaseRepository", "RecommendationRepository"]
 
 # Made with Bob

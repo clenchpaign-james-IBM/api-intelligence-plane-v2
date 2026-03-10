@@ -191,8 +191,10 @@ export const api = {
     list: (params?: any) => api.get('/api/v1/rate-limits', params),
     get: (id: string) => api.get(`/api/v1/rate-limits/${id}`),
     create: (data: any) => api.post('/api/v1/rate-limits', data),
-    update: (id: string, data: any) => api.put(`/api/v1/rate-limits/${id}`, data),
-    delete: (id: string) => api.delete(`/api/v1/rate-limits/${id}`),
+    activate: (id: string) => api.post(`/api/v1/rate-limits/${id}/activate`),
+    deactivate: (id: string) => api.post(`/api/v1/rate-limits/${id}/deactivate`),
+    suggest: (apiId: string) => api.get(`/api/v1/rate-limits/suggest/${apiId}`),
+    effectiveness: (id: string) => api.get(`/api/v1/rate-limits/${id}/effectiveness`),
   },
 
   // Query endpoints

@@ -263,21 +263,97 @@ export interface RecommendationStatsResponse {
 export interface RateLimitPolicy {
   id: string;
   api_id: string;
-  name: string;
-  limit_type: RateLimitType;
-  requests_per_window: number;
-  window_seconds: number;
-  burst_size?: number;
-  scope: RateLimitScope;
-  identifier_key: string;
+  policy_name: string;
+  policy_type: PolicyType;
   status: PolicyStatus;
+  limit_thresholds: LimitThresholds;
+  priority_rules?: PriorityRule[];
+  burst_allowance?: number;
+  adaptation_parameters?: AdaptationParameters;
+  consumer_tiers?: ConsumerTier[];
+  enforcement_action: EnforcementAction;
+  applied_at?: string;
+  last_adjusted_at?: string;
+  effectiveness_score?: number;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
 
-export type RateLimitType = 'fixed_window' | 'sliding_window' | 'token_bucket' | 'leaky_bucket';
-export type RateLimitScope = 'global' | 'per_user' | 'per_ip' | 'per_api_key';
-export type PolicyStatus = 'active' | 'inactive';
+export interface LimitThresholds {
+  requests_per_second?: number;
+  requests_per_minute?: number;
+  requests_per_hour?: number;
+  concurrent_requests?: number;
+}
+
+export interface PriorityRule {
+  tier: string;
+  multiplier: number;
+  guaranteed_throughput: number;
+  burst_multiplier: number;
+}
+
+export interface AdaptationParameters {
+  learning_rate: number;
+  adjustment_frequency: number;
+  min_threshold?: number;
+  max_threshold?: number;
+}
+
+export interface ConsumerTier {
+  tier_name: string;
+  tier_level: number;
+  rate_multiplier: number;
+  priority_score: number;
+}
+
+export type PolicyType = 'fixed' | 'adaptive' | 'priority_based' | 'burst_allowance';
+export type PolicyStatus = 'active' | 'inactive' | 'testing';
+export type EnforcementAction = 'throttle' | 'reject' | 'queue';
+
+// Rate Limit Policy List Response
+export interface RateLimitPolicyListResponse {
+  policies: RateLimitPolicy[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// Rate Limit Effectiveness Response
+export interface RateLimitEffectivenessResponse {
+  policy_id: string;
+  api_id: string;
+  effectiveness_score: number;
+  metrics: {
+    error_rate: number;
+    avg_response_time: number;
+    throttled_requests: number;
+    total_requests: number;
+  };
+  recommendations: string[];
+  analysis_period: {
+    start: string;
+    end: string;
+  };
+}
+
+// Rate Limit Suggestion Response
+export interface RateLimitSuggestionResponse {
+  api_id: string;
+  suggested_policy: {
+    policy_type: PolicyType;
+    limit_thresholds: LimitThresholds;
+    enforcement_action: EnforcementAction;
+  };
+  reasoning: string;
+  traffic_analysis: {
+    avg_throughput: number;
+    peak_throughput: number;
+    p95_throughput: number;
+    coefficient_of_variation: number;
+  };
+}
 
 // Query History Entity
 export interface QueryHistory {

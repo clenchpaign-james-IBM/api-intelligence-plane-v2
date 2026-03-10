@@ -335,19 +335,19 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Rate Limiting Service
 
-- [ ] T143 [P] [US5] Create RateLimitPolicy repository in backend/app/db/repositories/rate_limit_repository.py
-- [ ] T144 [US5] Implement Rate Limiting Service in backend/app/services/rate_limit_service.py with adaptive logic
-- [ ] T145 [US5] Implement rate limit policy management in backend/app/services/rate_limit_service.py
-- [ ] T146 [US5] Create rate limit effectiveness tracking in backend/app/services/rate_limit_service.py
+- [X] T143 [P] [US5] Create RateLimitPolicy repository in backend/app/db/repositories/rate_limit_repository.py
+- [X] T144 [US5] Implement Rate Limiting Service in backend/app/services/rate_limit_service.py with adaptive logic
+- [X] T145 [US5] Implement rate limit policy management in backend/app/services/rate_limit_service.py
+- [X] T146 [US5] Create rate limit effectiveness tracking in backend/app/services/rate_limit_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T147 [P] [US5] Implement Rate Limiting endpoints in backend/app/api/v1/rate_limits.py per backend-api.yaml (GET /rate-limits, POST /rate-limits)
+- [X] T147 [P] [US5] Implement Rate Limiting endpoints in backend/app/api/v1/rate_limits.py per backend-api.yaml (GET /rate-limits, POST /rate-limits)
 
 ### MCP - Optimization Server (Rate Limiting)
 
-- [ ] T148 [P] [US5] Implement manage_rate_limit tool in mcp-servers/optimization_server.py per mcp-tools.md
-- [ ] T149 [P] [US5] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [X] T148 [P] [US5] Implement manage_rate_limit tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [X] T149 [P] [US5] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Demo Gateway - Rate Limiting
 
@@ -356,14 +356,15 @@ This is a distributed web application with microservices architecture:
 
 ### Frontend - Rate Limiting View
 
-- [ ] T152 [US5] Add rate limiting section to Optimization page in frontend/src/pages/Optimization.tsx
-- [ ] T153 [P] [US5] Create rate limit policy component in frontend/src/components/optimization/RateLimitPolicy.tsx
-- [ ] T154 [P] [US5] Create rate limit effectiveness chart in frontend/src/components/optimization/RateLimitChart.tsx
+- [X] T152 [US5] Add rate limiting section to Optimization page in frontend/src/pages/Optimization.tsx
+- [X] T153 [P] [US5] Create rate limit policy component in frontend/src/components/optimization/RateLimitPolicy.tsx
+- [X] T154 [P] [US5] Create rate limit effectiveness chart in frontend/src/components/optimization/RateLimitChart.tsx
 
 ### Integration & Validation
 
-- [ ] T155 [US5] Create integration test for rate limiting in tests/integration/test_rate_limiting.py
-- [ ] T156 [US5] Validate User Story 5 independently with traffic simulation
+- [X] T154.5 [P] [US5] Create rate limit test fixtures in backend/tests/fixtures/rate_limit_fixtures.py
+- [X] T155 [US5] Create integration test for rate limiting in backend/tests/integration/test_rate_limiting.py
+- [X] T156 [US5] Validate User Story 5 independently with traffic simulation
 
 **Checkpoint**: User Story 5 complete - Rate limiting works independently
 

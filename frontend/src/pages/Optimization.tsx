@@ -1,30 +1,41 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Zap, TrendingUp, Filter, DollarSign } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Zap, TrendingUp, Filter, DollarSign, Shield } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import RateLimitPolicy from '../components/optimization/RateLimitPolicy';
+import RateLimitChart from '../components/optimization/RateLimitChart';
 import { api } from '../services/api';
-import type { 
-  Recommendation, 
-  RecommendationPriority, 
+import type {
+  Recommendation,
+  RecommendationPriority,
   RecommendationStatus,
-  RecommendationType 
+  RecommendationType,
+  RateLimitPolicy as RateLimitPolicyType,
+  PolicyStatus
 } from '../types';
 
 /**
  * Optimization Page
- * 
- * Displays performance optimization recommendations with:
+ *
+ * Displays performance optimization recommendations and rate limiting policies with:
+ * - Tab-based interface for recommendations and rate limiting
  * - List of active recommendations
  * - Filtering by priority, status, and type
  * - Statistics and potential savings
- * - Detailed recommendation cards
+ * - Rate limit policy management
+ * - Effectiveness analysis
  */
 const Optimization = () => {
+  const [activeTab, setActiveTab] = useState<'recommendations' | 'rate-limiting'>('recommendations');
   const [selectedPriority, setSelectedPriority] = useState<RecommendationPriority | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<RecommendationStatus | 'all'>('all');
   const [selectedType, setSelectedType] = useState<RecommendationType | 'all'>('all');
   const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<RateLimitPolicyType | null>(null);
+  const [selectedPolicyStatus, setSelectedPolicyStatus] = useState<PolicyStatus | 'all'>('all');
+  
+  const queryClient = useQueryClient();
 
   // Fetch recommendations
   const { data, isLoading, error, refetch } = useQuery({
@@ -44,6 +55,41 @@ const Optimization = () => {
     queryKey: ['recommendation-stats'],
     queryFn: () => api.recommendations.stats(),
     refetchInterval: 60000,
+  });
+
+  // Fetch rate limit policies
+  const { data: rateLimitData, isLoading: rateLimitLoading, error: rateLimitError } = useQuery({
+    queryKey: ['rate-limits', selectedPolicyStatus],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedPolicyStatus !== 'all') params.status = selectedPolicyStatus;
+      return api.rateLimits.list(params);
+    },
+    refetchInterval: 60000,
+    enabled: activeTab === 'rate-limiting',
+  });
+
+  // Fetch effectiveness for selected policy
+  const { data: effectivenessData } = useQuery({
+    queryKey: ['rate-limit-effectiveness', selectedPolicy?.id],
+    queryFn: () => selectedPolicy ? api.rateLimits.effectiveness(selectedPolicy.id) : null,
+    enabled: !!selectedPolicy && activeTab === 'rate-limiting',
+  });
+
+  // Activate policy mutation
+  const activateMutation = useMutation({
+    mutationFn: (policyId: string) => api.rateLimits.activate(policyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
+    },
+  });
+
+  // Deactivate policy mutation
+  const deactivateMutation = useMutation({
+    mutationFn: (policyId: string) => api.rateLimits.deactivate(policyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
+    },
   });
 
   // Loading state
@@ -114,7 +160,7 @@ const Optimization = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
             <p className="mt-2 text-sm text-gray-600">
-              AI-powered recommendations to improve API performance and reduce costs
+              AI-powered recommendations and intelligent rate limiting
             </p>
           </div>
           <button
@@ -124,6 +170,34 @@ const Optimization = () => {
             <TrendingUp className="w-5 h-5" />
             Refresh
           </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-6 border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('recommendations')}
+              className={`${
+                activeTab === 'recommendations'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <Zap className="w-5 h-5" />
+              Recommendations
+            </button>
+            <button
+              onClick={() => setActiveTab('rate-limiting')}
+              className={`${
+                activeTab === 'rate-limiting'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <Shield className="w-5 h-5" />
+              Rate Limiting
+            </button>
+          </nav>
         </div>
 
         {/* Stats */}
@@ -167,7 +241,10 @@ const Optimization = () => {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Recommendations Tab Content */}
+      {activeTab === 'recommendations' && (
+        <>
+          {/* Filters */}
       <div className="mb-6 bg-white rounded-lg shadow p-4">
         <div className="flex items-center gap-4 flex-wrap">
           <Filter className="w-5 h-5 text-gray-500" />
@@ -215,10 +292,10 @@ const Optimization = () => {
             </select>
           </div>
         </div>
-      </div>
+          </div>
 
-      {/* Recommendations List */}
-      <div>
+          {/* Recommendations List */}
+          <div>
         <h2 className="text-xl font-bold text-gray-900 mb-4">Recommendations</h2>
         {recommendations.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -299,10 +376,10 @@ const Optimization = () => {
             ))}
           </div>
         )}
-      </div>
+          </div>
 
-      {/* Detailed View Modal */}
-      {selectedRecommendation && (
+          {/* Detailed View Modal */}
+          {selectedRecommendation && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           onClick={() => setSelectedRecommendation(null)}
@@ -419,6 +496,154 @@ const Optimization = () => {
           </div>
         </div>
       )}
+        </>
+      )}
+          
+      {/* Rate Limiting Tab Content */}
+      {activeTab === 'rate-limiting' && (
+                  <>
+                    {/* Rate Limiting Stats */}
+                    <div className="mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white rounded-lg shadow p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Active Policies</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                {rateLimitData?.items?.filter((p: RateLimitPolicyType) => p.status === 'active').length || 0}
+                              </p>
+                            </div>
+                            <Shield className="w-8 h-8 text-green-500" />
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-lg shadow p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Total Policies</p>
+                              <p className="text-2xl font-bold text-gray-900">{rateLimitData?.total || 0}</p>
+                            </div>
+                            <Shield className="w-8 h-8 text-blue-500" />
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-lg shadow p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Avg Effectiveness</p>
+                              <p className="text-2xl font-bold text-green-600">
+                                {rateLimitData?.items?.length > 0
+                                  ? (
+                                      (rateLimitData.items
+                                        .filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined)
+                                        .reduce((sum: number, p: RateLimitPolicyType) => sum + (p.effectiveness_score || 0), 0) /
+                                        rateLimitData.items.filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined).length) *
+                                      100
+                                    ).toFixed(0)
+                                  : 0}
+                                %
+                              </p>
+                            </div>
+                            <TrendingUp className="w-8 h-8 text-green-500" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+          
+                    {/* Filters */}
+                    <div className="mb-6 bg-white rounded-lg shadow p-4">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <Filter className="w-5 h-5 text-gray-500" />
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium text-gray-700">Status:</label>
+                          <select
+                            value={selectedPolicyStatus}
+                            onChange={(e) => setSelectedPolicyStatus(e.target.value as PolicyStatus | 'all')}
+                            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="all">All</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="testing">Testing</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+          
+                    {/* Rate Limit Policies List */}
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-4">Rate Limit Policies</h2>
+                      {rateLimitLoading ? (
+                        <Loading message="Loading rate limit policies..." />
+                      ) : rateLimitError ? (
+                        <Error message="Failed to load rate limit policies" details={rateLimitError as Error} />
+                      ) : !rateLimitData?.items || rateLimitData.items.length === 0 ? (
+                        <div className="bg-white rounded-lg shadow p-8 text-center">
+                          <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600">No rate limit policies found</p>
+                          <p className="text-sm text-gray-500 mt-2">
+                            Create policies to protect your APIs from excessive traffic
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {rateLimitData.items.map((policy: RateLimitPolicyType) => (
+                            <div key={policy.id} onClick={() => setSelectedPolicy(policy)}>
+                              <RateLimitPolicy
+                                policy={policy}
+                                onActivate={(id) => activateMutation.mutate(id)}
+                                onDeactivate={(id) => deactivateMutation.mutate(id)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+          
+                    {/* Policy Detail Modal */}
+                    {selectedPolicy && (
+                      <div
+                        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+                        onClick={() => setSelectedPolicy(null)}
+                      >
+                        <div
+                          className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="p-6">
+                            <RateLimitPolicy
+                              policy={selectedPolicy}
+                              detailed={true}
+                              onActivate={(id) => {
+                                activateMutation.mutate(id);
+                                setSelectedPolicy(null);
+                              }}
+                              onDeactivate={(id) => {
+                                deactivateMutation.mutate(id);
+                                setSelectedPolicy(null);
+                              }}
+                            />
+          
+                            {/* Effectiveness Chart */}
+                            {effectivenessData && (
+                              <div className="mt-6">
+                                <RateLimitChart effectiveness={effectivenessData} />
+                              </div>
+                            )}
+          
+                            {/* Close Button */}
+                            <div className="mt-6">
+                              <button
+                                onClick={() => setSelectedPolicy(null)}
+                                className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
     </div>
   );
 };

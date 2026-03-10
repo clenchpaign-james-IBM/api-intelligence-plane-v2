@@ -213,27 +213,51 @@ export type VulnerabilityStatus = 'open' | 'in_progress' | 'resolved' | 'false_p
 export interface Recommendation {
   id: string;
   api_id: string;
-  type: RecommendationType;
-  priority: RecommendationPriority;
+  recommendation_type: RecommendationType;
   title: string;
   description: string;
-  rationale: string;
-  implementation_steps: string[];
+  priority: RecommendationPriority;
   estimated_impact: EstimatedImpact;
+  implementation_effort: ImplementationEffort;
+  implementation_steps: string[];
   status: RecommendationStatus;
+  implemented_at?: string;
+  cost_savings?: number;
   created_at: string;
   updated_at: string;
+  expires_at?: string;
 }
 
 export interface EstimatedImpact {
-  performance_improvement?: number;
-  cost_reduction?: number;
-  reliability_improvement?: number;
+  metric: string;
+  current_value: number;
+  expected_value: number;
+  improvement_percentage: number;
+  confidence: number;
 }
 
-export type RecommendationType = 'caching' | 'rate_limiting' | 'load_balancing' | 'circuit_breaker' | 'retry_policy' | 'timeout_adjustment' | 'resource_scaling' | 'other';
+export type RecommendationType = 'caching' | 'query_optimization' | 'resource_allocation' | 'compression' | 'connection_pooling';
 export type RecommendationPriority = 'critical' | 'high' | 'medium' | 'low';
-export type RecommendationStatus = 'pending' | 'in_progress' | 'implemented' | 'rejected';
+export type RecommendationStatus = 'pending' | 'in_progress' | 'implemented' | 'rejected' | 'expired';
+export type ImplementationEffort = 'low' | 'medium' | 'high';
+
+// Recommendation List Response
+export interface RecommendationListResponse {
+  recommendations: Recommendation[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// Recommendation Statistics Response
+export interface RecommendationStatsResponse {
+  total_recommendations: number;
+  by_status: Array<{ status: string; count: number }>;
+  by_priority: Array<{ priority: string; count: number }>;
+  by_type: Array<{ type: string; count: number }>;
+  avg_improvement: number;
+  total_cost_savings: number;
+}
 
 // Rate Limit Policy Entity
 export interface RateLimitPolicy {

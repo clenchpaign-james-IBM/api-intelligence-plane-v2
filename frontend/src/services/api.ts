@@ -174,11 +174,16 @@ export const api = {
     },
   },
 
-  // Recommendations endpoints
+  // Optimization recommendations endpoints
   recommendations: {
     list: (params?: any) => api.get('/api/v1/recommendations', params),
     get: (id: string) => api.get(`/api/v1/recommendations/${id}`),
-    generate: (apiId: string) => api.post(`/api/v1/recommendations/generate/${apiId}`),
+    generate: (apiId: string, minImpact?: number) => {
+      const params: any = { api_id: apiId };
+      if (minImpact !== undefined) params.min_impact = minImpact;
+      return api.post('/api/v1/recommendations/generate', params);
+    },
+    stats: (params?: any) => api.get('/api/v1/recommendations/stats', params),
   },
 
   // Rate limit endpoints

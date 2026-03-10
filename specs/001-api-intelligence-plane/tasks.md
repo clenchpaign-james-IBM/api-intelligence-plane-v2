@@ -291,32 +291,37 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Optimization Service
 
-- [ ] T129 [P] [US4] Create OptimizationRecommendation repository in backend/app/db/repositories/recommendation_repository.py
-- [ ] T130 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with recommendation generation
-- [ ] T131 [US4] Create Optimization Agent in backend/app/agents/optimization_agent.py using LangChain/LangGraph
-- [ ] T132 [US4] Implement optimization analysis workflow in backend/app/agents/optimization_agent.py
-- [ ] T133 [US4] Create optimization scheduler job in backend/app/scheduler/optimization_jobs.py (runs every 30 minutes)
-- [ ] T134 [US4] Implement recommendation validation and impact tracking in backend/app/services/optimization_service.py
+- [x] T129 [P] [US4] Create OptimizationRecommendation repository in backend/app/db/repositories/recommendation_repository.py
+- [x] T130 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with recommendation generation
+- [x] T131 [US4] Create Optimization Agent in backend/app/agents/optimization_agent.py using LangChain/LangGraph
+- [x] T132 [US4] Implement optimization analysis workflow in backend/app/agents/optimization_agent.py
+- [x] T133 [US4] Create optimization scheduler job in backend/app/scheduler/optimization_jobs.py (runs every 30 minutes)
+- [x] T134 [US4] Implement recommendation validation and impact tracking in backend/app/services/optimization_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T135 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
+- [x] T135 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
 
 ### MCP - Optimization Server (Recommendations)
 
-- [ ] T136 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [x] T136 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
 
 ### Frontend - Optimization View
 
-- [ ] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with recommendations list
-- [ ] T138 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
-- [ ] T139 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
-- [ ] T140 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
+- [x] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with recommendations list
+- [x] T138 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
+- [x] T139 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
+- [x] T140 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
+
+### Test Data & Fixtures
+
+- [x] T140a [P] [US4] Create optimization test fixtures in backend/tests/fixtures/optimization_fixtures.py with sample recommendations
+- [x] T140b [US4] Create mock optimization data generator in backend/scripts/generate_mock_optimizations.py for integration testing
 
 ### Integration & Validation
 
-- [ ] T141 [US4] Create integration test for optimization recommendations in tests/integration/test_optimization.py
-- [ ] T142 [US4] Validate User Story 4 independently with various load patterns
+- [x] T141 [US4] Create integration test for optimization recommendations in tests/integration/test_optimization.py
+- [x] T142 [US4] Validate User Story 4 independently with various load patterns
 
 **Checkpoint**: User Story 4 complete - Optimization recommendations work independently
 

@@ -145,6 +145,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
     Raises:
         HTTPException: If query processing fails
     """
+    request.use_ai_agents = True
     try:
         # Generate session ID if not provided
         session_id = request.session_id or UUID("00000000-0000-0000-0000-000000000000")
@@ -153,10 +154,10 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         original_prediction_agent = query_service.prediction_agent
         original_optimization_agent = query_service.optimization_agent
         
-        if not request.use_ai_agents:
-            query_service.prediction_agent = None
-            query_service.optimization_agent = None
-            logger.info("AI agents disabled for this query")
+        # if not request.use_ai_agents:
+        #     query_service.prediction_agent = None
+        #     query_service.optimization_agent = None
+        #     logger.info("AI agents disabled for this query")
         
         try:
             # Process query

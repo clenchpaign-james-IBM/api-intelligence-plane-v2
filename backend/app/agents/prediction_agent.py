@@ -6,28 +6,18 @@ Provides LLM-powered analysis of metrics trends and prediction explanations.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, TypedDict
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
-
-if TYPE_CHECKING:
-    from langchain.prompts import ChatPromptTemplate
-    from langchain.schema import HumanMessage, SystemMessage
+# Try to import LangGraph components
+try:
     from langgraph.graph import StateGraph, END
-else:
-    try:
-        from langchain.prompts import ChatPromptTemplate
-        from langchain.schema import HumanMessage, SystemMessage
-        from langgraph.graph import StateGraph, END
-    except ImportError:
-        # LangChain/LangGraph are optional dependencies
-        StateGraph = None
-        END = None
-        ChatPromptTemplate = None
-        HumanMessage = None
-        SystemMessage = None
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    StateGraph = None
+    END = None
 
 from app.services.llm_service import LLMService
 from app.services.prediction_service import PredictionService
@@ -37,16 +27,16 @@ from app.models.metric import Metric
 logger = logging.getLogger(__name__)
 
 
-class PredictionState(BaseModel):
+class PredictionState(TypedDict):
     """State for prediction generation workflow."""
     
-    api_id: UUID
+    api_id: str
     api_name: str
-    metrics: List[Metric] = Field(default_factory=list)
-    analysis: Optional[str] = None
-    predictions: List[Prediction] = Field(default_factory=list)
-    enhanced_predictions: List[Dict[str, Any]] = Field(default_factory=list)
-    error: Optional[str] = None
+    metrics: List[Any]
+    analysis: str
+    predictions: List[Any]
+    enhanced_predictions: List[Dict[str, Any]]
+    error: str
 
 
 class PredictionAgent:
@@ -77,25 +67,31 @@ class PredictionAgent:
         Build the prediction generation workflow using LangGraph.
         
         Returns:
-            Compiled StateGraph workflow
+            Compiled StateGraph workflow or None if LangGraph unavailable
         """
-        if StateGraph is None:
-            raise ImportError("LangGraph is required for PredictionAgent. Install with: pip install langgraph")
+        if not LANGGRAPH_AVAILABLE or StateGraph is None:
+            logger.warning("LangGraph not available. AI-enhanced predictions will use direct execution.")
+            return None
         
-        workflow = StateGraph(PredictionState)
-        
-        # Define workflow nodes
-        workflow.add_node("analyze_metrics", self._analyze_metrics_node)
-        workflow.add_node("generate_predictions", self._generate_predictions_node)
-        workflow.add_node("enhance_predictions", self._enhance_predictions_node)
-        
-        # Define workflow edges
-        workflow.set_entry_point("analyze_metrics")
-        workflow.add_edge("analyze_metrics", "generate_predictions")
-        workflow.add_edge("generate_predictions", "enhance_predictions")
-        workflow.add_edge("enhance_predictions", END)
-        
-        return workflow.compile()
+        try:
+            # Create workflow with TypedDict state schema
+            workflow = StateGraph(PredictionState)
+            
+            # Define workflow nodes
+            workflow.add_node("analyze_metrics", self._analyze_metrics_node)
+            workflow.add_node("generate_predictions", self._generate_predictions_node)
+            workflow.add_node("enhance_predictions", self._enhance_predictions_node)
+            
+            # Define workflow edges
+            workflow.set_entry_point("analyze_metrics")
+            workflow.add_edge("analyze_metrics", "generate_predictions")
+            workflow.add_edge("generate_predictions", "enhance_predictions")
+            workflow.add_edge("enhance_predictions", END if END else "__end__")
+            
+            return workflow.compile()
+        except Exception as e:
+            logger.error(f"Failed to build LangGraph workflow: {e}")
+            return None
     
     async def generate_enhanced_predictions(
         self,
@@ -117,15 +113,26 @@ class PredictionAgent:
         logger.info(f"Generating enhanced predictions for API {api_name}")
         
         # Initialize state
-        initial_state = PredictionState(
-            api_id=api_id,
-            api_name=api_name,
-            metrics=metrics,
-        )
+        initial_state: PredictionState = {
+            "api_id": str(api_id),
+            "api_name": api_name,
+            "metrics": metrics,
+            "analysis": "",
+            "predictions": [],
+            "enhanced_predictions": [],
+            "error": "",
+        }
         
         try:
-            # Run workflow
-            final_state = await self.workflow.ainvoke(initial_state)
+            # Run workflow if available, otherwise execute directly
+            if self.workflow is not None:
+                final_state = await self.workflow.ainvoke(initial_state)
+            else:
+                # Direct execution without LangGraph
+                final_state = initial_state
+                final_state = await self._analyze_metrics_node(final_state)
+                final_state = await self._generate_predictions_node(final_state)
+                final_state = await self._enhance_predictions_node(final_state)
             
             return {
                 "api_id": str(api_id),
@@ -144,7 +151,7 @@ class PredictionAgent:
                 "predictions": [],
             }
     
-    async def _analyze_metrics_node(self, state: PredictionState) -> Dict[str, Any]:
+    async def _analyze_metrics_node(self, state: PredictionState) -> PredictionState:
         """
         Analyze metrics using LLM to identify trends and patterns.
         
@@ -154,16 +161,15 @@ class PredictionAgent:
         Returns:
             Updated state with analysis
         """
-        logger.info(f"Analyzing metrics for API {state.api_name}")
+        logger.info(f"Analyzing metrics for API {state['api_name']}")
         
-        if not state.metrics or len(state.metrics) < 5:
-            return {
-                "analysis": "Insufficient metrics data for analysis",
-                "error": "Not enough metrics data points",
-            }
+        if not state["metrics"] or len(state["metrics"]) < 5:
+            state["analysis"] = "Insufficient metrics data for analysis"
+            state["error"] = "Not enough metrics data points"
+            return state
         
         # Prepare metrics summary for LLM
-        metrics_summary = self._prepare_metrics_summary(state.metrics)
+        metrics_summary = self._prepare_metrics_summary(state["metrics"])
         
         # Create analysis prompt
         system_prompt = """You are an expert API performance analyst. Analyze the provided metrics data and identify:
@@ -174,7 +180,7 @@ class PredictionAgent:
 
 Provide a concise, technical analysis focusing on actionable insights."""
         
-        user_prompt = f"""Analyze the following metrics for API '{state.api_name}':
+        user_prompt = f"""Analyze the following metrics for API '{state['api_name']}':
 
 {metrics_summary}
 
@@ -192,18 +198,18 @@ Provide a detailed analysis of trends, risks, and health status."""
             )
             
             analysis = response.get("content", "Analysis unavailable")
-            logger.info(f"Generated metrics analysis for API {state.api_name}")
+            logger.info(f"Generated metrics analysis for API {state['api_name']}")
             
-            return {"analysis": analysis}
+            state["analysis"] = analysis
+            return state
             
         except Exception as e:
             logger.error(f"Failed to generate metrics analysis: {e}")
-            return {
-                "analysis": "LLM analysis unavailable",
-                "error": str(e),
-            }
+            state["analysis"] = "LLM analysis unavailable"
+            state["error"] = str(e)
+            return state
     
-    async def _generate_predictions_node(self, state: PredictionState) -> Dict[str, Any]:
+    async def _generate_predictions_node(self, state: PredictionState) -> PredictionState:
         """
         Generate predictions using the prediction service.
         
@@ -213,27 +219,28 @@ Provide a detailed analysis of trends, risks, and health status."""
         Returns:
             Updated state with predictions
         """
-        logger.info(f"Generating predictions for API {state.api_name}")
+        logger.info(f"Generating predictions for API {state['api_name']}")
         
         try:
             # Use prediction service to generate ML-based predictions
+            api_id = UUID(state["api_id"]) if isinstance(state["api_id"], str) else state["api_id"]
             predictions = self.prediction_service.generate_predictions_for_api(
-                api_id=state.api_id,
+                api_id=api_id,
                 min_confidence=0.7,
             )
             
-            logger.info(f"Generated {len(predictions)} predictions for API {state.api_name}")
+            logger.info(f"Generated {len(predictions)} predictions for API {state['api_name']}")
             
-            return {"predictions": predictions}
+            state["predictions"] = predictions
+            return state
             
         except Exception as e:
             logger.error(f"Failed to generate predictions: {e}")
-            return {
-                "predictions": [],
-                "error": str(e),
-            }
+            state["predictions"] = []
+            state["error"] = str(e)
+            return state
     
-    async def _enhance_predictions_node(self, state: PredictionState) -> Dict[str, Any]:
+    async def _enhance_predictions_node(self, state: PredictionState) -> PredictionState:
         """
         Enhance predictions with LLM-generated explanations and recommendations.
         
@@ -243,20 +250,22 @@ Provide a detailed analysis of trends, risks, and health status."""
         Returns:
             Updated state with enhanced predictions
         """
-        logger.info(f"Enhancing predictions for API {state.api_name}")
+        logger.info(f"Enhancing predictions for API {state['api_name']}")
         
-        if not state.predictions:
-            return {"enhanced_predictions": []}
+        predictions = state.get("predictions", [])
+        if not predictions:
+            state["enhanced_predictions"] = []
+            return state
         
         enhanced_predictions = []
         
-        for prediction in state.predictions:
+        for prediction in predictions:
             try:
                 # Generate detailed explanation using LLM
                 explanation = await self._generate_prediction_explanation(
                     prediction=prediction,
-                    api_name=state.api_name,
-                    metrics_analysis=state.analysis or "",
+                    api_name=state["api_name"],
+                    metrics_analysis=state["analysis"] or "",
                 )
                 
                 # Create enhanced prediction dict
@@ -298,7 +307,8 @@ Provide a detailed analysis of trends, risks, and health status."""
                     "error": "Enhancement failed",
                 })
         
-        return {"enhanced_predictions": enhanced_predictions}
+        state["enhanced_predictions"] = enhanced_predictions
+        return state
     
     async def _generate_prediction_explanation(
         self,

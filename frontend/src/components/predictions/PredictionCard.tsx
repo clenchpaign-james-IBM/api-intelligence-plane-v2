@@ -1,5 +1,8 @@
-import { AlertTriangle, Clock, TrendingUp, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, Clock, TrendingUp, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import FactorsChart from './FactorsChart';
+import { api } from '../../services/api';
 import type { Prediction } from '../../types';
 
 interface PredictionCardProps {
@@ -19,6 +22,15 @@ interface PredictionCardProps {
  * - Recommended actions
  */
 const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCardProps) => {
+  const [showAiExplanation, setShowAiExplanation] = useState(false);
+
+  // Fetch AI explanation when detailed view is shown
+  const { data: aiExplanation, isLoading: explanationLoading } = useQuery({
+    queryKey: ['prediction-explanation', prediction.id],
+    queryFn: () => api.predictions.getExplanation(prediction.id),
+    enabled: detailed && showAiExplanation,
+  });
+
   // Severity colors
   const severityColors = {
     critical: 'bg-red-100 text-red-800 border-red-300',
@@ -171,7 +183,7 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
 
       {/* Recommended Actions */}
       {detailed && prediction.recommended_actions.length > 0 && (
-        <div>
+        <div className="mb-4">
           <h4 className="text-sm font-semibold text-gray-900 mb-2">Recommended Actions</h4>
           <ul className="space-y-1">
             {prediction.recommended_actions.map((action, index) => (
@@ -181,6 +193,58 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* AI Explanation Section */}
+      {detailed && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <button
+            onClick={() => setShowAiExplanation(!showAiExplanation)}
+            className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium text-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            {showAiExplanation ? 'Hide' : 'Show'} AI Explanation
+          </button>
+          
+          {showAiExplanation && (
+            <div className="mt-3 bg-purple-50 rounded-lg p-4">
+              {explanationLoading ? (
+                <div className="flex items-center gap-2 text-purple-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                  <span className="text-sm">Loading AI explanation...</span>
+                </div>
+              ) : aiExplanation ? (
+                <div className="space-y-3">
+                  <div>
+                    <h5 className="text-sm font-semibold text-purple-900 mb-1">Analysis</h5>
+                    <p className="text-sm text-purple-800">{aiExplanation.analysis}</p>
+                  </div>
+                  {aiExplanation.reasoning && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Reasoning</h5>
+                      <p className="text-sm text-purple-800">{aiExplanation.reasoning}</p>
+                    </div>
+                  )}
+                  {aiExplanation.confidence_factors && aiExplanation.confidence_factors.length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Confidence Factors</h5>
+                      <ul className="space-y-1">
+                        {aiExplanation.confidence_factors.map((factor: string, index: number) => (
+                          <li key={index} className="text-sm text-purple-800 flex items-start gap-2">
+                            <span className="text-purple-600 mt-0.5">•</span>
+                            <span>{factor}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-purple-700">No AI explanation available for this prediction.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

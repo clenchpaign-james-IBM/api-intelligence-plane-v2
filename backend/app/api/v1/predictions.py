@@ -236,6 +236,7 @@ async def get_prediction(
 async def generate_predictions(
     api_id: Optional[UUID] = Query(None, description="Generate for specific API (or all if not provided)"),
     min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"),
+    use_ai: bool = Query(False, description="Use AI-enhanced prediction generation"),
 ) -> dict:
     """
     Trigger prediction generation for APIs.
@@ -264,16 +265,38 @@ async def generate_predictions(
         
         if api_id:
             # Generate for specific API
-            predictions = prediction_service.generate_predictions_for_api(
-                api_id=api_id,
-                min_confidence=min_confidence,
-            )
-            
-            return {
-                "status": "accepted",
-                "message": f"Generated {len(predictions)} predictions for API {api_id}",
-                "predictions_generated": len(predictions),
-            }
+            if use_ai:
+                # Try to get LLM service for AI-enhanced generation
+                try:
+                    from app.services.llm_service import LLMService
+                    from app.config import Settings
+                    settings = Settings()
+                    llm_service = LLMService(settings)
+                    prediction_service.llm_service = llm_service
+                except Exception as e:
+                    logger.warning(f"LLM service unavailable, using rule-based: {e}")
+                
+                result = await prediction_service.generate_ai_enhanced_predictions(
+                    api_id=api_id,
+                    min_confidence=min_confidence,
+                )
+                
+                return {
+                    "status": "accepted",
+                    "message": f"Generated AI-enhanced predictions for API {api_id}",
+                    "result": result,
+                }
+            else:
+                predictions = prediction_service.generate_predictions_for_api(
+                    api_id=api_id,
+                    min_confidence=min_confidence,
+                )
+                
+                return {
+                    "status": "accepted",
+                    "message": f"Generated {len(predictions)} predictions for API {api_id}",
+                    "predictions_generated": len(predictions),
+                }
         else:
             # Generate for all APIs
             result = prediction_service.generate_predictions_for_all_apis(
@@ -336,6 +359,148 @@ async def get_prediction_accuracy_stats(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve accuracy statistics: {str(e)}",
+        )
+
+@router.post(
+    "/predictions/ai-enhanced",
+    summary="Generate AI-enhanced predictions",
+)
+async def generate_ai_enhanced_predictions(
+    api_id: UUID = Query(..., description="API ID to generate predictions for"),
+    min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"),
+) -> dict:
+    """
+    Generate AI-enhanced predictions with LLM analysis.
+    
+    Args:
+        api_id: API ID to generate predictions for
+        min_confidence: Minimum confidence threshold (0-1)
+        
+    Returns:
+        AI-enhanced predictions with analysis
+        
+    Raises:
+        HTTPException: If generation fails
+    """
+    try:
+        # Initialize services
+        prediction_repo = PredictionRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Try to get LLM service
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import Settings
+            settings = Settings()
+            llm_service = LLMService(settings)
+        except Exception as e:
+            logger.warning(f"LLM service unavailable: {e}")
+            llm_service = None
+        
+        prediction_service = PredictionService(
+            prediction_repository=prediction_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo,
+            llm_service=llm_service,
+        )
+        
+        # Generate AI-enhanced predictions
+        result = await prediction_service.generate_ai_enhanced_predictions(
+            api_id=api_id,
+            min_confidence=min_confidence,
+        )
+        
+        return {
+            "status": "success",
+            "result": result,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to generate AI-enhanced predictions: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate AI-enhanced predictions: {str(e)}",
+        )
+
+
+@router.get(
+    "/predictions/{prediction_id}/explanation",
+    summary="Get AI explanation for prediction",
+)
+async def get_prediction_explanation(
+    prediction_id: UUID,
+) -> dict:
+    """
+    Get AI-generated explanation for a specific prediction.
+    
+    Args:
+        prediction_id: Prediction UUID
+        
+    Returns:
+        AI-generated explanation
+        
+    Raises:
+        HTTPException: If prediction not found or explanation fails
+    """
+    try:
+        # Initialize repositories
+        prediction_repo = PredictionRepository()
+        
+        # Get prediction
+        prediction = prediction_repo.get_prediction(str(prediction_id))
+        
+        if not prediction:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Prediction {prediction_id} not found",
+            )
+        
+        # Try to get LLM service
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import Settings
+            settings = Settings()
+            llm_service = LLMService(settings)
+            
+            # Generate explanation
+            explanation = await llm_service.generate_prediction_explanation({
+                "prediction_type": prediction.prediction_type.value,
+                "confidence_score": prediction.confidence_score,
+                "severity": prediction.severity.value,
+                "contributing_factors": [
+                    {
+                        "factor": f.factor,
+                        "current_value": f.current_value,
+                        "threshold": f.threshold,
+                        "trend": f.trend,
+                    }
+                    for f in prediction.contributing_factors
+                ],
+                "recommended_actions": prediction.recommended_actions,
+            })
+            
+            return {
+                "status": "success",
+                "prediction_id": str(prediction_id),
+                "explanation": explanation,
+            }
+            
+        except Exception as e:
+            logger.warning(f"LLM explanation unavailable: {e}")
+            return {
+                "status": "fallback",
+                "prediction_id": str(prediction_id),
+                "explanation": f"This is a {prediction.severity.value} severity {prediction.prediction_type.value} prediction with {prediction.confidence_score:.1%} confidence.",
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get prediction explanation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get prediction explanation: {str(e)}",
         )
 
 # Made with Bob

@@ -460,6 +460,78 @@ This is a distributed web application with microservices architecture:
 
 ---
 
+## Phase 10: AI-Enhanced Analysis (LLM Integration) 🤖
+
+**Goal**: Enable LLM-powered intelligent analysis for predictions and optimizations
+
+**Independent Test**: Generate AI-enhanced predictions and optimizations, verify LLM explanations and insights
+
+### Dependencies & Configuration
+
+- [X] T201 [P] [AI] Add LangGraph dependency to backend/requirements.txt (langgraph>=0.0.20)
+- [X] T202 [P] [AI] Add LangChain dependencies to backend/requirements.txt (langchain>=0.1.0, langchain-openai>=0.0.5, langchain-anthropic>=0.1.0)
+- [X] T203 [P] [AI] Update .env.example with LLM configuration (LLM_PROVIDER, LLM_API_KEY, LLM_MODEL, LLM_TEMPERATURE)
+- [X] T204 [AI] Update backend/app/config.py to include LLM settings with Pydantic validation
+
+### LLM Service Enhancement
+
+- [X] T205 [AI] Enhance backend/app/services/llm_service.py with async completion methods
+- [X] T206 [P] [AI] Add streaming support to backend/app/services/llm_service.py
+- [X] T207 [P] [AI] Implement token usage tracking in backend/app/services/llm_service.py
+- [X] T208 [P] [AI] Add error handling and retry logic with exponential backoff in backend/app/services/llm_service.py
+- [X] T209 [P] [AI] Create LLM testing script in backend/scripts/test_llm_agents.py for agent validation
+
+### PredictionAgent Integration
+
+- [X] T210 [AI] Update backend/app/agents/prediction_agent.py to fix LangGraph workflow initialization
+- [X] T211 [AI] Integrate PredictionAgent into backend/app/services/prediction_service.py with use_ai_enhancement parameter
+- [X] T212 [AI] Add fallback logic to backend/app/services/prediction_service.py (use rule-based if LLM fails)
+- [ ] T213 [P] [AI] Create mock LLM responses for testing in backend/tests/fixtures/llm_fixtures.py
+- [ ] T214 [AI] Add integration test for AI-enhanced predictions in backend/tests/integration/test_ai_predictions.py
+
+### OptimizationAgent Integration
+
+- [X] T215 [AI] Update backend/app/agents/optimization_agent.py to fix LangGraph workflow initialization
+- [X] T216 [AI] Integrate OptimizationAgent into backend/app/services/optimization_service.py with use_ai_enhancement parameter
+- [X] T217 [AI] Add fallback logic to backend/app/services/optimization_service.py (use rule-based if LLM fails)
+- [ ] T218 [AI] Add integration test for AI-enhanced optimizations in backend/tests/integration/test_ai_optimizations.py
+
+### API Endpoints for AI Features
+
+- [X] T219 [P] [AI] Add POST /api/v1/predictions/ai-enhanced endpoint in backend/app/api/v1/predictions.py
+- [X] T220 [P] [AI] Add GET /api/v1/predictions/{id}/explanation endpoint in backend/app/api/v1/predictions.py
+- [X] T221 [P] [AI] Add query parameter ?use_ai=true to existing prediction endpoints in backend/app/api/v1/predictions.py
+- [X] T222 [P] [AI] Add POST /api/v1/optimization/ai-enhanced endpoint in backend/app/api/v1/optimization.py
+- [X] T223 [P] [AI] Add GET /api/v1/optimization/{id}/insights endpoint in backend/app/api/v1/optimization.py
+- [X] T224 [P] [AI] Add query parameter ?use_ai=true to existing optimization endpoints in backend/app/api/v1/optimization.py
+
+### Frontend AI Features
+
+- [X] T225 [P] [AI] Add AI toggle switch to frontend/src/pages/Predictions.tsx
+- [X] T226 [P] [AI] Display LLM explanations in frontend/src/components/predictions/PredictionCard.tsx
+- [X] T227 [P] [AI] Add AI toggle switch to frontend/src/pages/Optimization.tsx
+- [X] T228 [P] [AI] Display AI insights in frontend/src/components/optimization/RecommendationCard.tsx
+- [X] T229 [P] [AI] Add loading states for AI processing in frontend components
+
+### Testing & Validation
+
+- [ ] T230 [AI] Create end-to-end test for AI prediction workflow in backend/tests/e2e/test_ai_prediction_workflow.py
+- [ ] T231 [AI] Create end-to-end test for AI optimization workflow in backend/tests/e2e/test_ai_optimization_workflow.py
+- [ ] T232 [AI] Test fallback behavior when LLM is unavailable in backend/tests/integration/test_ai_fallback.py
+- [ ] T233 [AI] Validate token usage tracking and cost monitoring
+- [ ] T234 [AI] Performance test: Compare AI-enhanced vs rule-based response times
+
+### Documentation
+
+- [X] T235 [P] [AI] Document AI features in README.md with setup instructions
+- [X] T236 [P] [AI] Create AI configuration guide in docs/ai-setup.md
+- [X] T237 [P] [AI] Document cost considerations and token usage in docs/ai-costs.md
+- [ ] T238 [P] [AI] Add API examples for AI-enhanced endpoints in docs/api-reference.md
+
+**Checkpoint**: Phase 10 complete - AI-enhanced analysis operational with fallback to rule-based
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -577,8 +649,11 @@ With multiple developers:
 
 ---
 
-**Generated**: 2026-03-09  
-**Total Tasks**: 195  
-**MVP Tasks**: 105 (Setup + Foundational + US1 + US2)  
-**Estimated MVP Duration**: 4-6 weeks with 2-3 developers  
-**Full System Duration**: 8-12 weeks with 3-5 developers
+**Generated**: 2026-03-09
+**Updated**: 2026-03-11 (Added Phase 10: AI-Enhanced Analysis)
+**Total Tasks**: 233
+**MVP Tasks**: 105 (Setup + Foundational + US1 + US2)
+**AI-Enhanced MVP**: 143 (MVP + AI Integration)
+**Estimated MVP Duration**: 4-6 weeks with 2-3 developers
+**Estimated AI-Enhanced MVP**: 6-8 weeks with 2-3 developers
+**Full System Duration**: 10-14 weeks with 3-5 developers

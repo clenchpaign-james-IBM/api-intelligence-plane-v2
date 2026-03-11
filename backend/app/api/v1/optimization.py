@@ -242,6 +242,7 @@ async def get_recommendation(
 async def generate_recommendations(
     api_id: UUID = Query(..., description="API ID to generate recommendations for"),
     min_impact: float = Query(10.0, ge=0, le=100, description="Minimum expected improvement %"),
+    use_ai: bool = Query(False, description="Use AI-enhanced recommendation generation"),
 ) -> dict:
     """
     Generate optimization recommendations for a specific API.
@@ -269,25 +270,47 @@ async def generate_recommendations(
         )
         
         # Generate recommendations
-        recommendations = optimization_service.generate_recommendations_for_api(
-            api_id=api_id,
-            min_impact=min_impact,
-        )
-        
-        return {
-            "api_id": str(api_id),
-            "recommendations_generated": len(recommendations),
-            "recommendations": [
-                {
-                    "id": str(rec.id),
-                    "type": rec.recommendation_type.value,
-                    "title": rec.title,
-                    "priority": rec.priority.value,
-                    "expected_improvement": rec.estimated_impact.improvement_percentage,
-                }
-                for rec in recommendations
-            ],
-        }
+        if use_ai:
+            # Try to get LLM service for AI-enhanced generation
+            try:
+                from app.services.llm_service import LLMService
+                from app.config import Settings
+                settings = Settings()
+                llm_service = LLMService(settings)
+                optimization_service.llm_service = llm_service
+            except Exception as e:
+                logger.warning(f"LLM service unavailable, using rule-based: {e}")
+            
+            result = await optimization_service.generate_ai_enhanced_recommendations(
+                api_id=api_id,
+                min_impact=min_impact,
+            )
+            
+            return {
+                "status": "accepted",
+                "message": f"Generated AI-enhanced recommendations for API {api_id}",
+                "result": result,
+            }
+        else:
+            recommendations = optimization_service.generate_recommendations_for_api(
+                api_id=api_id,
+                min_impact=min_impact,
+            )
+            
+            return {
+                "api_id": str(api_id),
+                "recommendations_generated": len(recommendations),
+                "recommendations": [
+                    {
+                        "id": str(rec.id),
+                        "type": rec.recommendation_type.value,
+                        "title": rec.title,
+                        "priority": rec.priority.value,
+                        "expected_improvement": rec.estimated_impact.improvement_percentage,
+                    }
+                    for rec in recommendations
+                ],
+            }
         
     except Exception as e:
         logger.error(f"Failed to generate recommendations for API {api_id}: {e}")
@@ -345,5 +368,144 @@ async def get_recommendation_stats(
             detail=f"Failed to retrieve statistics: {str(e)}",
         )
 
+
+@router.post(
+    "/recommendations/ai-enhanced",
+    summary="Generate AI-enhanced recommendations",
+)
+async def generate_ai_enhanced_recommendations(
+    api_id: UUID = Query(..., description="API ID to generate recommendations for"),
+    min_impact: float = Query(10.0, ge=0, le=100, description="Minimum expected improvement %"),
+) -> dict:
+    """
+    Generate AI-enhanced optimization recommendations with LLM analysis.
+    
+    Args:
+        api_id: API ID to generate recommendations for
+        min_impact: Minimum expected improvement percentage
+        
+    Returns:
+        AI-enhanced recommendations with analysis
+        
+    Raises:
+        HTTPException: If generation fails
+    """
+    try:
+        # Initialize services
+        recommendation_repo = RecommendationRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Try to get LLM service
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import Settings
+            settings = Settings()
+            llm_service = LLMService(settings)
+        except Exception as e:
+            logger.warning(f"LLM service unavailable: {e}")
+            llm_service = None
+        
+        optimization_service = OptimizationService(
+            recommendation_repository=recommendation_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo,
+            llm_service=llm_service,
+        )
+        
+        # Generate AI-enhanced recommendations
+        result = await optimization_service.generate_ai_enhanced_recommendations(
+            api_id=api_id,
+            min_impact=min_impact,
+        )
+        
+        return {
+            "status": "success",
+            "result": result,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to generate AI-enhanced recommendations: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate AI-enhanced recommendations: {str(e)}",
+        )
+
+
+@router.get(
+    "/recommendations/{recommendation_id}/insights",
+    summary="Get AI insights for recommendation",
+)
+async def get_recommendation_insights(
+    recommendation_id: UUID,
+) -> dict:
+    """
+    Get AI-generated insights for a specific recommendation.
+    
+    Args:
+        recommendation_id: Recommendation UUID
+        
+    Returns:
+        AI-generated insights
+        
+    Raises:
+        HTTPException: If recommendation not found or insights fail
+    """
+    try:
+        # Initialize repositories
+        recommendation_repo = RecommendationRepository()
+        
+        # Get recommendation
+        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
+        
+        if not recommendation:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Recommendation {recommendation_id} not found",
+            )
+        
+        # Try to get LLM service
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import Settings
+            settings = Settings()
+            llm_service = LLMService(settings)
+            
+            # Generate insights
+            insights = await llm_service.generate_optimization_recommendation({
+                "response_time_p95": recommendation.estimated_impact.current_value,
+                "response_time_p99": recommendation.estimated_impact.current_value * 1.5,
+                "error_rate": 0.01,
+                "throughput": 100,
+                "availability": 99.5,
+            })
+            
+            return {
+                "status": "success",
+                "recommendation_id": str(recommendation_id),
+                "insights": insights,
+            }
+            
+        except Exception as e:
+            logger.warning(f"LLM insights unavailable: {e}")
+            return {
+                "status": "fallback",
+                "recommendation_id": str(recommendation_id),
+                "insights": {
+                    "title": recommendation.title,
+                    "description": recommendation.description,
+                    "priority": recommendation.priority.value,
+                    "estimated_impact": f"{recommendation.estimated_impact.improvement_percentage:.1f}%",
+                },
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get recommendation insights: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recommendation insights: {str(e)}",
+        )
 
 # Made with Bob

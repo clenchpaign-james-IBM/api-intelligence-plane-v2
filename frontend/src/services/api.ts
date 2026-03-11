@@ -164,7 +164,24 @@ export const api = {
     list: (params?: any) => api.get('/api/v1/predictions', params),
     get: (id: string) => api.get(`/api/v1/predictions/${id}`),
     create: (data: any) => api.post('/api/v1/predictions', data),
-    generate: (params?: any) => api.post('/api/v1/predictions/generate', params),
+    generate: (params?: any) => {
+      // Convert params object to query string
+      const queryParams = new URLSearchParams();
+      if (params?.api_id) queryParams.append('api_id', params.api_id);
+      if (params?.min_confidence !== undefined) queryParams.append('min_confidence', params.min_confidence.toString());
+      if (params?.use_ai !== undefined) queryParams.append('use_ai', params.use_ai.toString());
+      
+      const queryString = queryParams.toString();
+      return api.post(`/api/v1/predictions/generate${queryString ? `?${queryString}` : ''}`);
+    },
+    // AI-enhanced endpoints
+    generateAiEnhanced: (apiId: string, minConfidence?: number) => {
+      const queryParams = new URLSearchParams();
+      queryParams.append('api_id', apiId);
+      if (minConfidence !== undefined) queryParams.append('min_confidence', minConfidence.toString());
+      return api.post(`/api/v1/predictions/ai-enhanced?${queryParams.toString()}`);
+    },
+    getExplanation: (id: string) => api.get(`/api/v1/predictions/${id}/explanation`),
   },
 
   // Security endpoints
@@ -180,12 +197,20 @@ export const api = {
   recommendations: {
     list: (params?: any) => api.get('/api/v1/recommendations', params),
     get: (id: string) => api.get(`/api/v1/recommendations/${id}`),
-    generate: (apiId: string, minImpact?: number) => {
+    generate: (apiId: string, minImpact?: number, useAi?: boolean) => {
       const params: any = { api_id: apiId };
       if (minImpact !== undefined) params.min_impact = minImpact;
+      if (useAi !== undefined) params.use_ai = useAi;
       return api.post('/api/v1/recommendations/generate', params);
     },
     stats: (params?: any) => api.get('/api/v1/recommendations/stats', params),
+    // AI-enhanced endpoints
+    generateAiEnhanced: (apiId: string, minImpact?: number) => {
+      const params: any = { api_id: apiId };
+      if (minImpact !== undefined) params.min_impact = minImpact;
+      return api.post('/api/v1/optimization/ai-enhanced', params);
+    },
+    getInsights: (id: string) => api.get(`/api/v1/optimization/${id}/insights`),
   },
 
   // Rate limit endpoints

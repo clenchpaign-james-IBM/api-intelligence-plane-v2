@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, TrendingUp, Filter } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Filter, Sparkles } from 'lucide-react';
 import PredictionCard from '../components/predictions/PredictionCard';
 import PredictionTimeline from '../components/predictions/PredictionTimeline';
 import Loading from '../components/common/Loading';
@@ -21,6 +21,8 @@ const Predictions = () => {
   const [selectedSeverity, setSelectedSeverity] = useState<PredictionSeverity | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<PredictionStatus | 'all'>('all');
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
+  const [useAi, setUseAi] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   // Fetch predictions
   const { data, isLoading, error, refetch } = useQuery({
@@ -36,12 +38,17 @@ const Predictions = () => {
 
   // Generate new predictions
   const handleGeneratePredictions = async () => {
+    setIsGenerating(true);
     try {
-      await api.predictions.generate();
+      // Use the standard generate endpoint with use_ai parameter
+      // This endpoint can generate for all APIs when api_id is not provided
+      await api.predictions.generate({ use_ai: useAi });
       refetch();
     } catch (err) {
       console.error('Failed to generate predictions:', err);
       alert('Failed to generate predictions. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -79,16 +86,42 @@ const Predictions = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">API Failure Predictions</h1>
             <p className="mt-2 text-sm text-gray-600">
-              AI-powered predictions of potential API failures 24-48 hours in advance
+              {useAi ? 'LLM-enhanced predictions with detailed explanations' : 'Rule-based predictions of potential API failures'} 24-48 hours in advance
             </p>
           </div>
-          <button
-            onClick={handleGeneratePredictions}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <TrendingUp className="w-5 h-5" />
-            Generate Predictions
-          </button>
+          <div className="flex items-center gap-3">
+            {/* AI Toggle Switch */}
+            <div className="flex items-center gap-2 bg-white rounded-lg shadow px-4 py-2">
+              <Sparkles className={`w-5 h-5 ${useAi ? 'text-purple-600' : 'text-gray-400'}`} />
+              <span className="text-sm font-medium text-gray-700">AI Enhanced</span>
+              <button
+                onClick={() => setUseAi(!useAi)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  useAi ? 'bg-purple-600' : 'bg-gray-300'
+                }`}
+                role="switch"
+                aria-checked={useAi}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    useAi ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <button
+              onClick={handleGeneratePredictions}
+              disabled={isGenerating}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
+            >
+              <TrendingUp className="w-5 h-5" />
+              {isGenerating ? 'Generating...' : 'Generate Predictions'}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}

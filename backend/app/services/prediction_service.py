@@ -47,6 +47,7 @@ class PredictionService:
         prediction_repository: PredictionRepository,
         metrics_repository: MetricsRepository,
         api_repository: APIRepository,
+        llm_service: Optional[Any] = None,
     ):
         """
         Initialize the Prediction Service.
@@ -55,10 +56,13 @@ class PredictionService:
             prediction_repository: Repository for prediction operations
             metrics_repository: Repository for metrics operations
             api_repository: Repository for API operations
+            llm_service: Optional LLM service for AI-enhanced predictions
         """
         self.prediction_repo = prediction_repository
         self.metrics_repo = metrics_repository
         self.api_repo = api_repository
+        self.llm_service = llm_service
+        self._prediction_agent = None
 
     def generate_predictions_for_api(
         self, api_id: UUID, min_confidence: float = 0.7
@@ -125,6 +129,92 @@ class PredictionService:
                 logger.error(f"Failed to store prediction: {e}")
 
         return predictions
+    
+    async def generate_ai_enhanced_predictions(
+        self,
+        api_id: UUID,
+        min_confidence: float = 0.7,
+    ) -> Dict[str, Any]:
+        """
+        Generate AI-enhanced predictions with LLM analysis.
+        
+        Args:
+            api_id: API UUID
+            min_confidence: Minimum confidence threshold (0-1)
+            
+        Returns:
+            Dict with predictions and AI analysis
+        """
+        logger.info(f"Generating AI-enhanced predictions for API {api_id}")
+        
+        # Get API details
+        api = self.api_repo.get(str(api_id))
+        if not api:
+            logger.warning(f"API {api_id} not found")
+            return {
+                "error": "API not found",
+                "predictions": [],
+            }
+        
+        # Get historical metrics
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
+        
+        metrics, _ = self.metrics_repo.find_by_api(
+            api_id=api_id,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        
+        if len(metrics) < 10:
+            logger.info(f"Insufficient metrics data for API {api_id}")
+            return {
+                "error": "Insufficient metrics data",
+                "predictions": [],
+            }
+        
+        # Try AI-enhanced generation if available
+        if self.llm_service:
+            try:
+                # Lazy load prediction agent
+                if self._prediction_agent is None:
+                    from app.agents.prediction_agent import PredictionAgent
+                    self._prediction_agent = PredictionAgent(
+                        llm_service=self.llm_service,
+                        prediction_service=self,
+                    )
+                
+                # Generate AI-enhanced predictions
+                result = await self._prediction_agent.generate_enhanced_predictions(
+                    api_id=api_id,
+                    api_name=api.name,
+                    metrics=metrics,
+                )
+                
+                logger.info(f"Generated AI-enhanced predictions for API {api_id}")
+                return result
+                
+            except Exception as e:
+                logger.error(f"AI-enhanced prediction failed, falling back to rule-based: {e}")
+        
+        # Fallback to rule-based predictions
+        predictions = self.generate_predictions_for_api(api_id, min_confidence)
+        
+        return {
+            "api_id": str(api_id),
+            "api_name": api.name,
+            "predictions": [
+                {
+                    "id": str(p.id),
+                    "prediction_type": p.prediction_type.value,
+                    "confidence_score": p.confidence_score,
+                    "severity": p.severity.value,
+                    "predicted_time": p.predicted_time.isoformat(),
+                }
+                for p in predictions
+            ],
+            "fallback_mode": True,
+        }
 
     def generate_predictions_for_all_apis(
         self, min_confidence: float = 0.7

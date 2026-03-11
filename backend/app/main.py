@@ -95,6 +95,10 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
+# Add audit logging middleware (before error handler)
+from app.middleware.audit import AuditMiddleware
+app.add_middleware(AuditMiddleware)
+
 # Add error handling middleware
 app.middleware("http")(error_handler_middleware)
 
@@ -157,6 +161,10 @@ app.include_router(query.router, prefix="/api/v1", tags=["Query"])
 
 if __name__ == "__main__":
     import uvicorn
+    from app.utils.tls_config import get_uvicorn_ssl_config
+    
+    # Get SSL configuration if TLS is enabled
+    ssl_config = get_uvicorn_ssl_config()
     
     uvicorn.run(
         "app.main:app",
@@ -165,6 +173,7 @@ if __name__ == "__main__":
         reload=settings.RELOAD,
         workers=settings.WORKERS if not settings.RELOAD else 1,
         log_level=settings.LOG_LEVEL.lower(),
+        **ssl_config,
     )
 
 # Made with Bob

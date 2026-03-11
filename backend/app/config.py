@@ -141,6 +141,42 @@ class Settings(BaseSettings):
         default=30, description="Optimization analysis interval in minutes"
     )
     
+    # TLS/SSL Settings
+    TLS_ENABLED: bool = Field(
+        default=False, description="Enable TLS 1.3 for server"
+    )
+    TLS_CERT_FILE: Optional[str] = Field(
+        default=None, description="Path to TLS certificate file"
+    )
+    TLS_KEY_FILE: Optional[str] = Field(
+        default=None, description="Path to TLS private key file"
+    )
+    TLS_CA_FILE: Optional[str] = Field(
+        default=None, description="Path to TLS CA certificate file"
+    )
+    
+    # OpenSearch TLS Settings
+    OPENSEARCH_CLIENT_CERT: Optional[str] = Field(
+        default=None, description="Path to OpenSearch client certificate"
+    )
+    OPENSEARCH_CLIENT_KEY: Optional[str] = Field(
+        default=None, description="Path to OpenSearch client key"
+    )
+    OPENSEARCH_CA_CERT: Optional[str] = Field(
+        default=None, description="Path to OpenSearch CA certificate"
+    )
+    
+    # Client TLS Settings (for external API calls)
+    CLIENT_CERT_FILE: Optional[str] = Field(
+        default=None, description="Path to client certificate file"
+    )
+    CLIENT_KEY_FILE: Optional[str] = Field(
+        default=None, description="Path to client private key file"
+    )
+    CLIENT_CA_FILE: Optional[str] = Field(
+        default=None, description="Path to client CA certificate file"
+    )
+    
     # Security Settings
     SECRET_KEY: str = Field(
         default="change-me-in-production",

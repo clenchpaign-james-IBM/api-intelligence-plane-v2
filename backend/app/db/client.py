@@ -42,8 +42,12 @@ class OpenSearchClient:
     def _initialize_client(self):
         """Initialize the OpenSearch client with configuration."""
         from app.config import settings
+        from app.utils.tls_config import get_opensearch_ssl_config
         
         try:
+            # Get SSL configuration
+            ssl_config = get_opensearch_ssl_config()
+            
             self._client = OpenSearch(
                 hosts=[{
                     "host": settings.OPENSEARCH_HOST,
@@ -53,14 +57,12 @@ class OpenSearchClient:
                     settings.OPENSEARCH_USER,
                     settings.OPENSEARCH_PASSWORD,
                 ),
-                use_ssl=settings.OPENSEARCH_USE_SSL,
-                verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
-                ssl_show_warn=False,
                 connection_class=RequestsHttpConnection,
                 pool_maxsize=settings.OPENSEARCH_POOL_SIZE,
                 timeout=settings.OPENSEARCH_TIMEOUT,
                 max_retries=settings.OPENSEARCH_MAX_RETRIES,
                 retry_on_timeout=True,
+                **ssl_config,
             )
             
             # Verify connection

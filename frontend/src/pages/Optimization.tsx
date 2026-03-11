@@ -199,51 +199,51 @@ const Optimization = () => {
             </button>
           </nav>
         </div>
-
-        {/* Stats */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending Actions</p>
-                <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
-              </div>
-              <Zap className="w-8 h-8 text-yellow-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">High Priority</p>
-                <p className="text-2xl font-bold text-orange-600">{highPriorityCount}</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-orange-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Avg Improvement</p>
-                <p className="text-2xl font-bold text-green-600">{avgImprovement.toFixed(1)}%</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Potential Savings</p>
-                <p className="text-2xl font-bold text-blue-600">${totalSavings.toFixed(0)}/mo</p>
-              </div>
-              <DollarSign className="w-8 h-8 text-blue-500" />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Recommendations Tab Content */}
       {activeTab === 'recommendations' && (
         <>
+          {/* Stats */}
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Pending Actions</p>
+                  <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
+                </div>
+                <Zap className="w-8 h-8 text-yellow-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">High Priority</p>
+                  <p className="text-2xl font-bold text-orange-600">{highPriorityCount}</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-orange-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Avg Improvement</p>
+                  <p className="text-2xl font-bold text-green-600">{avgImprovement.toFixed(1)}%</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-green-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Potential Savings</p>
+                  <p className="text-2xl font-bold text-blue-600">${totalSavings.toFixed(0)}/mo</p>
+                </div>
+                <DollarSign className="w-8 h-8 text-blue-500" />
+              </div>
+            </div>
+          </div>
+
           {/* Filters */}
       <div className="mb-6 bg-white rounded-lg shadow p-4">
         <div className="flex items-center gap-4 flex-wrap">

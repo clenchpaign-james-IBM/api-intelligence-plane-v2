@@ -98,6 +98,69 @@ export interface GatewayCredentials {
 }
 
 export type GatewayVendor = 'native' | 'kong' | 'apigee' | 'aws' | 'azure' | 'custom';
+
+// Query Entity
+export interface Query {
+  id: string;
+  session_id: string;
+  user_id?: string;
+  query_text: string;
+  query_type: NLQueryType;
+  interpreted_intent: InterpretedIntent;
+  opensearch_query?: Record<string, any>;
+  results: QueryResults;
+  response_text: string;
+  confidence_score: number;
+  execution_time_ms: number;
+  feedback?: UserFeedback;
+  feedback_comment?: string;
+  follow_up_queries?: string[];
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface InterpretedIntent {
+  action: string;
+  entities: string[];
+  filters: Record<string, any>;
+  time_range?: TimeRange;
+}
+
+export interface TimeRange {
+  start: string;
+  end: string;
+}
+
+export interface QueryResults {
+  data: any[];
+  count: number;
+  execution_time: number;
+  aggregations?: Record<string, any>;
+}
+
+export type NLQueryType = 'status' | 'trend' | 'prediction' | 'security' | 'performance' | 'comparison' | 'general';
+export type UserFeedback = 'helpful' | 'not_helpful' | 'partially_helpful';
+
+// Query Request/Response
+export interface QueryRequest {
+  query_text: string;
+  session_id?: string;
+}
+
+export interface QueryResponse {
+  query_id: string;
+  query_text: string;
+  response_text: string;
+  confidence_score: number;
+  results: Record<string, any>;
+  follow_up_queries?: string[];
+  execution_time_ms: number;
+}
+
+export interface FeedbackRequest {
+  feedback: UserFeedback;
+  comment?: string;
+}
 export type ConnectionType = 'rest_api' | 'grpc' | 'graphql';
 export type GatewayStatus = 'connected' | 'disconnected' | 'error' | 'maintenance';
 

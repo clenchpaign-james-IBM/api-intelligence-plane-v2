@@ -5,8 +5,9 @@ This module provides TLS 1.3 configuration for all services to ensure
 secure communication and compliance with FedRAMP 140-3 requirements.
 """
 
+import os
 import ssl
-from typing import Optional
+from typing import Any, Optional
 
 from app.config import settings
 
@@ -126,7 +127,7 @@ def get_uvicorn_ssl_config() -> dict:
     }
 
 
-def get_opensearch_ssl_config() -> dict:
+def get_opensearch_ssl_config() -> dict[str, Any]:
     """
     Get SSL configuration for OpenSearch client.
     
@@ -142,14 +143,29 @@ def get_opensearch_ssl_config() -> dict:
         "ssl_show_warn": False,
     }
     
-    # Create SSL context for OpenSearch
-    ssl_context = create_client_ssl_context(
-        certfile=settings.OPENSEARCH_CLIENT_CERT,
-        keyfile=settings.OPENSEARCH_CLIENT_KEY,
-        cafile=settings.OPENSEARCH_CA_CERT,
+    # Only create SSL context if certificate files actually exist
+    # For development, we can use SSL without client certificates
+    cert_exists = (
+        settings.OPENSEARCH_CLIENT_CERT
+        and settings.OPENSEARCH_CLIENT_KEY
+        and os.path.isfile(settings.OPENSEARCH_CLIENT_CERT)
+        and os.path.isfile(settings.OPENSEARCH_CLIENT_KEY)
     )
+    ca_exists = settings.OPENSEARCH_CA_CERT and os.path.isfile(settings.OPENSEARCH_CA_CERT)
     
-    config["ssl_context"] = ssl_context
+    if cert_exists:
+        ssl_context = create_client_ssl_context(
+            certfile=settings.OPENSEARCH_CLIENT_CERT,
+            keyfile=settings.OPENSEARCH_CLIENT_KEY,
+            cafile=settings.OPENSEARCH_CA_CERT if ca_exists else None,
+        )
+        config["ssl_context"] = ssl_context
+    elif ca_exists:
+        # If only CA cert is provided, create context with just CA verification
+        ssl_context = create_client_ssl_context(
+            cafile=settings.OPENSEARCH_CA_CERT,
+        )
+        config["ssl_context"] = ssl_context
     
     return config
 

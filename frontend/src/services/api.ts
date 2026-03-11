@@ -25,7 +25,9 @@ export interface ApiError {
 }
 
 // API Client Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Use relative path in production/Docker (goes through Vite proxy)
+// Use full URL in development when running frontend standalone
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_TIMEOUT = 30000; // 30 seconds
 
 /**

@@ -35,26 +35,24 @@ export const QueryInput: React.FC<QueryInputProps> = ({
   };
 
   return (
-    <div className="flex items-end gap-2 p-4 bg-white border-t border-gray-200">
-      <div className="flex-1">
-        <textarea
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={placeholder}
-          disabled={isLoading}
-          rows={3}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-        />
-        <div className="mt-2 text-sm text-gray-500">
-          Press Enter to send, Shift+Enter for new line
+    <div className="p-4 bg-white border-t border-gray-200">
+      <div className="flex items-start gap-2">
+        <div className="flex-1">
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={placeholder}
+            disabled={isLoading}
+            rows={3}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+          />
         </div>
-      </div>
-      <Button
-        onClick={handleSubmit}
-        disabled={!query.trim() || isLoading}
-        className="px-6 py-3 h-[52px]"
-      >
+        <Button
+          onClick={handleSubmit}
+          disabled={!query.trim() || isLoading}
+          className="px-6 py-3 h-[52px] flex-shrink-0"
+        >
         {isLoading ? (
           <div className="flex items-center gap-2">
             <svg
@@ -98,6 +96,10 @@ export const QueryInput: React.FC<QueryInputProps> = ({
           </div>
         )}
       </Button>
+      </div>
+      <div className="mt-2 text-sm text-gray-500 text-center">
+        Press Enter to send, Shift+Enter for new line
+      </div>
     </div>
   );
 };

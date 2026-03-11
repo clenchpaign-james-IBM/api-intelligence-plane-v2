@@ -23,34 +23,40 @@ export const Query: React.FC = () => {
     clearSession,
   } = useQuerySession();
 
-  const [inputValue, setInputValue] = useState('');
   const historyEndRef = useRef<HTMLDivElement>(null);
 
   // Load history on mount - only if session has queries
   useEffect(() => {
+    console.log('[Query Page] Mount effect - sessionId:', sessionId, 'queries.length:', queries.length);
     if (sessionId && queries.length === 0) {
       // Only load if we don't have queries yet
       loadSessionHistory().catch((err) => {
         // Ignore errors on initial load (session might not exist yet)
-        console.log('No existing session history');
+        console.log('[Query Page] No existing session history');
       });
     }
   }, [sessionId]);
 
   // Auto-scroll to bottom when new queries arrive
   useEffect(() => {
+    console.log('[Query Page] Queries updated, count:', queries.length);
+    if (queries.length > 0) {
+      console.log('[Query Page] Latest query:', queries[queries.length - 1]);
+    }
     historyEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [queries]);
 
   const handleSubmit = async (query: string) => {
+    console.log('[Query Page] handleSubmit called with:', query);
     if (!query.trim()) return;
-    
-    setInputValue('');
+    console.log('[Query Page] Executing query...');
     await executeQuery(query);
+    console.log('[Query Page] Query execution complete');
   };
 
-  const handleFollowUpClick = (query: string) => {
-    setInputValue(query);
+  const handleFollowUpClick = async (query: string) => {
+    console.log('[Query Page] Follow-up clicked:', query);
+    await handleSubmit(query);
   };
 
   const handleClearSession = () => {
@@ -154,15 +160,11 @@ export const Query: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white border-t border-gray-200">
-        <QueryInput
-          value={inputValue}
-          onChange={setInputValue}
-          onSubmit={handleSubmit}
-          disabled={isLoading}
-          placeholder="Ask a question about your APIs..."
-        />
-      </div>
+      <QueryInput
+        onSubmit={handleSubmit}
+        isLoading={isLoading}
+        placeholder="Ask a question about your APIs..."
+      />
 
     </div>
   );

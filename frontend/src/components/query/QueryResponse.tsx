@@ -1,10 +1,12 @@
 /**
  * Query Response Component
- * 
+ *
  * Displays AI-generated response with confidence score and follow-up suggestions.
  */
 
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { QueryResponse as QueryResponseType } from '../../types';
 import { Card } from '../common';
 
@@ -42,9 +44,11 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
       <div className="flex justify-start">
         <Card className="max-w-[80%]">
           <div className="space-y-4">
-            {/* Response Text */}
-            <div className="prose prose-sm max-w-none">
-              <p className="text-gray-800 whitespace-pre-wrap">{response.response_text}</p>
+            {/* Response Text with Markdown */}
+            <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:text-gray-800">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {response.response_text}
+              </ReactMarkdown>
             </div>
 
             {/* Metadata */}

@@ -63,10 +63,16 @@ export const useQuerySession = (): UseQuerySessionReturn => {
       setIsLoading(true);
       setError(null);
 
+      console.log('[useQuerySession] Loading history for session:', targetSessionId);
       const response = await api.get(`/api/v1/query/session/${targetSessionId}`);
-      setQueries(response.data.items || []);
+      console.log('[useQuerySession] History response:', response);
+      console.log('[useQuerySession] Items:', response.items);
+      
+      // api.get already returns response.data, so response is the QueryHistoryResponse
+      setQueries(response.items || []);
+      console.log('[useQuerySession] Queries state updated, count:', response.items?.length || 0);
     } catch (err: any) {
-      console.error('Failed to load session history:', err);
+      console.error('[useQuerySession] Failed to load session history:', err);
       setError(err.message || 'Failed to load session history');
     } finally {
       setIsLoading(false);
@@ -91,14 +97,39 @@ export const useQuerySession = (): UseQuerySessionReturn => {
         session_id: sessionId,
       };
 
-      const response = await api.post<QueryResponse>('/api/v1/query', request);
+      console.log('[useQuerySession] Executing query:', queryText);
+      console.log('[useQuerySession] Request:', request);
       
-      // Reload session history to get the new query
-      await loadSessionHistory();
+      const response = await api.post<QueryResponse>('/api/v1/query', request);
+      console.log('[useQuerySession] Query response:', response);
+      
+      // Convert QueryResponse to Query object and add to state immediately
+      const newQuery: Query = {
+        id: response.query_id,
+        session_id: sessionId,
+        user_id: undefined,
+        query_text: response.query_text,
+        query_type: 'general' as any,
+        interpreted_intent: undefined as any,
+        opensearch_query: undefined,
+        results: response.results as any,
+        response_text: response.response_text,
+        confidence_score: response.confidence_score,
+        execution_time_ms: response.execution_time_ms,
+        feedback: undefined,
+        feedback_comment: undefined,
+        follow_up_queries: response.follow_up_queries || [],
+        metadata: undefined,
+        created_at: new Date().toISOString(),
+      };
+      
+      console.log('[useQuerySession] Adding query to state:', newQuery);
+      setQueries((prev: Query[]) => [...prev, newQuery]);
+      console.log('[useQuerySession] Query added to state');
 
       return response;
     } catch (err: any) {
-      console.error('Failed to execute query:', err);
+      console.error('[useQuerySession] Failed to execute query:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to execute query';
       setError(errorMessage);
       return null;

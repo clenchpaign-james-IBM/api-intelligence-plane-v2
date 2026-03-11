@@ -71,10 +71,16 @@ class LLMService:
 
         # Ollama (local)
         ollama_url = getattr(self.settings, 'OLLAMA_BASE_URL', None)
-        if ollama_url and ollama_url != "http://localhost:11434":  # Only if explicitly configured
+        if ollama_url or self.settings.LLM_PROVIDER == "ollama":
+            # Use configured model or default
+            ollama_model = self.settings.LLM_MODEL if self.settings.LLM_PROVIDER == "ollama" else "llama3.1:8b"
+            # Ensure model has ollama/ prefix for litellm
+            if not ollama_model.startswith("ollama/"):
+                ollama_model = f"ollama/{ollama_model}"
+            
             self.providers.append({
-                "model": "ollama/llama2",
-                "api_base": ollama_url,
+                "model": ollama_model,
+                "api_base": ollama_url or "http://localhost:11434",
             })
 
         if not self.providers:
@@ -144,6 +150,7 @@ class LLMService:
                 }
 
                 logger.info(f"LLM completion successful with {provider['model']}")
+                logger.info(f"LLM completion result content: {result['content']}")
                 return result
 
             except Exception as e:

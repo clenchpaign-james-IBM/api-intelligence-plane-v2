@@ -98,6 +98,17 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: Optional[str] = Field(
         default=None, description="Azure OpenAI API key"
     )
+    
+    # Agent Settings
+    AGENT_TIMEOUT: int = Field(
+        default=30, description="Timeout for AI agent operations in seconds"
+    )
+    AGENT_CACHE_TTL: int = Field(
+        default=300, description="Cache TTL for agent results in seconds (5 minutes)"
+    )
+    AGENT_MAX_RESULTS: int = Field(
+        default=3, description="Maximum number of results to enhance with agents"
+    )
     AZURE_OPENAI_ENDPOINT: Optional[str] = Field(
         default=None, description="Azure OpenAI endpoint"
     )

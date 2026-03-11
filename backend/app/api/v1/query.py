@@ -32,6 +32,7 @@ class QueryRequest(BaseModel):
     
     query_text: str = Field(..., min_length=1, max_length=5000, description="Natural language query")
     session_id: Optional[UUID] = Field(None, description="Conversation session ID")
+    use_ai_agents: bool = Field(default=True, description="Enable AI agent enhancement for predictions and performance queries")
 
 
 class FeedbackRequest(BaseModel):
@@ -72,6 +73,46 @@ prediction_repo = PredictionRepository()
 recommendation_repo = RecommendationRepository()
 llm_service = LLMService(settings)
 
+# Initialize agents if enabled
+prediction_agent = None
+optimization_agent = None
+
+try:
+    from app.agents.prediction_agent import PredictionAgent
+    from app.agents.optimization_agent import OptimizationAgent
+    from app.services.prediction_service import PredictionService
+    from app.services.optimization_service import OptimizationService
+    
+    # Create service instances for agents
+    prediction_service = PredictionService(
+        prediction_repository=prediction_repo,
+        api_repository=api_repo,
+        metrics_repository=metrics_repo,
+        llm_service=llm_service,
+    )
+    
+    optimization_service = OptimizationService(
+        recommendation_repository=recommendation_repo,
+        api_repository=api_repo,
+        metrics_repository=metrics_repo,
+        llm_service=llm_service,
+    )
+    
+    # Initialize agents
+    prediction_agent = PredictionAgent(
+        llm_service=llm_service,
+        prediction_service=prediction_service,
+    )
+    
+    optimization_agent = OptimizationAgent(
+        llm_service=llm_service,
+        optimization_service=optimization_service,
+    )
+    
+    logger.info("AI agents initialized successfully for query service")
+except Exception as e:
+    logger.warning(f"Failed to initialize AI agents: {e}. Query service will work without agent enhancement.")
+
 query_service = QueryService(
     query_repository=query_repo,
     api_repository=api_repo,
@@ -79,6 +120,8 @@ query_service = QueryService(
     prediction_repository=prediction_repo,
     recommendation_repository=recommendation_repo,
     llm_service=llm_service,
+    prediction_agent=prediction_agent,
+    optimization_agent=optimization_agent,
 )
 
 
@@ -94,7 +137,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
     Execute a natural language query.
     
     Args:
-        request: Query request with query text and optional session ID
+        request: Query request with query text, optional session ID, and AI agent flag
         
     Returns:
         Query response with results and natural language answer
@@ -106,23 +149,37 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         # Generate session ID if not provided
         session_id = request.session_id or UUID("00000000-0000-0000-0000-000000000000")
         
-        # Process query
-        query = await query_service.process_query(
-            query_text=request.query_text,
-            session_id=session_id,
-        )
+        # Temporarily disable agents if requested
+        original_prediction_agent = query_service.prediction_agent
+        original_optimization_agent = query_service.optimization_agent
         
-        logger.info(f"Processed query {query.id} with confidence {query.confidence_score}")
+        if not request.use_ai_agents:
+            query_service.prediction_agent = None
+            query_service.optimization_agent = None
+            logger.info("AI agents disabled for this query")
         
-        return QueryResponse(
-            query_id=query.id,
-            query_text=query.query_text,
-            response_text=query.response_text,
-            confidence_score=query.confidence_score,
-            results=query.results.model_dump(),
-            follow_up_queries=query.follow_up_queries,
-            execution_time_ms=query.execution_time_ms,
-        )
+        try:
+            # Process query
+            query = await query_service.process_query(
+                query_text=request.query_text,
+                session_id=session_id,
+            )
+            
+            logger.info(f"Processed query {query.id} with confidence {query.confidence_score}")
+            
+            return QueryResponse(
+                query_id=query.id,
+                query_text=query.query_text,
+                response_text=query.response_text,
+                confidence_score=query.confidence_score,
+                results=query.results.model_dump(),
+                follow_up_queries=query.follow_up_queries,
+                execution_time_ms=query.execution_time_ms,
+            )
+        finally:
+            # Restore agents
+            query_service.prediction_agent = original_prediction_agent
+            query_service.optimization_agent = original_optimization_agent
         
     except Exception as e:
         logger.error(f"Failed to execute query: {e}")

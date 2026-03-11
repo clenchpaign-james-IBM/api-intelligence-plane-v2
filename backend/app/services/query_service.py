@@ -69,6 +69,8 @@ class QueryService:
         prediction_repository: PredictionRepository,
         recommendation_repository: RecommendationRepository,
         llm_service: LLMService,
+        prediction_agent: Optional[Any] = None,
+        optimization_agent: Optional[Any] = None,
     ):
         """
         Initialize the Query Service.
@@ -80,6 +82,8 @@ class QueryService:
             prediction_repository: Repository for prediction operations
             recommendation_repository: Repository for recommendation operations
             llm_service: LLM service for natural language processing
+            prediction_agent: Optional PredictionAgent for AI-enhanced prediction queries
+            optimization_agent: Optional OptimizationAgent for AI-enhanced performance queries
         """
         self.query_repo = query_repository
         self.api_repo = api_repository
@@ -87,6 +91,12 @@ class QueryService:
         self.prediction_repo = prediction_repository
         self.recommendation_repo = recommendation_repository
         self.llm_service = llm_service
+        self.prediction_agent = prediction_agent
+        self.optimization_agent = optimization_agent
+        
+        # Cache for agent analysis results (5-minute TTL)
+        self._agent_cache: Dict[str, Tuple[Any, float]] = {}
+        self._cache_ttl = 300  # 5 minutes in seconds
 
     async def process_query(
         self,
@@ -398,6 +408,159 @@ Respond in JSON format:
                 }
             }
 
+    async def _enhance_with_prediction_agent(
+        self,
+        results: List[Any],
+        intent: InterpretedIntent,
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhance query results with PredictionAgent insights.
+        
+        Args:
+            results: Query results to enhance
+            intent: Interpreted intent
+            
+        Returns:
+            Enhanced results with agent insights
+        """
+        if not self.prediction_agent:
+            logger.debug("PredictionAgent not available, skipping enhancement")
+            return results
+        
+        enhanced_results = []
+        
+        # Limit to top 3 results to avoid latency
+        for result in results[:3]:
+            try:
+                # Check cache first
+                cache_key = f"pred_{result.get('id', '')}"
+                cached_result = self._get_from_cache(cache_key)
+                if cached_result:
+                    enhanced_results.append(cached_result)
+                    continue
+                
+                # Get API details
+                api_id = result.get("id")
+                api_name = result.get("name", "Unknown")
+                
+                # Fetch recent metrics for this API
+                metrics, _ = self.metrics_repo.search(
+                    {"term": {"api_id": api_id}},
+                    size=100,
+                )
+                
+                # Generate enhanced predictions
+                agent_result = await self.prediction_agent.generate_enhanced_predictions(
+                    api_id=api_id,
+                    api_name=api_name,
+                    metrics=metrics,
+                )
+                
+                # Merge agent insights with original result
+                enhanced = {**result}
+                enhanced["agent_insights"] = {
+                    "type": "prediction",
+                    "analysis": agent_result.get("analysis", ""),
+                    "predictions": agent_result.get("predictions", []),
+                    "metrics_analyzed": agent_result.get("metrics_analyzed", 0),
+                }
+                
+                # Cache the result
+                self._add_to_cache(cache_key, enhanced)
+                enhanced_results.append(enhanced)
+                
+            except Exception as e:
+                logger.warning(f"Failed to enhance result with PredictionAgent: {e}")
+                enhanced_results.append(result)
+        
+        # Add remaining results without enhancement
+        enhanced_results.extend(results[3:])
+        return enhanced_results
+    
+    async def _enhance_with_optimization_agent(
+        self,
+        results: List[Any],
+        intent: InterpretedIntent,
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhance query results with OptimizationAgent insights.
+        
+        Args:
+            results: Query results to enhance
+            intent: Interpreted intent
+            
+        Returns:
+            Enhanced results with agent insights
+        """
+        if not self.optimization_agent:
+            logger.debug("OptimizationAgent not available, skipping enhancement")
+            return results
+        
+        enhanced_results = []
+        
+        # Limit to top 3 results to avoid latency
+        for result in results[:3]:
+            try:
+                # Check cache first
+                cache_key = f"opt_{result.get('id', '')}"
+                cached_result = self._get_from_cache(cache_key)
+                if cached_result:
+                    enhanced_results.append(cached_result)
+                    continue
+                
+                # Get API details
+                api_id = result.get("id")
+                api_name = result.get("name", "Unknown")
+                
+                # Fetch recent metrics for this API
+                metrics, _ = self.metrics_repo.search(
+                    {"term": {"api_id": api_id}},
+                    size=100,
+                )
+                
+                # Generate enhanced recommendations
+                agent_result = await self.optimization_agent.generate_enhanced_recommendations(
+                    api_id=api_id,
+                    api_name=api_name,
+                    metrics=metrics,
+                )
+                
+                # Merge agent insights with original result
+                enhanced = {**result}
+                enhanced["agent_insights"] = {
+                    "type": "optimization",
+                    "performance_analysis": agent_result.get("performance_analysis", ""),
+                    "recommendations": agent_result.get("recommendations", []),
+                    "prioritization": agent_result.get("prioritization", ""),
+                    "metrics_analyzed": agent_result.get("metrics_analyzed", 0),
+                }
+                
+                # Cache the result
+                self._add_to_cache(cache_key, enhanced)
+                enhanced_results.append(enhanced)
+                
+            except Exception as e:
+                logger.warning(f"Failed to enhance result with OptimizationAgent: {e}")
+                enhanced_results.append(result)
+        
+        # Add remaining results without enhancement
+        enhanced_results.extend(results[3:])
+        return enhanced_results
+    
+    def _get_from_cache(self, key: str) -> Optional[Any]:
+        """Get result from cache if not expired."""
+        if key in self._agent_cache:
+            result, timestamp = self._agent_cache[key]
+            if time.time() - timestamp < self._cache_ttl:
+                return result
+            else:
+                del self._agent_cache[key]
+        return None
+    
+    def _add_to_cache(self, key: str, result: Any) -> None:
+        """Add result to cache with current timestamp."""
+        self._agent_cache[key] = (result, time.time())
+
     async def _execute_query(
         self,
         opensearch_query: Dict[str, Any],
@@ -444,6 +607,14 @@ Respond in JSON format:
                 data = []
                 total = 0
             
+            # Enhance results with agent insights for specific query types
+            if query_type == QueryType.PREDICTION and self.prediction_agent and data:
+                logger.info("Enhancing results with PredictionAgent")
+                data = await self._enhance_with_prediction_agent(data, intent)
+            elif query_type == QueryType.PERFORMANCE and self.optimization_agent and data:
+                logger.info("Enhancing results with OptimizationAgent")
+                data = await self._enhance_with_optimization_agent(data, intent)
+            
             execution_time = int((time.time() - start_time) * 1000)
             
             return QueryResults(
@@ -482,7 +653,24 @@ Respond in JSON format:
         Returns:
             Natural language response
         """
-        system_prompt = """You are an AI assistant for API management. Generate a clear, concise response to the user's query based on the results.
+        # Check if results contain agent insights
+        has_agent_insights = any(
+            isinstance(item, dict) and "agent_insights" in item
+            for item in results.data
+        )
+        
+        if has_agent_insights:
+            system_prompt = """You are an AI assistant for API management with access to advanced AI agent analysis. Generate a clear, insightful response that incorporates the AI agent insights.
+
+Guidelines:
+- Highlight key insights from the AI agent analysis
+- Be specific and use numbers from the results
+- Explain predictions or recommendations in context
+- Keep responses under 250 words
+- Use professional but friendly tone
+- Emphasize actionable insights from the agent analysis"""
+        else:
+            system_prompt = """You are an AI assistant for API management. Generate a clear, concise response to the user's query based on the results.
 
 Guidelines:
 - Be specific and use numbers from the results
@@ -494,7 +682,20 @@ Guidelines:
         # Prepare results summary
         results_summary = f"Found {results.count} results in {results.execution_time}ms"
         if results.data:
-            results_summary += f"\n\nSample results:\n{results.data[:3]}"
+            # Include agent insights in summary if present
+            if has_agent_insights:
+                results_summary += "\n\nResults with AI Agent Insights:"
+                for item in results.data[:3]:
+                    if isinstance(item, dict) and "agent_insights" in item:
+                        insights = item["agent_insights"]
+                        results_summary += f"\n\nAPI: {item.get('name', 'Unknown')}"
+                        results_summary += f"\nAgent Type: {insights.get('type', 'unknown')}"
+                        if insights.get('analysis'):
+                            results_summary += f"\nAnalysis: {insights['analysis'][:200]}..."
+                        if insights.get('performance_analysis'):
+                            results_summary += f"\nPerformance: {insights['performance_analysis'][:200]}..."
+            else:
+                results_summary += f"\n\nSample results:\n{results.data[:3]}"
         
         messages = [
             {
@@ -508,7 +709,7 @@ Guidelines:
                 messages=messages,
                 system_prompt=system_prompt,
                 temperature=0.7,
-                max_tokens=300,
+                max_tokens=400 if has_agent_insights else 300,
             )
             return response["content"]
         except Exception as e:
@@ -517,7 +718,8 @@ Guidelines:
             if results.count == 0:
                 return f"I couldn't find any {intent.entities[0] if intent.entities else 'items'} matching your criteria. Try adjusting your filters or time range."
             else:
-                return f"I found {results.count} {intent.entities[0] if intent.entities else 'items'} matching your query."
+                agent_note = " (including AI agent insights)" if has_agent_insights else ""
+                return f"I found {results.count} {intent.entities[0] if intent.entities else 'items'} matching your query{agent_note}."
 
     def _generate_follow_ups(
         self,
@@ -540,8 +742,35 @@ Guidelines:
         """
         follow_ups = []
         
+        # Check if results contain agent insights
+        has_agent_insights = any(
+            isinstance(item, dict) and "agent_insights" in item
+            for item in results.data
+        )
+        
         if results.count > 0:
             primary_entity = intent.entities[0] if intent.entities else "item"
+            
+            # Add agent-specific follow-ups if insights are present
+            if has_agent_insights:
+                agent_type = None
+                for item in results.data:
+                    if isinstance(item, dict) and "agent_insights" in item:
+                        agent_type = item["agent_insights"].get("type")
+                        break
+                
+                if agent_type == "prediction":
+                    follow_ups.extend([
+                        "What are the key factors driving these predictions?",
+                        "Show me the confidence levels for these predictions",
+                        "What preventive actions are recommended?",
+                    ])
+                elif agent_type == "optimization":
+                    follow_ups.extend([
+                        "What's the expected impact of these optimizations?",
+                        "Show me the implementation priority order",
+                        "What are the resource requirements?",
+                    ])
             
             # Suggest related queries based on entity type
             if primary_entity == "api":
@@ -561,6 +790,12 @@ Guidelines:
                     "Show me the contributing factors",
                     "What actions are recommended?",
                     "Show prediction accuracy",
+                ])
+            elif primary_entity == "recommendation":
+                follow_ups.extend([
+                    "What's the implementation status?",
+                    "Show me the expected impact",
+                    "Which recommendations are highest priority?",
                 ])
         else:
             follow_ups.extend([

@@ -528,6 +528,65 @@ This is a distributed web application with microservices architecture:
 - [X] T237 [P] [AI] Document cost considerations and token usage in docs/ai-costs.md
 - [ ] T238 [P] [AI] Add API examples for AI-enhanced endpoints in docs/api-reference.md
 
+
+---
+
+## Phase 11: Query Service Agent Integration 🔗
+
+**Goal**: Enhance QueryService with PredictionAgent and OptimizationAgent for AI-driven query responses
+
+**Independent Test**: Execute natural language queries about predictions and performance, verify AI agent insights are included in responses
+
+### Service Enhancement
+
+- [X] T239 [P] [QS] Add optional prediction_agent parameter to QueryService.__init__ in backend/app/services/query_service.py
+- [X] T240 [P] [QS] Add optional optimization_agent parameter to QueryService.__init__ in backend/app/services/query_service.py
+- [X] T241 [QS] Create _enhance_with_prediction_agent() method in backend/app/services/query_service.py
+- [X] T242 [QS] Create _enhance_with_optimization_agent() method in backend/app/services/query_service.py
+- [X] T243 [QS] Update _execute_query() to call agent enhancement for PREDICTION query type in backend/app/services/query_service.py
+- [X] T244 [QS] Update _execute_query() to call agent enhancement for PERFORMANCE query type in backend/app/services/query_service.py
+
+### Response Generation Enhancement
+
+- [X] T245 [QS] Update _generate_response() to detect agent insights in results in backend/app/services/query_service.py
+- [X] T246 [QS] Create enhanced system prompt for responses with agent insights in backend/app/services/query_service.py
+- [X] T247 [P] [QS] Update _generate_follow_ups() to suggest agent-specific follow-up queries in backend/app/services/query_service.py
+
+### API Integration
+
+- [X] T248 [QS] Update query endpoint to initialize agents when available in backend/app/api/v1/query.py
+- [X] T249 [P] [QS] Add use_ai_agents query parameter to query endpoint in backend/app/api/v1/query.py
+- [X] T250 [P] [QS] Add agent_timeout configuration parameter in backend/app/config.py
+
+### Performance Optimization
+
+- [X] T251 [P] [QS] Implement result caching for agent analysis (5-minute TTL) in backend/app/services/query_service.py
+- [X] T252 [P] [QS] Add parallel agent execution for multiple APIs in backend/app/services/query_service.py
+- [X] T253 [P] [QS] Limit agent enhancement to top 3 results to avoid latency in backend/app/services/query_service.py
+- [X] T254 [P] [QS] Add token usage tracking for agent calls in backend/app/services/query_service.py
+
+### Error Handling & Fallback
+
+- [X] T255 [QS] Add graceful fallback when agents fail in backend/app/services/query_service.py
+- [X] T256 [P] [QS] Add agent availability check before enhancement in backend/app/services/query_service.py
+- [X] T257 [P] [QS] Log agent failures without breaking query execution in backend/app/services/query_service.py
+
+### Testing & Validation
+
+- [X] T258 [QS] Create integration test for prediction query with agent enhancement in backend/tests/integration/test_query_agent_integration.py
+- [X] T259 [QS] Create integration test for performance query with agent enhancement in backend/tests/integration/test_query_agent_integration.py
+- [X] T260 [QS] Test agent fallback behavior when agents unavailable in backend/tests/integration/test_query_agent_integration.py
+- [X] T261 [P] [QS] Test parallel agent execution performance in backend/tests/integration/test_query_agent_integration.py
+- [X] T262 [P] [QS] Validate token usage tracking for agent calls in backend/tests/integration/test_query_agent_integration.py
+
+### Documentation
+
+- [X] T263 [P] [QS] Document agent integration in docs/query-service.md
+- [X] T264 [P] [QS] Add examples of AI-enhanced query responses in docs/query-service.md
+- [X] T265 [P] [QS] Document configuration options (use_ai_agents, agent_timeout) in docs/query-service.md
+
+**Checkpoint**: Phase 11 complete - QueryService provides AI-enhanced responses with agent insights
+
 **Checkpoint**: Phase 10 complete - AI-enhanced analysis operational with fallback to rule-based
 
 ---

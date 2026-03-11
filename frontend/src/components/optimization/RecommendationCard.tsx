@@ -1,4 +1,7 @@
-import { DollarSign } from 'lucide-react';
+import { DollarSign, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../services/api';
 import type { Recommendation, RecommendationPriority, RecommendationStatus, RecommendationType } from '../../types';
 
 interface RecommendationCardProps {
@@ -18,6 +21,15 @@ interface RecommendationCardProps {
  * - Optional detailed view with implementation steps
  */
 const RecommendationCard = ({ recommendation, onClick, detailed = false }: RecommendationCardProps) => {
+  const [showAiInsights, setShowAiInsights] = useState(false);
+
+  // Fetch AI insights when detailed view is shown
+  const { data: aiInsights, isLoading: insightsLoading } = useQuery({
+    queryKey: ['recommendation-insights', recommendation.id],
+    queryFn: () => api.recommendations.getInsights(recommendation.id),
+    enabled: detailed && showAiInsights,
+  });
+
   // Priority badge color
   const getPriorityColor = (priority: RecommendationPriority) => {
     switch (priority) {
@@ -132,6 +144,64 @@ const RecommendationCard = ({ recommendation, onClick, detailed = false }: Recom
               <p className="text-lg font-semibold text-green-600">
                 ${recommendation.cost_savings.toFixed(2)}
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* AI Insights Section */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <button
+            onClick={() => setShowAiInsights(!showAiInsights)}
+            className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium text-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            {showAiInsights ? 'Hide' : 'Show'} AI Insights
+          </button>
+          
+          {showAiInsights && (
+            <div className="mt-3 bg-purple-50 rounded-lg p-4">
+              {insightsLoading ? (
+                <div className="flex items-center gap-2 text-purple-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                  <span className="text-sm">Loading AI insights...</span>
+                </div>
+              ) : aiInsights ? (
+                <div className="space-y-3">
+                  {aiInsights.analysis && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Performance Analysis</h5>
+                      <p className="text-sm text-purple-800">{aiInsights.analysis}</p>
+                    </div>
+                  )}
+                  {aiInsights.prioritization_reasoning && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Priority Reasoning</h5>
+                      <p className="text-sm text-purple-800">{aiInsights.prioritization_reasoning}</p>
+                    </div>
+                  )}
+                  {aiInsights.implementation_guidance && aiInsights.implementation_guidance.length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Implementation Guidance</h5>
+                      <ul className="space-y-1">
+                        {aiInsights.implementation_guidance.map((guidance: string, index: number) => (
+                          <li key={index} className="text-sm text-purple-800 flex items-start gap-2">
+                            <span className="text-purple-600 mt-0.5">•</span>
+                            <span>{guidance}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiInsights.risk_assessment && (
+                    <div>
+                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Risk Assessment</h5>
+                      <p className="text-sm text-purple-800">{aiInsights.risk_assessment}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-purple-700">No AI insights available for this recommendation.</p>
+              )}
             </div>
           )}
         </div>

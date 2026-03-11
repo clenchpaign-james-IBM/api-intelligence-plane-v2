@@ -158,6 +158,7 @@ api-intelligence-plane-v2/
 - 24-48 hour advance failure predictions
 - Contributing factors analysis
 - Recommended preventive actions
+- **🤖 AI-Enhanced**: LLM-powered trend analysis and detailed explanations
 
 ### 3. Security Scanning & Remediation (P2)
 - Continuous vulnerability scanning
@@ -168,6 +169,7 @@ api-intelligence-plane-v2/
 - Real-time optimization recommendations
 - Estimated impact analysis
 - Implementation tracking
+- **🤖 AI-Enhanced**: LLM-generated insights and prioritization guidance
 
 ### 5. Intelligent Rate Limiting (P3)
 - Adaptive rate limiting
@@ -178,6 +180,24 @@ api-intelligence-plane-v2/
 - Query API intelligence using natural language
 - Contextual responses
 - Conversation history
+
+### 🆕 AI-Enhanced Analysis
+
+The platform includes optional AI-powered features that enhance predictions and recommendations:
+
+- **Smart Predictions**: LLM analyzes metrics trends to provide detailed explanations of why failures are predicted
+- **Intelligent Recommendations**: AI-generated optimization insights with implementation guidance and prioritization
+- **Natural Language Explanations**: Human-readable interpretations of technical predictions
+- **Graceful Fallback**: Automatically falls back to rule-based analysis if LLM is unavailable
+
+**Setup**: See [AI Setup Guide](docs/ai-setup.md) for configuration instructions.
+
+**API Endpoints**:
+- `POST /api/v1/predictions/ai-enhanced` - Generate AI-enhanced predictions
+- `GET /api/v1/predictions/{id}/explanation` - Get AI explanation for prediction
+- `POST /api/v1/optimization/ai-enhanced` - Generate AI-enhanced recommendations
+- `GET /api/v1/optimization/{id}/insights` - Get AI insights for recommendation
+- Add `?use_ai=true` to existing endpoints for AI-enhanced generation
 
 ## Technology Stack
 
@@ -241,6 +261,7 @@ See [`.env.example`](.env.example) for all configuration options.
 
 ## Documentation
 
+- [AI Setup Guide](docs/ai-setup.md) - Configure AI-enhanced features
 - [Architecture Documentation](docs/architecture.md)
 - [API Reference](docs/api-reference.md)
 - [Deployment Guide](docs/deployment.md)

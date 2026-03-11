@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Zap, TrendingUp, Filter, DollarSign, Shield } from 'lucide-react';
+import { Zap, TrendingUp, Filter, DollarSign, Shield, Sparkles } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
 import RateLimitPolicy from '../components/optimization/RateLimitPolicy';
@@ -34,6 +34,8 @@ const Optimization = () => {
   const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<RateLimitPolicyType | null>(null);
   const [selectedPolicyStatus, setSelectedPolicyStatus] = useState<PolicyStatus | 'all'>('all');
+  const [useAi, setUseAi] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   
   const queryClient = useQueryClient();
 
@@ -160,16 +162,47 @@ const Optimization = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
             <p className="mt-2 text-sm text-gray-600">
-              AI-powered recommendations and intelligent rate limiting
+              {useAi ? 'LLM-enhanced recommendations with detailed insights' : 'Rule-based recommendations'} and intelligent rate limiting
             </p>
           </div>
-          <button
-            onClick={() => refetch()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <TrendingUp className="w-5 h-5" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {/* AI Toggle Switch */}
+            {activeTab === 'recommendations' && (
+              <div className="flex items-center gap-2 bg-white rounded-lg shadow px-4 py-2">
+                <Sparkles className={`w-5 h-5 ${useAi ? 'text-purple-600' : 'text-gray-400'}`} />
+                <span className="text-sm font-medium text-gray-700">AI Enhanced</span>
+                <button
+                  onClick={() => setUseAi(!useAi)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    useAi ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+                  role="switch"
+                  aria-checked={useAi}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      useAi ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setIsGenerating(true);
+                refetch().finally(() => setIsGenerating(false));
+              }}
+              disabled={isGenerating}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
+            >
+              <TrendingUp className="w-5 h-5" />
+              {isGenerating ? 'Refreshing...' : 'Refresh List'}
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}

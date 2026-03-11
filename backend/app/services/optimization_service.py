@@ -53,6 +53,7 @@ class OptimizationService:
         recommendation_repository: RecommendationRepository,
         metrics_repository: MetricsRepository,
         api_repository: APIRepository,
+        llm_service: Optional[Any] = None,
     ):
         """
         Initialize the Optimization Service.
@@ -61,10 +62,13 @@ class OptimizationService:
             recommendation_repository: Repository for recommendation operations
             metrics_repository: Repository for metrics operations
             api_repository: Repository for API operations
+            llm_service: Optional LLM service for AI-enhanced recommendations
         """
         self.recommendation_repo = recommendation_repository
         self.metrics_repo = metrics_repository
         self.api_repo = api_repository
+        self.llm_service = llm_service
+        self._optimization_agent = None
 
     def generate_recommendations_for_api(
         self,
@@ -153,6 +157,95 @@ class OptimizationService:
                 logger.error(f"Failed to store recommendation: {e}")
 
         return recommendations
+    
+    async def generate_ai_enhanced_recommendations(
+        self,
+        api_id: UUID,
+        focus_areas: Optional[List[RecommendationType]] = None,
+        min_impact: float = 10.0,
+    ) -> Dict[str, Any]:
+        """
+        Generate AI-enhanced optimization recommendations with LLM analysis.
+        
+        Args:
+            api_id: API UUID
+            focus_areas: Specific optimization types to focus on
+            min_impact: Minimum expected improvement percentage
+            
+        Returns:
+            Dict with recommendations and AI analysis
+        """
+        logger.info(f"Generating AI-enhanced recommendations for API {api_id}")
+        
+        # Get API details
+        api = self.api_repo.get(str(api_id))
+        if not api:
+            logger.warning(f"API {api_id} not found")
+            return {
+                "error": "API not found",
+                "recommendations": [],
+            }
+        
+        # Get historical metrics
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=self.ANALYSIS_WINDOW_HOURS)
+        
+        metrics, _ = self.metrics_repo.find_by_api(
+            api_id=api_id,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        
+        if len(metrics) < 10:
+            logger.info(f"Insufficient metrics data for API {api_id}")
+            return {
+                "error": "Insufficient metrics data",
+                "recommendations": [],
+            }
+        
+        # Try AI-enhanced generation if available
+        if self.llm_service:
+            try:
+                # Lazy load optimization agent
+                if self._optimization_agent is None:
+                    from app.agents.optimization_agent import OptimizationAgent
+                    self._optimization_agent = OptimizationAgent(
+                        llm_service=self.llm_service,
+                        optimization_service=self,
+                    )
+                
+                # Generate AI-enhanced recommendations
+                result = await self._optimization_agent.generate_enhanced_recommendations(
+                    api_id=api_id,
+                    api_name=api.name,
+                    metrics=metrics,
+                    focus_areas=focus_areas,
+                )
+                
+                logger.info(f"Generated AI-enhanced recommendations for API {api_id}")
+                return result
+                
+            except Exception as e:
+                logger.error(f"AI-enhanced recommendation failed, falling back to rule-based: {e}")
+        
+        # Fallback to rule-based recommendations
+        recommendations = self.generate_recommendations_for_api(api_id, focus_areas, min_impact)
+        
+        return {
+            "api_id": str(api_id),
+            "api_name": api.name,
+            "recommendations": [
+                {
+                    "id": str(r.id),
+                    "type": r.recommendation_type.value,
+                    "title": r.title,
+                    "priority": r.priority.value,
+                    "estimated_impact": r.estimated_impact.improvement_percentage,
+                }
+                for r in recommendations
+            ],
+            "fallback_mode": True,
+        }
 
     def generate_recommendations_for_all_apis(
         self, min_impact: float = 10.0

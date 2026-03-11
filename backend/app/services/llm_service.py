@@ -36,36 +36,45 @@ class LLMService:
         self.providers = []
 
         # Build provider list based on enabled providers
-        if self.settings.OPENAI_API_KEY:
+        # OpenAI
+        if getattr(self.settings, 'OPENAI_API_KEY', None):
             self.providers.append({
-                "model": self.settings.OPENAI_MODEL,
+                "model": getattr(self.settings, 'LLM_MODEL', 'gpt-4'),
                 "api_key": self.settings.OPENAI_API_KEY,
             })
 
-        if self.settings.ANTHROPIC_API_KEY:
+        # Anthropic
+        if getattr(self.settings, 'ANTHROPIC_API_KEY', None):
             self.providers.append({
-                "model": self.settings.ANTHROPIC_MODEL,
+                "model": getattr(self.settings, 'LLM_MODEL', 'claude-3-sonnet-20240229'),
                 "api_key": self.settings.ANTHROPIC_API_KEY,
             })
 
-        if self.settings.GOOGLE_API_KEY:
+        # Google
+        if getattr(self.settings, 'GOOGLE_API_KEY', None):
             self.providers.append({
-                "model": self.settings.GOOGLE_MODEL,
+                "model": getattr(self.settings, 'LLM_MODEL', 'gemini-pro'),
                 "api_key": self.settings.GOOGLE_API_KEY,
             })
 
-        if self.settings.AZURE_API_KEY:
+        # Azure OpenAI
+        azure_key = getattr(self.settings, 'AZURE_OPENAI_API_KEY', None)
+        azure_endpoint = getattr(self.settings, 'AZURE_OPENAI_ENDPOINT', None)
+        azure_deployment = getattr(self.settings, 'AZURE_OPENAI_DEPLOYMENT', None)
+        if azure_key and azure_endpoint and azure_deployment:
             self.providers.append({
-                "model": self.settings.AZURE_MODEL,
-                "api_key": self.settings.AZURE_API_KEY,
-                "api_base": self.settings.AZURE_API_BASE,
-                "api_version": self.settings.AZURE_API_VERSION,
+                "model": f"azure/{azure_deployment}",
+                "api_key": azure_key,
+                "api_base": azure_endpoint,
+                "api_version": "2024-02-15-preview",
             })
 
-        if self.settings.OLLAMA_BASE_URL:
+        # Ollama (local)
+        ollama_url = getattr(self.settings, 'OLLAMA_BASE_URL', None)
+        if ollama_url and ollama_url != "http://localhost:11434":  # Only if explicitly configured
             self.providers.append({
-                "model": self.settings.OLLAMA_MODEL,
-                "api_base": self.settings.OLLAMA_BASE_URL,
+                "model": "ollama/llama2",
+                "api_base": ollama_url,
             })
 
         if not self.providers:

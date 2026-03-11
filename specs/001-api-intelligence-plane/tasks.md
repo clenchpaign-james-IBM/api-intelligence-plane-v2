@@ -378,30 +378,30 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Query Service
 
-- [ ] T157 [P] [US6] Create Query repository in backend/app/db/repositories/query_repository.py
-- [ ] T158 [US6] Implement Query Service in backend/app/services/query_service.py with NLP processing
-- [ ] T159 [US6] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
-- [ ] T160 [US6] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
-- [ ] T161 [US6] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
-- [ ] T162 [US6] Implement response generation with LLM in backend/app/services/query_service.py
+- [X] T157 [P] [US6] Create Query repository in backend/app/db/repositories/query_repository.py
+- [X] T158 [US6] Implement Query Service in backend/app/services/query_service.py with NLP processing
+- [X] T159 [US6] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
+- [X] T160 [US6] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
+- [X] T161 [US6] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
+- [X] T162 [US6] Implement response generation with LLM in backend/app/services/query_service.py
 
 ### Backend - REST API Endpoints
 
-- [ ] T163 [P] [US6] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
+- [X] T163 [P] [US6] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
 
 ### Frontend - Query Interface
 
-- [ ] T164 [US6] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
-- [ ] T165 [P] [US6] Create query input component in frontend/src/components/query/QueryInput.tsx
-- [ ] T166 [P] [US6] Create query response component in frontend/src/components/query/QueryResponse.tsx
-- [ ] T167 [P] [US6] Create query history component in frontend/src/components/query/QueryHistory.tsx
-- [ ] T168 [P] [US6] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
+- [X] T164 [US6] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
+- [X] T165 [P] [US6] Create query input component in frontend/src/components/query/QueryInput.tsx
+- [X] T166 [P] [US6] Create query response component in frontend/src/components/query/QueryResponse.tsx
+- [X] T167 [P] [US6] Create query history component in frontend/src/components/query/QueryHistory.tsx
+- [X] T168 [P] [US6] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
 
 ### Integration & Validation
 
-- [ ] T169 [US6] Create integration test for query processing in tests/integration/test_query_processing.py
-- [ ] T170 [US6] Create end-to-end test for complete query workflow in tests/e2e/test_complete_workflow.py
-- [ ] T171 [US6] Validate User Story 6 independently with various query types
+- [X] T169 [US6] Create integration test for query processing in tests/integration/test_query_processing.py
+- [X] T170 [US6] Create end-to-end test for complete query workflow in tests/e2e/test_query_workflow.py
+- [X] T171 [US6] Validate User Story 6 independently with various query types
 
 **Checkpoint**: All user stories complete - Full system functional
 

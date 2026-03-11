@@ -1,0 +1,575 @@
+"""
+Query Service
+
+Handles natural language query processing, intent detection, OpenSearch query
+generation, and response generation using LLM.
+"""
+
+import logging
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID, uuid4
+
+from app.db.repositories.query_repository import QueryRepository
+from app.db.repositories.api_repository import APIRepository
+from app.db.repositories.metrics_repository import MetricsRepository
+from app.db.repositories.prediction_repository import PredictionRepository
+from app.db.repositories.recommendation_repository import RecommendationRepository
+from app.models.query import (
+    Query,
+    QueryType,
+    InterpretedIntent,
+    QueryResults,
+    TimeRange,
+)
+from app.services.llm_service import LLMService
+
+logger = logging.getLogger(__name__)
+
+
+class QueryService:
+    """Service for processing natural language queries."""
+    
+    # Query type keywords for classification
+    QUERY_TYPE_KEYWORDS = {
+        QueryType.STATUS: ["status", "health", "state", "current", "now", "active"],
+        QueryType.TREND: ["trend", "over time", "history", "pattern", "change"],
+        QueryType.PREDICTION: ["predict", "forecast", "future", "will", "expect"],
+        QueryType.SECURITY: ["security", "vulnerability", "vulnerabilities", "threat", "risk", "cve"],
+        QueryType.PERFORMANCE: ["performance", "latency", "response time", "throughput", "slow"],
+        QueryType.COMPARISON: ["compare", "versus", "vs", "difference", "between"],
+    }
+    
+    # Entity keywords for extraction
+    ENTITY_KEYWORDS = {
+        "api": ["api", "apis", "endpoint", "endpoints", "service", "services"],
+        "gateway": ["gateway", "gateways"],
+        "metric": ["metric", "metrics", "measurement"],
+        "prediction": ["prediction", "predictions", "forecast"],
+        "vulnerability": ["vulnerability", "vulnerabilities", "security issue"],
+        "recommendation": ["recommendation", "recommendations", "optimization", "suggestion"],
+        "rate_limit": ["rate limit", "rate limiting", "throttle", "throttling"],
+    }
+    
+    # Action keywords
+    ACTION_KEYWORDS = {
+        "list": ["list", "show", "display", "get", "find", "what"],
+        "count": ["count", "how many", "number of"],
+        "analyze": ["analyze", "analysis", "examine", "investigate"],
+        "compare": ["compare", "comparison", "versus", "vs"],
+        "summarize": ["summarize", "summary", "overview"],
+    }
+
+    def __init__(
+        self,
+        query_repository: QueryRepository,
+        api_repository: APIRepository,
+        metrics_repository: MetricsRepository,
+        prediction_repository: PredictionRepository,
+        recommendation_repository: RecommendationRepository,
+        llm_service: LLMService,
+    ):
+        """
+        Initialize the Query Service.
+        
+        Args:
+            query_repository: Repository for query operations
+            api_repository: Repository for API operations
+            metrics_repository: Repository for metrics operations
+            prediction_repository: Repository for prediction operations
+            recommendation_repository: Repository for recommendation operations
+            llm_service: LLM service for natural language processing
+        """
+        self.query_repo = query_repository
+        self.api_repo = api_repository
+        self.metrics_repo = metrics_repository
+        self.prediction_repo = prediction_repository
+        self.recommendation_repo = recommendation_repository
+        self.llm_service = llm_service
+
+    async def process_query(
+        self,
+        query_text: str,
+        session_id: UUID,
+        user_id: Optional[str] = None,
+    ) -> Query:
+        """
+        Process a natural language query end-to-end.
+        
+        Args:
+            query_text: Natural language query text
+            session_id: Conversation session ID
+            user_id: Optional user identifier
+            
+        Returns:
+            Query object with results and response
+        """
+        start_time = time.time()
+        
+        try:
+            # Step 1: Classify query type
+            query_type = self._classify_query_type(query_text)
+            logger.info(f"Classified query as: {query_type}")
+            
+            # Step 2: Extract intent using LLM
+            interpreted_intent, confidence = await self._extract_intent(
+                query_text, query_type
+            )
+            logger.info(f"Extracted intent with confidence: {confidence}")
+            
+            # Step 3: Generate OpenSearch query
+            opensearch_query = self._generate_opensearch_query(
+                interpreted_intent, query_type
+            )
+            logger.info(f"Generated OpenSearch query")
+            
+            # Step 4: Execute query and get results
+            results = await self._execute_query(
+                opensearch_query, interpreted_intent, query_type
+            )
+            logger.info(f"Executed query, found {results.count} results")
+            
+            # Step 5: Generate natural language response
+            response_text = await self._generate_response(
+                query_text, interpreted_intent, results, query_type
+            )
+            logger.info(f"Generated response")
+            
+            # Step 6: Generate follow-up suggestions
+            follow_up_queries = self._generate_follow_ups(
+                query_text, interpreted_intent, results, query_type
+            )
+            
+            # Calculate execution time
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Create Query object
+            query = Query(
+                id=uuid4(),
+                session_id=session_id,
+                user_id=user_id,
+                query_text=query_text,
+                query_type=query_type,
+                interpreted_intent=interpreted_intent,
+                opensearch_query=opensearch_query,
+                results=results,
+                response_text=response_text,
+                confidence_score=confidence,
+                execution_time_ms=execution_time_ms,
+                feedback=None,
+                feedback_comment=None,
+                follow_up_queries=follow_up_queries,
+                metadata=None,
+                created_at=datetime.utcnow(),
+            )
+            
+            # Save query to history
+            saved_query = self.query_repo.create(query, doc_id=str(query.id))
+            logger.info(f"Saved query to history: {saved_query.id}")
+            
+            return saved_query
+            
+        except Exception as e:
+            logger.error(f"Failed to process query: {e}")
+            # Return error query
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            error_query = Query(
+                id=uuid4(),
+                session_id=session_id,
+                user_id=user_id,
+                query_text=query_text,
+                query_type=QueryType.GENERAL,
+                interpreted_intent=InterpretedIntent(
+                    action="error",
+                    entities=[],
+                    filters={},
+                    time_range=None,
+                ),
+                opensearch_query=None,
+                results=QueryResults(
+                    data=[],
+                    count=0,
+                    execution_time=execution_time_ms,
+                    aggregations=None,
+                ),
+                response_text=f"I encountered an error processing your query: {str(e)}. Please try rephrasing your question.",
+                confidence_score=0.0,
+                execution_time_ms=execution_time_ms,
+                feedback=None,
+                feedback_comment=None,
+                follow_up_queries=None,
+                metadata=None,
+                created_at=datetime.utcnow(),
+            )
+            return error_query
+
+    def _classify_query_type(self, query_text: str) -> QueryType:
+        """
+        Classify the query type based on keywords.
+        
+        Args:
+            query_text: Query text
+            
+        Returns:
+            Classified query type
+        """
+        query_lower = query_text.lower()
+        
+        # Count keyword matches for each type
+        type_scores = {}
+        for query_type, keywords in self.QUERY_TYPE_KEYWORDS.items():
+            score = sum(1 for keyword in keywords if keyword in query_lower)
+            if score > 0:
+                type_scores[query_type] = score
+        
+        # Return type with highest score, or GENERAL if no matches
+        if type_scores:
+            return max(type_scores.items(), key=lambda x: x[1])[0]
+        return QueryType.GENERAL
+
+    async def _extract_intent(
+        self, query_text: str, query_type: QueryType
+    ) -> Tuple[InterpretedIntent, float]:
+        """
+        Extract structured intent from natural language query using LLM.
+        
+        Args:
+            query_text: Query text
+            query_type: Classified query type
+            
+        Returns:
+            Tuple of (interpreted intent, confidence score)
+        """
+        system_prompt = """You are an AI assistant that extracts structured intent from natural language queries about API management.
+
+Extract the following information:
+1. Action: What the user wants to do (list, count, analyze, compare, summarize)
+2. Entities: What entities are involved (api, gateway, metric, prediction, vulnerability, recommendation, rate_limit)
+3. Filters: Any filter conditions (severity, status, time range, etc.)
+4. Time Range: If mentioned, extract start and end times
+
+Respond in JSON format:
+{
+  "action": "list",
+  "entities": ["api", "vulnerability"],
+  "filters": {
+    "severity": "critical",
+    "status": "open"
+  },
+  "time_range": {
+    "start": "2026-03-02T00:00:00Z",
+    "end": "2026-03-09T23:59:59Z"
+  },
+  "confidence": 0.95
+}"""
+
+        messages = [
+            {"role": "user", "content": f"Query: {query_text}\nQuery Type: {query_type.value}"}
+        ]
+        
+        try:
+            response = await self.llm_service.generate_completion(
+                messages=messages,
+                system_prompt=system_prompt,
+                temperature=0.3,
+                max_tokens=500,
+            )
+            
+            # Parse JSON response
+            import json
+            intent_data = json.loads(response["content"])
+            
+            # Extract time range if present
+            time_range = None
+            if "time_range" in intent_data and intent_data["time_range"]:
+                time_range = TimeRange(
+                    start=datetime.fromisoformat(intent_data["time_range"]["start"].replace("Z", "+00:00")),
+                    end=datetime.fromisoformat(intent_data["time_range"]["end"].replace("Z", "+00:00")),
+                )
+            
+            intent = InterpretedIntent(
+                action=intent_data.get("action", "list"),
+                entities=intent_data.get("entities", []),
+                filters=intent_data.get("filters", {}),
+                time_range=time_range,
+            )
+            
+            confidence = intent_data.get("confidence", 0.8)
+            
+            return intent, confidence
+            
+        except Exception as e:
+            logger.warning(f"LLM intent extraction failed, using fallback: {e}")
+            # Fallback to keyword-based extraction
+            return self._fallback_intent_extraction(query_text, query_type), 0.5
+
+    def _fallback_intent_extraction(
+        self, query_text: str, query_type: QueryType
+    ) -> InterpretedIntent:
+        """
+        Fallback intent extraction using keyword matching.
+        
+        Args:
+            query_text: Query text
+            query_type: Classified query type
+            
+        Returns:
+            Interpreted intent
+        """
+        query_lower = query_text.lower()
+        
+        # Extract action
+        action = "list"
+        for act, keywords in self.ACTION_KEYWORDS.items():
+            if any(keyword in query_lower for keyword in keywords):
+                action = act
+                break
+        
+        # Extract entities
+        entities = []
+        for entity, keywords in self.ENTITY_KEYWORDS.items():
+            if any(keyword in query_lower for keyword in keywords):
+                entities.append(entity)
+        
+        # Extract basic filters
+        filters = {}
+        if "critical" in query_lower:
+            filters["severity"] = "critical"
+        if "high" in query_lower and "severity" not in filters:
+            filters["severity"] = "high"
+        if "open" in query_lower:
+            filters["status"] = "open"
+        if "active" in query_lower:
+            filters["status"] = "active"
+        
+        return InterpretedIntent(
+            action=action,
+            entities=entities if entities else ["api"],
+            filters=filters,
+            time_range=None,
+        )
+
+    def _generate_opensearch_query(
+        self, intent: InterpretedIntent, query_type: QueryType
+    ) -> Dict[str, Any]:
+        """
+        Generate OpenSearch query DSL from interpreted intent.
+        
+        Args:
+            intent: Interpreted intent
+            query_type: Query type
+            
+        Returns:
+            OpenSearch query DSL
+        """
+        must_clauses = []
+        
+        # Add filter conditions
+        for field, value in intent.filters.items():
+            must_clauses.append({
+                "term": {field: value}
+            })
+        
+        # Add time range if present
+        if intent.time_range:
+            must_clauses.append({
+                "range": {
+                    "created_at": {
+                        "gte": intent.time_range.start.isoformat(),
+                        "lte": intent.time_range.end.isoformat(),
+                    }
+                }
+            })
+        
+        # Build query
+        if must_clauses:
+            return {
+                "query": {
+                    "bool": {
+                        "must": must_clauses
+                    }
+                }
+            }
+        else:
+            return {
+                "query": {
+                    "match_all": {}
+                }
+            }
+
+    async def _execute_query(
+        self,
+        opensearch_query: Dict[str, Any],
+        intent: InterpretedIntent,
+        query_type: QueryType,
+    ) -> QueryResults:
+        """
+        Execute the OpenSearch query and return results.
+        
+        Args:
+            opensearch_query: OpenSearch query DSL
+            intent: Interpreted intent
+            query_type: Query type
+            
+        Returns:
+            Query results
+        """
+        start_time = time.time()
+        
+        try:
+            # Determine which repository to query based on entities
+            primary_entity = intent.entities[0] if intent.entities else "api"
+            
+            if primary_entity == "api":
+                results, total = self.api_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                data = [api.model_dump(mode="json") for api in results]
+            elif primary_entity == "prediction":
+                results, total = self.prediction_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                data = [pred.model_dump(mode="json") for pred in results]
+            elif primary_entity == "vulnerability":
+                # Would query vulnerability repository
+                data = []
+                total = 0
+            elif primary_entity == "recommendation":
+                results, total = self.recommendation_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                data = [rec.model_dump(mode="json") for rec in results]
+            else:
+                data = []
+                total = 0
+            
+            execution_time = int((time.time() - start_time) * 1000)
+            
+            return QueryResults(
+                data=data,
+                count=total,
+                execution_time=execution_time,
+                aggregations=None,
+            )
+            
+        except Exception as e:
+            logger.error(f"Query execution failed: {e}")
+            execution_time = int((time.time() - start_time) * 1000)
+            return QueryResults(
+                data=[],
+                count=0,
+                execution_time=execution_time,
+                aggregations=None,
+            )
+
+    async def _generate_response(
+        self,
+        query_text: str,
+        intent: InterpretedIntent,
+        results: QueryResults,
+        query_type: QueryType,
+    ) -> str:
+        """
+        Generate natural language response using LLM.
+        
+        Args:
+            query_text: Original query text
+            intent: Interpreted intent
+            results: Query results
+            query_type: Query type
+            
+        Returns:
+            Natural language response
+        """
+        system_prompt = """You are an AI assistant for API management. Generate a clear, concise response to the user's query based on the results.
+
+Guidelines:
+- Be specific and use numbers from the results
+- Highlight important findings
+- Keep responses under 200 words
+- Use professional but friendly tone
+- If no results, explain why and suggest alternatives"""
+
+        # Prepare results summary
+        results_summary = f"Found {results.count} results in {results.execution_time}ms"
+        if results.data:
+            results_summary += f"\n\nSample results:\n{results.data[:3]}"
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Query: {query_text}\n\nIntent: {intent.model_dump()}\n\nResults: {results_summary}"
+            }
+        ]
+        
+        try:
+            response = await self.llm_service.generate_completion(
+                messages=messages,
+                system_prompt=system_prompt,
+                temperature=0.7,
+                max_tokens=300,
+            )
+            return response["content"]
+        except Exception as e:
+            logger.warning(f"LLM response generation failed, using fallback: {e}")
+            # Fallback response
+            if results.count == 0:
+                return f"I couldn't find any {intent.entities[0] if intent.entities else 'items'} matching your criteria. Try adjusting your filters or time range."
+            else:
+                return f"I found {results.count} {intent.entities[0] if intent.entities else 'items'} matching your query."
+
+    def _generate_follow_ups(
+        self,
+        query_text: str,
+        intent: InterpretedIntent,
+        results: QueryResults,
+        query_type: QueryType,
+    ) -> List[str]:
+        """
+        Generate follow-up query suggestions.
+        
+        Args:
+            query_text: Original query text
+            intent: Interpreted intent
+            results: Query results
+            query_type: Query type
+            
+        Returns:
+            List of follow-up query suggestions
+        """
+        follow_ups = []
+        
+        if results.count > 0:
+            primary_entity = intent.entities[0] if intent.entities else "item"
+            
+            # Suggest related queries based on entity type
+            if primary_entity == "api":
+                follow_ups.extend([
+                    "Show me the performance metrics for these APIs",
+                    "Are there any predictions for these APIs?",
+                    "What security vulnerabilities affect these APIs?",
+                ])
+            elif primary_entity == "vulnerability":
+                follow_ups.extend([
+                    "Show me the remediation status",
+                    "Which APIs are most affected?",
+                    "Show vulnerability trends over time",
+                ])
+            elif primary_entity == "prediction":
+                follow_ups.extend([
+                    "Show me the contributing factors",
+                    "What actions are recommended?",
+                    "Show prediction accuracy",
+                ])
+        else:
+            follow_ups.extend([
+                "Show me all active APIs",
+                "What are the recent predictions?",
+                "Show me critical security issues",
+            ])
+        
+        return follow_ups[:5]  # Limit to 5 suggestions
+
+
+# Made with Bob

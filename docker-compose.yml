@@ -58,6 +58,9 @@ services:
       - OPENSEARCH_SCHEME=http
       - LOG_LEVEL=INFO
       - PYTHONUNBUFFERED=1
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=llama3.1:8b
     env_file:
       - .env
     volumes:
@@ -78,8 +81,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: aip-frontend
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules

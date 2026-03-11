@@ -474,7 +474,7 @@ python scripts/test_llm.py
 
 # Use local Ollama instead
 docker run -d -p 11434:11434 ollama/ollama
-docker exec -it ollama ollama pull llama2
+docker exec -it ollama ollama pull llama3.1:8b
 ```
 
 ---

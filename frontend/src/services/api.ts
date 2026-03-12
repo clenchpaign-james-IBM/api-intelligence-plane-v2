@@ -220,6 +220,7 @@ export const api = {
     create: (data: any) => api.post('/api/v1/rate-limits', data),
     activate: (id: string) => api.post(`/api/v1/rate-limits/${id}/activate`),
     deactivate: (id: string) => api.post(`/api/v1/rate-limits/${id}/deactivate`),
+    apply: (id: string) => api.post(`/api/v1/rate-limits/${id}/apply`),
     suggest: (apiId: string) => api.get(`/api/v1/rate-limits/suggest/${apiId}`),
     effectiveness: (id: string) => api.get(`/api/v1/rate-limits/${id}/effectiveness`),
   },

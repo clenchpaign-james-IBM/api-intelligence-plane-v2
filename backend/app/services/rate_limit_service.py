@@ -153,6 +153,151 @@ class RateLimitService:
         policy.status = PolicyStatus.INACTIVE
         return self.rate_limit_repo.update_policy(policy)
 
+    async def apply_policy_to_gateway(
+        self, policy_id: UUID
+    ) -> Dict[str, Any]:
+        """
+        Apply a rate limit policy to the actual Gateway.
+
+        This method:
+        1. Retrieves the policy from the database
+        2. Gets the API and Gateway information
+        3. Creates a Gateway adapter
+        4. Applies the policy to the Gateway via the adapter
+        5. Updates the policy status and applied_at timestamp
+
+        Args:
+            policy_id: Policy UUID to apply
+
+        Returns:
+            Dictionary with application result:
+                - success: bool
+                - policy_id: str
+                - api_id: str
+                - gateway_id: str
+                - message: str
+                - applied_at: str (ISO format)
+
+        Raises:
+            ValueError: If policy or API not found
+            RuntimeError: If Gateway connection or policy application fails
+        """
+        from app.db.repositories.gateway_repository import GatewayRepository
+        from app.adapters.factory import create_gateway_adapter
+
+        logger.info(f"Applying rate limit policy {policy_id} to Gateway")
+
+        # Get policy
+        policy = self.rate_limit_repo.get_by_id(policy_id)
+        if not policy:
+            raise ValueError(f"Rate limit policy {policy_id} not found")
+
+        # Get API
+        api = self.api_repo.get(str(policy.api_id))
+        if not api:
+            raise ValueError(f"API {policy.api_id} not found")
+
+        # Get Gateway
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(api.gateway_id))
+        if not gateway:
+            raise ValueError(f"Gateway {api.gateway_id} not found")
+
+        # Create Gateway adapter
+        try:
+            adapter = create_gateway_adapter(gateway)
+            await adapter.connect()
+        except Exception as e:
+            logger.error(f"Failed to connect to Gateway {gateway.id}: {e}")
+            raise RuntimeError(f"Failed to connect to Gateway: {e}")
+
+        # Prepare policy configuration for Gateway
+        policy_config = {
+            "policy_id": str(policy.id),
+            "policy_name": policy.policy_name,
+            "policy_type": policy.policy_type.value,
+            "limit_thresholds": {
+                "requests_per_second": policy.limit_thresholds.requests_per_second,
+                "requests_per_minute": policy.limit_thresholds.requests_per_minute,
+                "requests_per_hour": policy.limit_thresholds.requests_per_hour,
+                "concurrent_requests": policy.limit_thresholds.concurrent_requests,
+            },
+            "enforcement_action": policy.enforcement_action.value,
+            "burst_allowance": policy.burst_allowance,
+        }
+
+        # Add priority rules if present
+        if policy.priority_rules:
+            policy_config["priority_rules"] = [
+                {
+                    "tier": rule.tier,
+                    "multiplier": rule.multiplier,
+                    "guaranteed_throughput": rule.guaranteed_throughput,
+                    "burst_multiplier": rule.burst_multiplier,
+                }
+                for rule in policy.priority_rules
+            ]
+
+        # Add adaptation parameters if present
+        if policy.adaptation_parameters:
+            policy_config["adaptation_parameters"] = {
+                "learning_rate": policy.adaptation_parameters.learning_rate,
+                "adjustment_frequency": policy.adaptation_parameters.adjustment_frequency,
+                "min_threshold": policy.adaptation_parameters.min_threshold,
+                "max_threshold": policy.adaptation_parameters.max_threshold,
+            }
+
+        # Add consumer tiers if present
+        if policy.consumer_tiers:
+            policy_config["consumer_tiers"] = [
+                {
+                    "tier_name": tier.tier_name,
+                    "tier_level": tier.tier_level,
+                    "rate_multiplier": tier.rate_multiplier,
+                    "priority_score": tier.priority_score,
+                }
+                for tier in policy.consumer_tiers
+            ]
+
+        # Apply policy to Gateway
+        try:
+            success = await adapter.apply_rate_limit_policy(
+                api_id=str(api.id),
+                policy=policy_config,
+            )
+
+            if not success:
+                raise RuntimeError("Gateway adapter returned failure")
+
+            # Update policy status
+            policy.status = PolicyStatus.ACTIVE
+            policy.applied_at = datetime.utcnow()
+            self.rate_limit_repo.update_policy(policy)
+
+            logger.info(
+                f"Successfully applied rate limit policy {policy_id} to Gateway {gateway.id}"
+            )
+
+            return {
+                "success": True,
+                "policy_id": str(policy.id),
+                "api_id": str(api.id),
+                "gateway_id": str(gateway.id),
+                "message": f"Rate limit policy '{policy.policy_name}' applied successfully to API '{api.name}' on Gateway '{gateway.name}'",
+                "applied_at": policy.applied_at.isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to apply rate limit policy to Gateway: {e}")
+            raise RuntimeError(f"Failed to apply policy to Gateway: {e}")
+
+        finally:
+            # Disconnect from Gateway
+            try:
+                await adapter.disconnect()
+            except Exception as e:
+                logger.warning(f"Failed to disconnect from Gateway: {e}")
+
     def get_active_policy(self, api_id: UUID) -> Optional[RateLimitPolicy]:
         """
         Get the active rate limit policy for an API.

@@ -1,7 +1,9 @@
 package com.example.gateway.controller;
 
 import com.example.gateway.model.API;
+import com.example.gateway.policy.RateLimitPolicy;
 import com.example.gateway.service.APIService;
+import com.example.gateway.service.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -28,9 +30,11 @@ public class APIController {
     private static final Logger logger = LoggerFactory.getLogger(APIController.class);
     
     private final APIService apiService;
+    private final RateLimitService rateLimitService;
     
-    public APIController(APIService apiService) {
+    public APIController(APIService apiService, RateLimitService rateLimitService) {
         this.apiService = apiService;
+        this.rateLimitService = rateLimitService;
     }
     
     /**
@@ -268,6 +272,110 @@ public class APIController {
             error.put("message", e.getMessage());
             
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
+     * Apply rate limiting policy to an API.
+     *
+     * POST /apis/{api_id}/rate-limit
+     *
+     * @param apiId API ID
+     * @param policy Rate limiting policy configuration
+     * @return Success response
+     */
+    @PostMapping("/{api_id}/rate-limit")
+    public ResponseEntity<Object> applyRateLimitPolicy(
+            @PathVariable("api_id") String apiId,
+            @RequestBody RateLimitPolicy policy) {
+        
+        logger.info("Applying rate limit policy to API: {}", apiId);
+        
+        // Verify API exists
+        Optional<API> api = apiService.getAPI(apiId);
+        if (api.isEmpty()) {
+            logger.warn("API not found: {}", apiId);
+            
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "API not found");
+            error.put("message", "No API found with ID: " + apiId);
+            
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+        
+        // Apply policy
+        boolean success = rateLimitService.applyPolicy(apiId, policy);
+        
+        if (success) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Rate limit policy applied successfully");
+            response.put("api_id", apiId);
+            response.put("policy_id", policy.getPolicyId());
+            response.put("policy_name", policy.getPolicyName());
+            
+            return ResponseEntity.ok(response);
+        } else {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to apply policy");
+            error.put("message", "Could not apply rate limit policy to API");
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
+     * Remove rate limiting policy from an API.
+     *
+     * DELETE /apis/{api_id}/rate-limit
+     *
+     * @param apiId API ID
+     * @return Success response
+     */
+    @DeleteMapping("/{api_id}/rate-limit")
+    public ResponseEntity<Object> removeRateLimitPolicy(@PathVariable("api_id") String apiId) {
+        logger.info("Removing rate limit policy from API: {}", apiId);
+        
+        boolean success = rateLimitService.removePolicy(apiId);
+        
+        if (success) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Rate limit policy removed successfully");
+            response.put("api_id", apiId);
+            
+            return ResponseEntity.ok(response);
+        } else {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to remove policy");
+            error.put("message", "Could not remove rate limit policy from API");
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
+     * Get active rate limiting policy for an API.
+     *
+     * GET /apis/{api_id}/rate-limit
+     *
+     * @param apiId API ID
+     * @return Active rate limiting policy
+     */
+    @GetMapping("/{api_id}/rate-limit")
+    public ResponseEntity<Object> getRateLimitPolicy(@PathVariable("api_id") String apiId) {
+        logger.info("Fetching rate limit policy for API: {}", apiId);
+        
+        RateLimitPolicy policy = rateLimitService.getPolicy(apiId);
+        
+        if (policy != null) {
+            return ResponseEntity.ok(policy);
+        } else {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "No policy found");
+            error.put("message", "No active rate limit policy for API: " + apiId);
+            
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
         }
     }
 }

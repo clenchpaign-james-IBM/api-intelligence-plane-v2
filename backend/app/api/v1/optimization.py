@@ -167,6 +167,55 @@ async def list_recommendations(
 
 
 @router.get(
+    "/recommendations/stats",
+    response_model=RecommendationStatsResponse,
+    summary="Get recommendation statistics",
+)
+async def get_recommendation_stats(
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+    days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
+) -> RecommendationStatsResponse:
+    """
+    Get statistics about optimization recommendations.
+    
+    Args:
+        api_id: Optional API ID filter
+        days: Number of days to look back
+        
+    Returns:
+        Recommendation statistics
+        
+    Raises:
+        HTTPException: If stats retrieval fails
+    """
+    try:
+        # Initialize repository
+        recommendation_repo = RecommendationRepository()
+        
+        # Get statistics
+        stats = recommendation_repo.get_implementation_stats(
+            api_id=str(api_id) if api_id else None,
+            days=days,
+        )
+        
+        return RecommendationStatsResponse(
+            total_recommendations=stats["total_recommendations"],
+            by_status=stats["by_status"],
+            by_priority=stats["by_priority"],
+            by_type=stats["by_type"],
+            avg_improvement=stats["avg_improvement"],
+            total_cost_savings=stats["total_cost_savings"],
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get recommendation stats: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve statistics: {str(e)}",
+        )
+
+
+@router.get(
     "/recommendations/{recommendation_id}",
     response_model=RecommendationResponse,
     summary="Get recommendation details",
@@ -319,54 +368,6 @@ async def generate_recommendations(
             detail=f"Failed to generate recommendations: {str(e)}",
         )
 
-
-@router.get(
-    "/recommendations/stats",
-    response_model=RecommendationStatsResponse,
-    summary="Get recommendation statistics",
-)
-async def get_recommendation_stats(
-    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
-    days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
-) -> RecommendationStatsResponse:
-    """
-    Get statistics about optimization recommendations.
-    
-    Args:
-        api_id: Optional API ID filter
-        days: Number of days to look back
-        
-    Returns:
-        Recommendation statistics
-        
-    Raises:
-        HTTPException: If stats retrieval fails
-    """
-    try:
-        # Initialize repository
-        recommendation_repo = RecommendationRepository()
-        
-        # Get statistics
-        stats = recommendation_repo.get_implementation_stats(
-            api_id=str(api_id) if api_id else None,
-            days=days,
-        )
-        
-        return RecommendationStatsResponse(
-            total_recommendations=stats["total_recommendations"],
-            by_status=stats["by_status"],
-            by_priority=stats["by_priority"],
-            by_type=stats["by_type"],
-            avg_improvement=stats["avg_improvement"],
-            total_cost_savings=stats["total_cost_savings"],
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to get recommendation stats: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve statistics: {str(e)}",
-        )
 
 
 @router.post(

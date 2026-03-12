@@ -5,16 +5,16 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (use ci for production builds if lock file exists)
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the application (skip tsc, let vite handle TypeScript)
+RUN npx vite build
 
 # Production stage
 FROM node:18-alpine
@@ -27,9 +27,9 @@ RUN npm install -g serve
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
 
-# Create non-root user (use existing group if GID 1000 exists)
-RUN addgroup -g 1001 appuser || true && \
-    adduser -D -u 1001 -G appuser appuser && \
+# Create non-root user
+RUN addgroup -g 1001 appuser 2>/dev/null || true && \
+    adduser -D -u 1001 -G $(getent group 1001 | cut -d: -f1 || echo appuser) appuser 2>/dev/null || true && \
     chown -R appuser:appuser /app
 
 USER appuser

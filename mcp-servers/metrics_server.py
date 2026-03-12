@@ -1,8 +1,8 @@
 """Metrics MCP Server for API Intelligence Plane.
 
 This MCP server provides tools for collecting and analyzing API metrics from
-connected API Gateways. It exposes tools that AI agents can use to interact
-with metrics functionality.
+connected API Gateways. It acts as a thin wrapper around the backend REST API,
+exposing tools that AI agents can use to interact with metrics functionality.
 
 Port: 8002
 Transport: Streamable HTTP
@@ -19,10 +19,9 @@ from uuid import UUID
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from common.backend_client import BackendClient
 from common.health import HealthChecker, create_health_tool
-from common.http_health import HTTPHealthServer
 from common.mcp_base import BaseMCPServer
-from common.opensearch import MCPOpenSearchClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,38 +33,52 @@ class MetricsMCPServer(BaseMCPServer):
     - Collecting metrics from Gateways
     - Retrieving time-series metrics data
     - Analyzing metric trends and patterns
+    
+    This server acts as a thin wrapper around the backend REST API,
+    delegating all business logic to the backend services.
     """
 
     def __init__(self):
         """Initialize Metrics MCP server."""
         super().__init__(name="metrics-server", version="1.0.0")
         
-        # Initialize OpenSearch client
-        self.opensearch = MCPOpenSearchClient()
+        # Initialize backend client instead of OpenSearch
+        self.backend_client = BackendClient()
         
         # Initialize health checker
         self.health_checker = HealthChecker(self.name, self.version)
-        self.health_checker.set_opensearch_client(self.opensearch)
         
         # Register tools
         self._register_tools()
         
-        logger.info("Metrics MCP server initialized")
+        logger.info("Metrics MCP server initialized (using backend API)")
 
     def _register_tools(self) -> None:
         """Register all MCP tools for this server."""
         
         # Health check tool
-        health_tool = create_health_tool(self.health_checker)
-        
         @self.tool(description="Check Metrics server health and status")
         async def health() -> dict[str, Any]:
             """Check server health.
             
             Returns:
-                dict: Health status including OpenSearch connectivity
+                dict: Health status including backend connectivity
             """
-            return await health_tool()
+            try:
+                # Test backend connectivity
+                await self.backend_client.list_apis(page=1, page_size=1)
+                backend_status = "connected"
+            except Exception as e:
+                logger.error(f"Backend health check failed: {e}")
+                backend_status = "disconnected"
+            
+            return {
+                "status": "healthy" if backend_status == "connected" else "degraded",
+                "server": self.name,
+                "version": self.version,
+                "backend_status": backend_status,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
         
         # Server info tool
         @self.tool(description="Get Metrics server information")
@@ -79,6 +92,8 @@ class MetricsMCPServer(BaseMCPServer):
             info.update({
                 "port": 8002,
                 "transport": "streamable-http",
+                "architecture": "thin_wrapper",
+                "backend_url": self.backend_client.base_url,
                 "capabilities": [
                     "metrics_collection",
                     "timeseries_analysis",
@@ -92,6 +107,9 @@ class MetricsMCPServer(BaseMCPServer):
         @self.tool(description="Collect current metrics from Gateway")
         async def collect_metrics(gateway_id: str, api_ids: Optional[List[str]] = None) -> dict[str, Any]:
             """Collect metrics from a Gateway.
+            
+            Note: This tool retrieves already-collected metrics from the backend.
+            The backend handles the actual metrics collection process via scheduled jobs.
             
             Args:
                 gateway_id: Gateway UUID to collect metrics from
@@ -147,18 +165,15 @@ class MetricsMCPServer(BaseMCPServer):
     async def initialize(self) -> None:
         """Initialize server resources."""
         await super().initialize()
-        
-        # Connect to OpenSearch
-        await self.opensearch.connect()
-        logger.info("Metrics server connected to OpenSearch")
+        logger.info("Metrics server initialized and ready")
     
     async def cleanup(self) -> None:
         """Cleanup server resources."""
         await super().cleanup()
         
-        # Close OpenSearch connection
-        await self.opensearch.close()
-        logger.info("Metrics server disconnected from OpenSearch")
+        # Close backend client connection
+        await self.backend_client.close()
+        logger.info("Metrics server disconnected from backend")
     
     async def _collect_metrics_impl(
         self, gateway_id: str, api_ids: Optional[List[str]] = None
@@ -175,55 +190,51 @@ class MetricsMCPServer(BaseMCPServer):
         start_time = datetime.utcnow()
         
         try:
-            # Build query to get recent metrics
-            query = {
-                "bool": {
-                    "must": [
-                        {"term": {"gateway_id": gateway_id}},
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": "now-5m",
-                                    "lte": "now"
-                                }
-                            }
-                        }
-                    ]
+            # Validate UUID format
+            try:
+                UUID(gateway_id)
+            except ValueError:
+                return {
+                    "collected_count": 0,
+                    "collection_time_ms": 0,
+                    "metrics_summary": {
+                        "avg_response_time": 0,
+                        "total_requests": 0,
+                        "avg_error_rate": 0
+                    },
+                    "error": f"Invalid gateway_id format: {gateway_id}"
                 }
-            }
             
-            # Add API filter if specified
-            if api_ids:
-                query["bool"]["must"].append({
-                    "terms": {"api_id": api_ids}
-                })
-            
-            # Get current month's index
-            index_name = f"api-metrics-{datetime.utcnow().strftime('%Y.%m')}"
-            
-            # Query metrics
-            result = await self.opensearch.search(
-                index=index_name,
-                query=query,
-                size=1000
+            # Get APIs for this gateway
+            apis_response = await self.backend_client.list_apis(
+                gateway_id=gateway_id,
+                page_size=1000
             )
             
-            # Calculate summary statistics
-            metrics_data = []
+            apis = apis_response.get("items", [])
+            
+            # Filter by specific API IDs if provided
+            if api_ids:
+                apis = [api for api in apis if api.get("id") in api_ids]
+            
+            # Collect metrics summary from current_metrics field
             total_requests = 0
             total_response_time = 0
             total_errors = 0
+            count = 0
             
-            for hit in result.get("hits", {}).get("hits", []):
-                source = hit["_source"]
-                metrics_data.append(source)
-                
-                total_requests += source.get("request_count", 0)
-                total_response_time += source.get("response_time_p50", 0)
-                if source.get("error_rate", 0) > 0:
-                    total_errors += 1
+            for api in apis:
+                current_metrics = api.get("current_metrics", {})
+                if current_metrics:
+                    count += 1
+                    total_response_time += current_metrics.get("response_time_p50", 0)
+                    error_rate = current_metrics.get("error_rate", 0)
+                    if error_rate > 0:
+                        total_errors += 1
+                    # Estimate requests from throughput
+                    throughput = current_metrics.get("throughput", 0)
+                    total_requests += int(throughput * 300)  # 5 minutes worth
             
-            count = len(metrics_data)
             avg_response_time = total_response_time / count if count > 0 else 0
             avg_error_rate = (total_errors / count * 100) if count > 0 else 0
             
@@ -273,73 +284,42 @@ class MetricsMCPServer(BaseMCPServer):
             dict: Time-series data
         """
         try:
-            # Parse timestamps
-            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-            
-            # Build query
-            query = {
-                "bool": {
-                    "must": [
-                        {"term": {"api_id": api_id}},
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": start_dt.isoformat(),
-                                    "lte": end_dt.isoformat()
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-            
-            # Determine which indices to query (may span multiple months)
-            indices = []
-            current = start_dt
-            while current <= end_dt:
-                indices.append(f"api-metrics-{current.strftime('%Y.%m')}")
-                current = current.replace(day=1) + timedelta(days=32)
-                current = current.replace(day=1)
-            
-            index_pattern = ",".join(indices)
-            
-            # Query with aggregations for time-series
-            aggregations = {
-                "timeseries": {
-                    "date_histogram": {
-                        "field": "timestamp",
-                        "fixed_interval": interval,
-                        "min_doc_count": 0
+            # Validate UUID format
+            try:
+                UUID(api_id)
+            except ValueError:
+                return {
+                    "api_id": api_id,
+                    "time_range": {
+                        "start": start_time,
+                        "end": end_time
                     },
-                    "aggs": {
-                        "avg_p50": {"avg": {"field": "response_time_p50"}},
-                        "avg_p95": {"avg": {"field": "response_time_p95"}},
-                        "avg_p99": {"avg": {"field": "response_time_p99"}},
-                        "avg_error_rate": {"avg": {"field": "error_rate"}},
-                        "sum_throughput": {"sum": {"field": "request_count"}},
-                        "avg_availability": {"avg": {"field": "availability"}}
-                    }
+                    "data_points": [],
+                    "error": f"Invalid api_id format: {api_id}"
                 }
-            }
             
-            result = await self.opensearch.aggregate(
-                index=index_pattern,
-                query=query,
-                aggregations=aggregations
+            # Get metrics from backend
+            response = await self.backend_client.get_api_metrics(
+                api_id=api_id,
+                start_time=start_time,
+                end_time=end_time,
+                interval=interval
             )
+            
+            # Extract time series data
+            time_series = response.get("time_series", [])
             
             # Format data points
             data_points = []
-            for bucket in result.get("timeseries", {}).get("buckets", []):
+            for point in time_series:
                 data_points.append({
-                    "timestamp": bucket["key_as_string"],
-                    "response_time_p50": round(bucket.get("avg_p50", {}).get("value", 0), 2),
-                    "response_time_p95": round(bucket.get("avg_p95", {}).get("value", 0), 2),
-                    "response_time_p99": round(bucket.get("avg_p99", {}).get("value", 0), 2),
-                    "error_rate": round(bucket.get("avg_error_rate", {}).get("value", 0), 2),
-                    "throughput": int(bucket.get("sum_throughput", {}).get("value", 0)),
-                    "availability": round(bucket.get("avg_availability", {}).get("value", 0), 2)
+                    "timestamp": point.get("timestamp"),
+                    "response_time_p50": round(point.get("avg_response_time_p50", 0), 2),
+                    "response_time_p95": round(point.get("avg_response_time_p95", 0), 2),
+                    "response_time_p99": round(point.get("avg_response_time_p99", 0), 2),
+                    "error_rate": round(point.get("avg_error_rate", 0), 2),
+                    "throughput": int(point.get("sum_throughput", 0)),
+                    "availability": round(point.get("avg_availability", 0), 2)
                 })
             
             return {
@@ -377,61 +357,53 @@ class MetricsMCPServer(BaseMCPServer):
             dict: Trend analysis results
         """
         try:
+            # Validate UUID format
+            try:
+                UUID(api_id)
+            except ValueError:
+                return {
+                    "trend": "unknown",
+                    "trend_strength": 0.0,
+                    "anomalies_detected": [],
+                    "forecast": {
+                        "next_24h_trend": "unknown",
+                        "confidence": 0.0
+                    },
+                    "error": f"Invalid api_id format: {api_id}"
+                }
+            
             # Calculate time range
             end_time = datetime.utcnow()
             start_time = end_time - timedelta(hours=lookback_hours)
             
+            # Get metrics from backend
+            response = await self.backend_client.get_api_metrics(
+                api_id=api_id,
+                start_time=start_time.isoformat(),
+                end_time=end_time.isoformat(),
+                interval="1h"
+            )
+            
+            time_series = response.get("time_series", [])
+            
             # Map metric name to field
             metric_field_map = {
-                "response_time": "response_time_p50",
-                "error_rate": "error_rate",
-                "throughput": "request_count",
-                "availability": "availability"
+                "response_time": "avg_response_time_p50",
+                "error_rate": "avg_error_rate",
+                "throughput": "sum_throughput",
+                "availability": "avg_availability"
             }
             
-            field_name = metric_field_map.get(metric, "response_time_p50")
-            
-            # Build query
-            query = {
-                "bool": {
-                    "must": [
-                        {"term": {"api_id": api_id}},
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": start_time.isoformat(),
-                                    "lte": end_time.isoformat()
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-            
-            # Get index pattern
-            indices = []
-            current = start_time
-            while current <= end_time:
-                indices.append(f"api-metrics-{current.strftime('%Y.%m')}")
-                current = current.replace(day=1) + timedelta(days=32)
-                current = current.replace(day=1)
-            
-            index_pattern = ",".join(set(indices))
-            
-            # Query metrics
-            result = await self.opensearch.search(
-                index=index_pattern,
-                query=query,
-                size=1000
-            )
+            field_name = metric_field_map.get(metric, "avg_response_time_p50")
             
             # Extract values for analysis
             values = []
             timestamps = []
-            for hit in result.get("hits", {}).get("hits", []):
-                source = hit["_source"]
-                values.append(source.get(field_name, 0))
-                timestamps.append(source.get("timestamp"))
+            for point in time_series:
+                value = point.get(field_name, 0)
+                if value is not None:
+                    values.append(float(value))
+                    timestamps.append(point.get("timestamp"))
             
             # Simple trend analysis
             if len(values) < 2:
@@ -519,16 +491,9 @@ def main():
     # Create server
     server = MetricsMCPServer()
     
-    # Start HTTP health server in background thread on port 8000
-    health_server = HTTPHealthServer(server.health_checker, port=8000)
-    health_server.start()
-    
-    try:
-        # Run MCP server on port 8001 (this will block)
-        server.run(transport="streamable-http", port=8001)
-    finally:
-        # Cleanup
-        health_server.stop()
+    # Run MCP server on port 8000 (matches Docker port mapping)
+    # FastMCP's built-in server will handle both MCP and health endpoints
+    server.run(transport="streamable-http", port=8000)
 
 
 if __name__ == "__main__":

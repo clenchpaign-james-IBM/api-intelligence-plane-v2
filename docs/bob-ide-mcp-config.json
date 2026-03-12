@@ -1,0 +1,81 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp-config.json",
+  "mcpServers": {
+    "api-discovery": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-streamable-http",
+        "http://localhost:8001/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": [
+        "server_info",
+        "health"
+      ],
+      "metadata": {
+        "description": "API Discovery and Inventory Management",
+        "version": "1.0.0",
+        "tools": [
+          "health - Check server health and backend connectivity",
+          "server_info - Get server metadata and capabilities",
+          "discover_apis - Discover APIs from connected gateways",
+          "get_api_inventory - Retrieve API inventory with filtering",
+          "search_apis - Search APIs using natural language"
+        ]
+      }
+    },
+    "api-metrics": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-streamable-http",
+        "http://localhost:8002/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": [
+        "server_info",
+        "health"
+      ],
+      "metadata": {
+        "description": "API Metrics Collection and Analysis",
+        "version": "1.0.0",
+        "tools": [
+          "health - Check server health",
+          "server_info - Get server information",
+          "collect_metrics - Collect current API metrics",
+          "get_metrics_timeseries - Get time-series metrics data",
+          "analyze_trends - Analyze metric trends and anomalies"
+        ]
+      }
+    },
+    "api-optimization": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-streamable-http",
+        "http://localhost:8004/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": [
+        "server_info",
+        "health"
+      ],
+      "metadata": {
+        "description": "API Optimization and Predictions",
+        "version": "1.0.0",
+        "tools": [
+          "health - Check server health",
+          "server_info - Get server information",
+          "generate_predictions - Generate traffic/error predictions",
+          "generate_optimization_recommendations - Get optimization recommendations",
+          "manage_rate_limit - Create/update/delete rate limit policies",
+          "analyze_rate_limit_effectiveness - Analyze rate limit impact"
+        ]
+      }
+    }
+  }
+}

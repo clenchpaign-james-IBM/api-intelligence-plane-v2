@@ -1,8 +1,8 @@
 """Optimization MCP Server for API Intelligence Plane.
 
 This MCP server provides tools for performance optimization, predictions, and
-rate limiting for APIs. It exposes tools that AI agents can use to interact
-with optimization functionality.
+rate limiting for APIs. It acts as a thin wrapper around the backend REST API,
+exposing tools that AI agents can use to interact with optimization functionality.
 
 Port: 8004
 Transport: Streamable HTTP
@@ -19,10 +19,9 @@ from uuid import UUID
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from common.backend_client import BackendClient
 from common.health import HealthChecker, create_health_tool
-from common.http_health import HTTPHealthServer
 from common.mcp_base import BaseMCPServer
-from common.opensearch import MCPOpenSearchClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,38 +34,52 @@ class OptimizationMCPServer(BaseMCPServer):
     - Creating optimization recommendations
     - Managing rate limit policies
     - Analyzing rate limit effectiveness
+    
+    This server acts as a thin wrapper around the backend REST API,
+    delegating all business logic to the backend services.
     """
 
     def __init__(self):
         """Initialize Optimization MCP server."""
         super().__init__(name="optimization-server", version="1.0.0")
         
-        # Initialize OpenSearch client
-        self.opensearch = MCPOpenSearchClient()
+        # Initialize backend client instead of OpenSearch
+        self.backend_client = BackendClient()
         
         # Initialize health checker
         self.health_checker = HealthChecker(self.name, self.version)
-        self.health_checker.set_opensearch_client(self.opensearch)
         
         # Register tools
         self._register_tools()
         
-        logger.info("Optimization MCP server initialized")
+        logger.info("Optimization MCP server initialized (using backend API)")
 
     def _register_tools(self) -> None:
         """Register all MCP tools for this server."""
         
         # Health check tool
-        health_tool = create_health_tool(self.health_checker)
-        
         @self.tool(description="Check Optimization server health and status")
         async def health() -> dict[str, Any]:
             """Check server health.
             
             Returns:
-                dict: Health status including OpenSearch connectivity
+                dict: Health status including backend connectivity
             """
-            return await health_tool()
+            try:
+                # Test backend connectivity
+                await self.backend_client.list_apis(page=1, page_size=1)
+                backend_status = "connected"
+            except Exception as e:
+                logger.error(f"Backend health check failed: {e}")
+                backend_status = "disconnected"
+            
+            return {
+                "status": "healthy" if backend_status == "connected" else "degraded",
+                "server": self.name,
+                "version": self.version,
+                "backend_status": backend_status,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
         
         # Server info tool
         @self.tool(description="Get Optimization server information")
@@ -80,6 +93,8 @@ class OptimizationMCPServer(BaseMCPServer):
             info.update({
                 "port": 8004,
                 "transport": "streamable-http",
+                "architecture": "thin_wrapper",
+                "backend_url": self.backend_client.base_url,
                 "capabilities": [
                     "failure_prediction",
                     "performance_optimization",
@@ -132,27 +147,10 @@ class OptimizationMCPServer(BaseMCPServer):
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
-                # Build query for predictions
-                query = {
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {"range": {"confidence": {"gte": min_confidence}}},
-                                {"term": {"status": "active"}}
-                            ]
-                        }
-                    },
-                    "sort": [{"confidence": {"order": "desc"}}],
-                    "size": 1000
-                }
-                
-                # Add API filter if specified
+                # Validate API ID if provided
                 if api_id:
                     try:
-                        UUID(api_id)  # Validate UUID format
-                        query["query"]["bool"]["must"].append(
-                            {"term": {"api_id": api_id}}
-                        )
+                        UUID(api_id)
                     except ValueError:
                         return {
                             "success": False,
@@ -164,40 +162,60 @@ class OptimizationMCPServer(BaseMCPServer):
                             "metadata": {"timestamp": start_time.isoformat()}
                         }
                 
-                # Query OpenSearch for predictions
-                # Build complete query body
-                query_body = query.copy()
-                
-                result = await self.opensearch.search(
-                    index="api-predictions",
-                    query=query_body.get("query", {}),
-                    size=query_body.get("size", 1000)
+                # Trigger prediction generation via backend
+                result = await self.backend_client.generate_predictions(
+                    api_id=api_id,
+                    min_confidence=min_confidence,
+                    use_ai=False
                 )
                 
-                predictions = []
-                for hit in result.get("hits", {}).get("hits", []):
-                    source = hit["_source"]
-                    predictions.append({
-                        "id": hit["_id"],
-                        "api_id": source.get("api_id"),
-                        "api_name": source.get("api_name"),
-                        "prediction_type": source.get("prediction_type"),
-                        "severity": source.get("severity"),
-                        "confidence": source.get("confidence"),
-                        "predicted_time": source.get("predicted_time"),
-                        "description": source.get("description"),
-                        "recommended_actions": source.get("recommended_actions", []),
-                        "contributing_factors": source.get("contributing_factors", []),
-                        "created_at": source.get("created_at")
-                    })
+                # Get generated predictions
+                predictions_response = await self.backend_client.list_predictions(
+                    api_id=api_id,
+                    status="active",
+                    page_size=1000
+                )
+                
+                predictions = predictions_response.get("predictions", [])
+                
+                # Filter by confidence
+                predictions = [
+                    p for p in predictions
+                    if p.get("confidence_score", 0) >= min_confidence
+                ]
+                
+                # Format predictions
+                formatted_predictions = [
+                    {
+                        "id": p.get("id"),
+                        "api_id": p.get("api_id"),
+                        "api_name": p.get("api_name", "Unknown"),
+                        "prediction_type": p.get("prediction_type"),
+                        "severity": p.get("severity"),
+                        "confidence": p.get("confidence_score"),
+                        "predicted_time": p.get("predicted_time"),
+                        "description": f"{p.get('prediction_type')} prediction with {p.get('severity')} severity",
+                        "recommended_actions": p.get("recommended_actions", []),
+                        "contributing_factors": [
+                            {
+                                "factor": f.get("factor"),
+                                "current_value": f.get("current_value"),
+                                "threshold": f.get("threshold")
+                            }
+                            for f in p.get("contributing_factors", [])
+                        ],
+                        "created_at": p.get("created_at")
+                    }
+                    for p in predictions
+                ]
                 
                 execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
                 
                 return {
                     "success": True,
                     "data": {
-                        "predictions_generated": len(predictions),
-                        "predictions": predictions,
+                        "predictions_generated": len(formatted_predictions),
+                        "predictions": formatted_predictions,
                         "model_version": "1.0.0",
                         "generated_at": datetime.utcnow().isoformat()
                     },
@@ -253,60 +271,54 @@ class OptimizationMCPServer(BaseMCPServer):
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
-                # Query for recommendations
-                query = {
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {"term": {"api_id": api_id}},
-                                {"range": {"expected_improvement_percentage": {"gte": min_impact_percentage}}}
-                            ]
-                        }
-                    },
-                    "sort": [{"expected_improvement_percentage": {"order": "desc"}}],
-                    "size": 100
-                }
-                
-                # Add focus area filter if specified
-                if focus_areas:
-                    query["query"]["bool"]["must"].append(
-                        {"terms": {"optimization_type": focus_areas}}
-                    )
-                
-                # Build complete query body
-                query_body = query.copy()
-                
-                result = await self.opensearch.search(
-                    index="optimization-recommendations",
-                    query=query_body.get("query", {}),
-                    size=query_body.get("size", 100)
+                # Trigger recommendation generation via backend
+                await self.backend_client.generate_recommendations(
+                    api_id=api_id,
+                    min_impact=min_impact_percentage,
+                    use_ai=False
                 )
                 
-                recommendations = []
-                total_savings = 0.0
+                # Get generated recommendations
+                recommendations_response = await self.backend_client.list_recommendations(
+                    api_id=api_id,
+                    status="pending",
+                    recommendation_type=focus_areas[0] if focus_areas else None,
+                    page_size=100
+                )
                 
-                for hit in result.get("hits", {}).get("hits", []):
-                    source = hit["_source"]
-                    recommendations.append({
-                        "id": hit["_id"],
-                        "optimization_type": source.get("optimization_type"),
-                        "title": source.get("title"),
-                        "description": source.get("description"),
-                        "expected_improvement_percentage": source.get("expected_improvement_percentage"),
-                        "implementation_effort": source.get("implementation_effort"),
-                        "estimated_savings_usd_monthly": source.get("estimated_savings_usd_monthly", 0),
-                        "recommended_actions": source.get("recommended_actions", []),
-                        "created_at": source.get("created_at")
-                    })
-                    total_savings += source.get("estimated_savings_usd_monthly", 0)
+                recommendations = recommendations_response.get("recommendations", [])
+                
+                # Filter by impact if needed
+                recommendations = [
+                    r for r in recommendations
+                    if r.get("estimated_impact", {}).get("improvement_percentage", 0) >= min_impact_percentage
+                ]
+                
+                # Format recommendations
+                formatted_recommendations = [
+                    {
+                        "id": r.get("id"),
+                        "optimization_type": r.get("recommendation_type"),
+                        "title": r.get("title"),
+                        "description": r.get("description"),
+                        "expected_improvement_percentage": r.get("estimated_impact", {}).get("improvement_percentage", 0),
+                        "implementation_effort": r.get("implementation_effort"),
+                        "estimated_savings_usd_monthly": r.get("cost_savings", 0),
+                        "recommended_actions": r.get("implementation_steps", []),
+                        "created_at": r.get("created_at")
+                    }
+                    for r in recommendations
+                ]
+                
+                total_savings = sum(r.get("estimated_savings_usd_monthly", 0) for r in formatted_recommendations)
                 
                 execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
                 
                 return {
                     "success": True,
                     "data": {
-                        "recommendations_count": len(recommendations),
-                        "recommendations": recommendations,
+                        "recommendations_count": len(formatted_recommendations),
+                        "recommendations": formatted_recommendations,
                         "total_potential_savings": total_savings
                     },
                     "metadata": {
@@ -374,24 +386,29 @@ class OptimizationMCPServer(BaseMCPServer):
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
-                # Create policy document
-                policy_id = f"{api_id}-{policy_type}-{int(datetime.utcnow().timestamp())}"
-                policy_doc = {
-                    "api_id": api_id,
-                    "policy_type": policy_type,
-                    "limit_thresholds": limit_thresholds,
-                    "enforcement_action": enforcement_action,
-                    "status": "active",
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat()
-                }
+                # Validate API ID
+                try:
+                    UUID(api_id)
+                except ValueError:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "INVALID_INPUT",
+                            "message": "Invalid API ID format",
+                            "details": {"api_id": api_id}
+                        },
+                        "metadata": {"timestamp": start_time.isoformat()}
+                    }
                 
-                # Index policy using raw client
-                client = await self.opensearch.connect()
-                await client.index(
-                    index="rate-limit-policies",
-                    id=policy_id,
-                    body=policy_doc
+                # Create policy via backend
+                policy_name = f"{policy_type}-policy-{int(datetime.utcnow().timestamp())}"
+                
+                policy = await self.backend_client.create_rate_limit_policy(
+                    api_id=api_id,
+                    policy_name=policy_name,
+                    policy_type=policy_type,
+                    limit_thresholds=limit_thresholds,
+                    enforcement_action=enforcement_action
                 )
                 
                 execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
@@ -399,9 +416,9 @@ class OptimizationMCPServer(BaseMCPServer):
                 return {
                     "success": True,
                     "data": {
-                        "policy_id": policy_id,
+                        "policy_id": policy.get("id"),
                         "status": "created",
-                        "policy": policy_doc
+                        "policy": policy
                     },
                     "metadata": {
                         "execution_time_ms": execution_time,
@@ -440,71 +457,61 @@ class OptimizationMCPServer(BaseMCPServer):
             start_time = datetime.utcnow()
             
             try:
-                # Calculate time range
-                end_time = datetime.utcnow()
-                start_analysis_time = end_time - timedelta(hours=analysis_period_hours)
+                # Validate API ID
+                try:
+                    UUID(api_id)
+                except ValueError:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "INVALID_INPUT",
+                            "message": "Invalid API ID format",
+                            "details": {"api_id": api_id}
+                        },
+                        "metadata": {"timestamp": start_time.isoformat()}
+                    }
                 
-                # Query metrics for analysis
-                query = {
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {"term": {"api_id": api_id}},
-                                {"range": {"timestamp": {
-                                    "gte": start_analysis_time.isoformat(),
-                                    "lte": end_time.isoformat()
-                                }}}
-                            ]
-                        }
-                    },
-                    "aggs": {
-                        "throttled": {"sum": {"field": "requests_throttled"}},
-                        "rejected": {"sum": {"field": "requests_rejected"}},
-                        "total": {"sum": {"field": "request_count"}}
-                    },
-                    "size": 0
-                }
-                
-                # Build complete query body
-                query_body = query.copy()
-                
-                result = await self.opensearch.search(
-                    index="api-metrics-*",
-                    query=query_body.get("query", {}),
-                    size=query_body.get("size", 0)
+                # Get policies for this API
+                policies_response = await self.backend_client.list_rate_limit_policies(
+                    api_id=api_id,
+                    status="active",
+                    page_size=100
                 )
                 
-                aggs = result.get("aggregations", {})
-                throttled = int(aggs.get("throttled", {}).get("value", 0))
-                rejected = int(aggs.get("rejected", {}).get("value", 0))
-                total = int(aggs.get("total", {}).get("value", 1))
+                policies = policies_response.get("items", [])
                 
-                # Calculate effectiveness score
-                effectiveness_score = 1.0 - ((throttled + rejected) / max(total, 1))
-                effectiveness_score = max(0.0, min(1.0, effectiveness_score))
+                # Filter by specific policy if provided
+                if policy_id:
+                    policies = [p for p in policies if p.get("id") == policy_id]
                 
-                # Generate recommendations
-                recommendations = []
-                if effectiveness_score < 0.7:
-                    recommendations.append("Consider adjusting rate limits - too restrictive")
-                if throttled > rejected * 2:
-                    recommendations.append("Throttling is working well, consider reducing rejections")
-                if rejected > throttled * 2:
-                    recommendations.append("Too many rejections, consider throttling instead")
+                if not policies:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "NOT_FOUND",
+                            "message": "No active rate limit policies found",
+                            "details": {"api_id": api_id, "policy_id": policy_id}
+                        },
+                        "metadata": {"timestamp": start_time.isoformat()}
+                    }
+                
+                # Analyze the first policy (or specified policy)
+                policy = policies[0]
+                
+                # Get effectiveness analysis from backend
+                analysis = await self.backend_client.analyze_rate_limit_effectiveness(
+                    policy_id=policy.get("id"),
+                    analysis_period_hours=analysis_period_hours
+                )
                 
                 execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
                 
                 return {
                     "success": True,
                     "data": {
-                        "effectiveness_score": effectiveness_score,
-                        "metrics": {
-                            "requests_throttled": throttled,
-                            "requests_rejected": rejected,
-                            "legitimate_users_affected": int(throttled * 0.1),  # Estimate
-                            "abuse_prevented": int(rejected * 0.9)  # Estimate
-                        },
-                        "recommendations": recommendations
+                        "effectiveness_score": analysis.get("effectiveness_score", 0),
+                        "metrics": analysis.get("metrics", {}),
+                        "recommendations": analysis.get("recommendations", [])
                     },
                     "metadata": {
                         "execution_time_ms": execution_time,
@@ -524,6 +531,19 @@ class OptimizationMCPServer(BaseMCPServer):
                     "metadata": {"timestamp": datetime.utcnow().isoformat()}
                 }
 
+    async def initialize(self) -> None:
+        """Initialize server resources."""
+        await super().initialize()
+        logger.info("Optimization server initialized and ready")
+    
+    async def cleanup(self) -> None:
+        """Cleanup server resources."""
+        await super().cleanup()
+        
+        # Close backend client connection
+        await self.backend_client.close()
+        logger.info("Optimization server disconnected from backend")
+
 
 def main():
     """Main entry point for Optimization MCP server."""
@@ -536,16 +556,9 @@ def main():
     # Create server
     server = OptimizationMCPServer()
     
-    # Start HTTP health server in background thread on port 8000
-    health_server = HTTPHealthServer(server.health_checker, port=8000)
-    health_server.start()
-    
-    try:
-        # Run MCP server on port 8004 (this will block)
-        server.run(transport="streamable-http", port=8004)
-    finally:
-        # Cleanup
-        health_server.stop()
+    # Run MCP server on port 8000 (matches Docker port mapping)
+    # FastMCP's built-in server will handle both MCP and health endpoints
+    server.run(transport="streamable-http", port=8000)
 
 
 if __name__ == "__main__":

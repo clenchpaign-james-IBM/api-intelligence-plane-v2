@@ -1,8 +1,8 @@
 """Discovery MCP Server for API Intelligence Plane.
 
 This MCP server provides tools for discovering and managing APIs from connected
-API Gateways. It exposes tools that AI agents can use to interact with the
-discovery functionality.
+API Gateways. It acts as a thin wrapper around the backend REST API, exposing
+tools that AI agents can use to interact with the discovery functionality.
 
 Port: 8001
 Transport: Streamable HTTP
@@ -19,10 +19,9 @@ from uuid import UUID
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from common.backend_client import BackendClient
 from common.health import HealthChecker, create_health_tool
-from common.http_health import HTTPHealthServer
 from common.mcp_base import BaseMCPServer
-from common.opensearch import MCPOpenSearchClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,38 +33,52 @@ class DiscoveryMCPServer(BaseMCPServer):
     - Discovering APIs from Gateways
     - Retrieving API inventory
     - Searching APIs
+    
+    This server acts as a thin wrapper around the backend REST API,
+    delegating all business logic to the backend services.
     """
 
     def __init__(self):
         """Initialize Discovery MCP server."""
         super().__init__(name="discovery-server", version="1.0.0")
         
-        # Initialize OpenSearch client
-        self.opensearch = MCPOpenSearchClient()
+        # Initialize backend client instead of OpenSearch
+        self.backend_client = BackendClient()
         
         # Initialize health checker
         self.health_checker = HealthChecker(self.name, self.version)
-        self.health_checker.set_opensearch_client(self.opensearch)
         
         # Register tools
         self._register_tools()
         
-        logger.info("Discovery MCP server initialized")
+        logger.info("Discovery MCP server initialized (using backend API)")
 
     def _register_tools(self) -> None:
         """Register all MCP tools for this server."""
         
         # Health check tool
-        health_tool = create_health_tool(self.health_checker)
-        
         @self.tool(description="Check Discovery server health and status")
         async def health() -> dict[str, Any]:
             """Check server health.
             
             Returns:
-                dict: Health status including OpenSearch connectivity
+                dict: Health status including backend connectivity
             """
-            return await health_tool()
+            try:
+                # Test backend connectivity by making a simple request
+                await self.backend_client.list_apis(page=1, page_size=1)
+                backend_status = "connected"
+            except Exception as e:
+                logger.error(f"Backend health check failed: {e}")
+                backend_status = "disconnected"
+            
+            return {
+                "status": "healthy" if backend_status == "connected" else "degraded",
+                "server": self.name,
+                "version": self.version,
+                "backend_status": backend_status,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
         
         # Server info tool
         @self.tool(description="Get Discovery server information")
@@ -79,6 +92,8 @@ class DiscoveryMCPServer(BaseMCPServer):
             info.update({
                 "port": 8001,
                 "transport": "streamable-http",
+                "architecture": "thin_wrapper",
+                "backend_url": self.backend_client.base_url,
                 "capabilities": [
                     "api_discovery",
                     "inventory_management",
@@ -92,6 +107,9 @@ class DiscoveryMCPServer(BaseMCPServer):
         @self.tool(description="Discover APIs from a connected Gateway")
         async def discover_apis(gateway_id: str, force_refresh: bool = False) -> dict[str, Any]:
             """Discover APIs from a Gateway.
+            
+            This tool retrieves the current API inventory for a specific gateway
+            from the backend. The backend handles the actual discovery process.
             
             Args:
                 gateway_id: Gateway UUID to discover APIs from
@@ -130,6 +148,9 @@ class DiscoveryMCPServer(BaseMCPServer):
         async def search_apis(query: str, filters: Optional[dict] = None) -> dict[str, Any]:
             """Search APIs by name, path, or tags.
             
+            Note: This is a simplified search that uses the backend's list API.
+            For more advanced search, the backend would need a dedicated search endpoint.
+            
             Args:
                 query: Search query (name, path, tags)
                 filters: Additional filters to apply
@@ -142,10 +163,7 @@ class DiscoveryMCPServer(BaseMCPServer):
     async def initialize(self) -> None:
         """Initialize server resources."""
         await super().initialize()
-        
-        # Connect to OpenSearch
-        await self.opensearch.connect()
-        logger.info("Discovery server connected to OpenSearch")
+        logger.info("Discovery server initialized and ready")
     
     async def _discover_apis_impl(self, gateway_id: str, force_refresh: bool = False) -> dict[str, Any]:
         """Implementation of discover_apis tool.
@@ -160,45 +178,44 @@ class DiscoveryMCPServer(BaseMCPServer):
         start_time = datetime.utcnow()
         
         try:
-            # Query OpenSearch for APIs from this gateway
-            query = {
-                "bool": {
-                    "must": [
-                        {"term": {"gateway_id": gateway_id}}
-                    ]
+            # Validate UUID format
+            try:
+                UUID(gateway_id)
+            except ValueError:
+                return {
+                    "discovered_count": 0,
+                    "shadow_apis_count": 0,
+                    "apis": [],
+                    "discovery_time_ms": 0,
+                    "error": f"Invalid gateway_id format: {gateway_id}"
                 }
-            }
             
-            # If force_refresh, we would trigger discovery service
-            # For now, we query existing data from OpenSearch
-            result = await self.opensearch.search(
-                index="api-inventory",
-                query=query,
-                size=1000
+            # Get APIs from backend for this gateway
+            response = await self.backend_client.list_apis(
+                gateway_id=gateway_id,
+                page_size=1000
             )
             
-            apis = []
-            shadow_count = 0
+            apis = response.get("items", [])
+            shadow_count = sum(1 for api in apis if api.get("is_shadow", False))
             
-            for hit in result.get("hits", {}).get("hits", []):
-                source = hit["_source"]
-                api_data = {
-                    "id": source.get("id"),
-                    "name": source.get("name"),
-                    "base_path": source.get("base_path"),
-                    "is_shadow": source.get("is_shadow", False)
+            # Format API data
+            formatted_apis = [
+                {
+                    "id": api.get("id"),
+                    "name": api.get("name"),
+                    "base_path": api.get("base_path"),
+                    "is_shadow": api.get("is_shadow", False)
                 }
-                apis.append(api_data)
-                
-                if api_data["is_shadow"]:
-                    shadow_count += 1
+                for api in apis
+            ]
             
             discovery_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             
             return {
-                "discovered_count": len(apis),
+                "discovered_count": len(formatted_apis),
                 "shadow_apis_count": shadow_count,
-                "apis": apis,
+                "apis": formatted_apis,
                 "discovery_time_ms": discovery_time_ms
             }
             
@@ -233,43 +250,25 @@ class DiscoveryMCPServer(BaseMCPServer):
             dict: API inventory with filtering applied
         """
         try:
-            # Build query filters
-            must_filters = []
-            
-            if gateway_id:
-                must_filters.append({"term": {"gateway_id": gateway_id}})
-            
-            if status:
-                must_filters.append({"term": {"status": status}})
-            
-            if is_shadow is not None:
-                must_filters.append({"term": {"is_shadow": is_shadow}})
-            
-            if health_score_min is not None:
-                must_filters.append({"range": {"health_score": {"gte": health_score_min}}})
-            
-            query = {
-                "bool": {
-                    "must": must_filters if must_filters else [{"match_all": {}}]
-                }
-            }
-            
-            # Get total count without filters
-            total_count = await self.opensearch.count(index="api-inventory")
-            
-            # Get filtered results
-            result = await self.opensearch.search(
-                index="api-inventory",
-                query=query,
-                size=min(limit, 1000)
+            # Get APIs from backend with filters
+            response = await self.backend_client.list_apis(
+                gateway_id=gateway_id,
+                status=status,
+                is_shadow=is_shadow,
+                page_size=min(limit, 1000)
             )
             
-            apis = []
-            for hit in result.get("hits", {}).get("hits", []):
-                apis.append(hit["_source"])
+            apis = response.get("items", [])
+            
+            # Apply health score filter if specified (client-side filtering)
+            if health_score_min is not None:
+                apis = [
+                    api for api in apis
+                    if api.get("health_score", 0) >= health_score_min
+                ]
             
             return {
-                "total_count": total_count,
+                "total_count": response.get("total", 0),
                 "filtered_count": len(apis),
                 "apis": apis
             }
@@ -286,6 +285,9 @@ class DiscoveryMCPServer(BaseMCPServer):
     async def _search_apis_impl(self, query: str, filters: Optional[dict] = None) -> dict[str, Any]:
         """Implementation of search_apis tool.
         
+        Note: This is a simplified implementation that filters results client-side.
+        For production, the backend should provide a dedicated search endpoint.
+        
         Args:
             query: Search query (name, path, tags)
             filters: Additional filters to apply
@@ -294,51 +296,55 @@ class DiscoveryMCPServer(BaseMCPServer):
             dict: Search results with relevance scores
         """
         try:
-            # Build search query using multi_match for fuzzy search
-            search_query = {
-                "bool": {
-                    "must": [
-                        {
-                            "multi_match": {
-                                "query": query,
-                                "fields": ["name^3", "base_path^2", "description", "tags"],
-                                "type": "best_fields",
-                                "fuzziness": "AUTO"
-                            }
-                        }
-                    ]
-                }
-            }
+            # Get all APIs (or filtered by gateway if specified)
+            gateway_id = filters.get("gateway_id") if filters else None
+            status = filters.get("status") if filters else None
+            is_shadow = filters.get("is_shadow") if filters else None
             
-            # Add additional filters if provided
-            if filters:
-                filter_clauses = []
-                
-                if "gateway_id" in filters:
-                    filter_clauses.append({"term": {"gateway_id": filters["gateway_id"]}})
-                
-                if "status" in filters:
-                    filter_clauses.append({"term": {"status": filters["status"]}})
-                
-                if "is_shadow" in filters:
-                    filter_clauses.append({"term": {"is_shadow": filters["is_shadow"]}})
-                
-                if filter_clauses:
-                    search_query["bool"]["filter"] = filter_clauses
-            
-            # Execute search
-            result = await self.opensearch.search(
-                index="api-inventory",
-                query=search_query,
-                size=100
+            response = await self.backend_client.list_apis(
+                gateway_id=gateway_id,
+                status=status,
+                is_shadow=is_shadow,
+                page_size=1000
             )
             
+            apis = response.get("items", [])
+            
+            # Simple client-side search (case-insensitive substring match)
+            query_lower = query.lower()
             results = []
-            for hit in result.get("hits", {}).get("hits", []):
-                results.append({
-                    "api": hit["_source"],
-                    "relevance_score": hit["_score"]
-                })
+            
+            for api in apis:
+                score = 0.0
+                
+                # Check name match (highest weight)
+                if query_lower in api.get("name", "").lower():
+                    score += 3.0
+                
+                # Check base_path match (medium weight)
+                if query_lower in api.get("base_path", "").lower():
+                    score += 2.0
+                
+                # Check description match (low weight)
+                if query_lower in api.get("description", "").lower():
+                    score += 1.0
+                
+                # Check tags match (medium weight)
+                tags = api.get("tags", [])
+                if any(query_lower in tag.lower() for tag in tags):
+                    score += 2.0
+                
+                if score > 0:
+                    results.append({
+                        "api": api,
+                        "relevance_score": score
+                    })
+            
+            # Sort by relevance score (descending)
+            results.sort(key=lambda x: x["relevance_score"], reverse=True)
+            
+            # Limit to top 100 results
+            results = results[:100]
             
             return {
                 "results": results,
@@ -357,9 +363,9 @@ class DiscoveryMCPServer(BaseMCPServer):
         """Cleanup server resources."""
         await super().cleanup()
         
-        # Close OpenSearch connection
-        await self.opensearch.close()
-        logger.info("Discovery server disconnected from OpenSearch")
+        # Close backend client connection
+        await self.backend_client.close()
+        logger.info("Discovery server disconnected from backend")
 
 
 def main():
@@ -373,16 +379,9 @@ def main():
     # Create server
     server = DiscoveryMCPServer()
     
-    # Start HTTP health server in background thread on port 8000
-    health_server = HTTPHealthServer(server.health_checker, port=8000)
-    health_server.start()
-    
-    try:
-        # Run MCP server on port 8001 (this will block)
-        server.run(transport="streamable-http", port=8001)
-    finally:
-        # Cleanup
-        health_server.stop()
+    # Run MCP server on port 8000 (matches Docker port mapping)
+    # FastMCP's built-in server will handle both MCP and health endpoints
+    server.run(transport="streamable-http", port=8000)
 
 
 if __name__ == "__main__":

@@ -104,21 +104,22 @@ class BaseMCPServer:
         """
         logger.info(f"Cleaning up {self.name} server resources")
 
-    def run(self, transport: str = "stdio", port: int = 8001) -> None:
+    def run(self, transport: str = "stdio", port: int = 8001, host: str = "0.0.0.0") -> None:
         """Run the MCP server.
 
         Args:
             transport: Transport type ("stdio" or "streamable-http")
             port: Port to bind to for streamable-http transport
+            host: Host to bind to for streamable-http transport (default: 0.0.0.0)
 
         This starts the server with the specified transport.
         For stdio: Used for local MCP clients
         For streamable-http: Used for remote HTTP-based clients
         """
         try:
-            logger.info(f"Starting {self.name} FastMCP server with {transport} transport on port {port}")
+            logger.info(f"Starting {self.name} FastMCP server with {transport} transport on {host}:{port}")
             if transport == "streamable-http":
-                self.mcp.run(transport=transport, port=port)
+                self.mcp.run(transport=transport, port=port, host=host)
             else:
                 self.mcp.run(transport=transport)
         except Exception as e:

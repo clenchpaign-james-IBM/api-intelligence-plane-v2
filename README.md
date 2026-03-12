@@ -20,6 +20,8 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 
 ## Architecture
 
+The API Intelligence Plane uses a **thin wrapper architecture** where MCP servers act as protocol adapters that delegate to backend services, ensuring a single source of truth for business logic.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Frontend (React)                         │
@@ -30,22 +32,27 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 ┌─────────────────────────────────────────────────────────────┐
 │                  Backend API (FastAPI)                       │
 │         Discovery, Metrics, Predictions, Security            │
+│              (Single Source of Truth)                        │
 └─────────────────────────────────────────────────────────────┘
+                    │                   │
+          ┌─────────┴─────────┐         │
+          ▼                   ▼         ▼
+┌──────────────────────┐  ┌──────────────────────┐
+│ MCP Servers (Thin    │  │  Demo Gateway        │
+│ Wrappers - FastMCP)  │  │  (Spring Boot)       │
+│ - Discovery (8001)   │  │  Native API Gateway  │
+│ - Metrics (8002)     │  │  Implementation      │
+│ - Optimization (8004)│  │                      │
+└──────────────────────┘  └──────────────────────┘
                               │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-┌──────────────────────────┐  ┌──────────────────────────┐
-│   MCP Servers (FastMCP)  │  │  Demo Gateway (Spring)   │
-│  Discovery, Metrics,     │  │  Native API Gateway      │
-│  Security, Optimization  │  │  Implementation          │
-└──────────────────────────┘  └──────────────────────────┘
-                    │
-                    ▼
+                              ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              OpenSearch (Data Store)                         │
 │    API Inventory, Metrics, Predictions, Security Findings   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+📖 **See [MCP Architecture Documentation](docs/mcp-architecture.md) for detailed information about the thin wrapper pattern and implementation.**
 
 ## Quick Start
 

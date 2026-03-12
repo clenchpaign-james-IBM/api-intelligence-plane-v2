@@ -2,12 +2,36 @@
 
 This guide provides examples for using the API Intelligence Plane MCP servers and configuration instructions for IBM Bob IDE.
 
+## Quick Start
+
+**✅ Correct Configuration (Use This!):**
+```json
+{
+  "mcpServers": {
+    "api-discovery": {
+      "command": "uvx",
+      "args": ["mcp-proxy", "--transport", "streamablehttp", "http://localhost:8001/mcp"]
+    }
+  }
+}
+```
+
+**❌ Common Mistake (Don't Use):**
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-streamable-http", "..."]
+}
+```
+> The npm package `@modelcontextprotocol/server-streamable-http` does not exist. Always use `uvx mcp-proxy`.
+
 ## Table of Contents
 
 1. [MCP Server Overview](#mcp-server-overview)
 2. [Query Examples](#query-examples)
 3. [Bob IDE Configuration](#bob-ide-configuration)
 4. [Python Client Examples](#python-client-examples)
+5. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -195,7 +219,13 @@ Response: Error rate predictions with anomaly alerts
 
 ### Configuration for IBM Bob IDE
 
-To use these MCP servers in IBM Bob IDE, add the following configuration to your Bob settings:
+To use these MCP servers in IBM Bob IDE, add the following configuration to your Bob settings.
+
+#### Prerequisites
+
+- **uvx** must be installed (Python package runner, part of uv)
+- **mcp-proxy** package (automatically installed by uvx on first use)
+- MCP servers must be running (via Docker Compose)
 
 #### Option 1: Using Bob's MCP Settings UI
 
@@ -203,18 +233,19 @@ To use these MCP servers in IBM Bob IDE, add the following configuration to your
 2. Navigate to "MCP Servers" section
 3. Click "Add Server" for each server below
 
-#### Option 2: Manual Configuration (JSON)
+#### Option 2: Manual Configuration (Recommended)
 
-Add this to your Bob IDE configuration file (typically `~/.bob/config.json` or workspace `.bob/mcp.json`):
+**Global Configuration** (`~/.bob/settings/mcp_settings.json`):
 
 ```json
 {
   "mcpServers": {
     "api-discovery": {
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-streamable-http",
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
         "http://localhost:8001/mcp"
       ],
       "env": {},
@@ -222,10 +253,11 @@ Add this to your Bob IDE configuration file (typically `~/.bob/config.json` or w
       "alwaysAllow": []
     },
     "api-metrics": {
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-streamable-http",
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
         "http://localhost:8002/mcp"
       ],
       "env": {},
@@ -233,10 +265,11 @@ Add this to your Bob IDE configuration file (typically `~/.bob/config.json` or w
       "alwaysAllow": []
     },
     "api-optimization": {
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-streamable-http",
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
         "http://localhost:8004/mcp"
       ],
       "env": {},
@@ -247,31 +280,57 @@ Add this to your Bob IDE configuration file (typically `~/.bob/config.json` or w
 }
 ```
 
-### Alternative: Direct HTTP Configuration
-
-If Bob supports direct HTTP MCP connections, use:
+**Project Configuration** (`.bob/mcp.json` in project root):
 
 ```json
 {
   "mcpServers": {
     "api-discovery": {
-      "url": "http://localhost:8001/mcp",
-      "transport": "streamable-http",
-      "disabled": false
+      "command": "uvx",
+      "args": [
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
+        "http://localhost:8001/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": []
     },
     "api-metrics": {
-      "url": "http://localhost:8002/mcp",
-      "transport": "streamable-http",
-      "disabled": false
+      "command": "uvx",
+      "args": [
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
+        "http://localhost:8002/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": []
     },
     "api-optimization": {
-      "url": "http://localhost:8004/mcp",
-      "transport": "streamable-http",
-      "disabled": false
+      "command": "uvx",
+      "args": [
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
+        "http://localhost:8004/mcp"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": []
     }
   }
 }
 ```
+
+#### Why uvx mcp-proxy?
+
+- **uvx**: Python package runner (like npx for Python)
+- **mcp-proxy**: Bridges HTTP-based MCP servers to stdio transport
+- **Reliable**: Part of the official MCP ecosystem
+- **No npm dependencies**: Uses Python tooling only
 
 ### Configuration Notes
 
@@ -442,6 +501,49 @@ If Bob IDE cannot connect to MCP servers:
    docker-compose logs mcp-optimization
    ```
 
+### Common Configuration Errors
+
+**Error: "Package @modelcontextprotocol/server-streamable-http not found"**
+
+This npm package does not exist. Use `uvx mcp-proxy` instead:
+
+```json
+// ❌ WRONG - This package doesn't exist
+{
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-streamable-http", "http://localhost:8001/mcp"]
+}
+
+// ✅ CORRECT - Use uvx mcp-proxy
+{
+  "command": "uvx",
+  "args": ["mcp-proxy", "--transport", "streamablehttp", "http://localhost:8001/mcp"]
+}
+```
+
+**Error: "uvx: command not found"**
+
+Install uv (Python package manager):
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Then restart your terminal
+```
+
+**Error: "Connection refused" or "Cannot connect to server"**
+
+1. Ensure Docker containers are running:
+   ```bash
+   docker-compose up -d
+   docker-compose ps | grep mcp
+   ```
+
+2. Check if ports are accessible:
+   ```bash
+   curl http://localhost:8001/mcp
+   curl http://localhost:8002/mcp
+   curl http://localhost:8004/mcp
+   ```
+
 ### Tool Execution Errors
 
 If tools fail to execute:
@@ -458,6 +560,13 @@ If tools fail to execute:
 3. **Check tool parameters:**
    - Review tool schemas in server logs
    - Ensure required parameters are provided
+
+4. **View MCP server logs:**
+   ```bash
+   docker-compose logs -f mcp-discovery
+   docker-compose logs -f mcp-metrics
+   docker-compose logs -f mcp-optimization
+   ```
 
 ---
 

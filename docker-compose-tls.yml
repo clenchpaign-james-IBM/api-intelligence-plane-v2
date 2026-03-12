@@ -1,0 +1,316 @@
+# API Intelligence Plane - Zero-Trust mTLS Configuration
+# All inter-service communication encrypted with mutual TLS
+version: '3.8'
+
+services:
+  # OpenSearch with mTLS
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: aip-opensearch-tls
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=false
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=SecureP@ssw0rd2024!
+      # TLS Configuration
+      - plugins.security.ssl.transport.pemcert_filepath=certs/opensearch-cert.pem
+      - plugins.security.ssl.transport.pemkey_filepath=certs/opensearch-key.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=certs/ca-cert.pem
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.ssl.http.pemcert_filepath=certs/opensearch-cert.pem
+      - plugins.security.ssl.http.pemkey_filepath=certs/opensearch-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=certs/ca-cert.pem
+      - plugins.security.allow_default_init_securityindex=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data-tls:/usr/share/opensearch/data
+      - ./certs/opensearch:/usr/share/opensearch/config/certs:ro
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - aip-network-tls
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -u admin:SecureP@ssw0rd2024! https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Backend API with TLS
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aip-backend-tls
+    environment:
+      # TLS Server Configuration
+      - TLS_ENABLED=true
+      - TLS_CERT_FILE=/app/certs/backend-cert.pem
+      - TLS_KEY_FILE=/app/certs/backend-key.pem
+      - TLS_CA_FILE=/app/certs/ca-cert.pem
+      
+      # OpenSearch mTLS Configuration
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=https
+      - OPENSEARCH_USE_SSL=true
+      - OPENSEARCH_VERIFY_CERTS=true
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
+      - OPENSEARCH_CLIENT_CERT=/app/certs/backend-cert.pem
+      - OPENSEARCH_CLIENT_KEY=/app/certs/backend-key.pem
+      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
+      
+      # Application settings
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+      
+      # LLM Settings
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=llama3.1:8b
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - ./certs/backend:/app/certs:ro
+      - backend-cache-tls:/root/.cache
+    ports:
+      - "8000:8000"
+    networks:
+      - aip-network-tls
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile /app/certs/backend-key.pem --ssl-certfile /app/certs/backend-cert.pem
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k --cert /app/certs/backend-cert.pem --key /app/certs/backend-key.pem https://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Frontend with TLS
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: aip-frontend-tls
+    environment:
+      - NODE_EXTRA_CA_CERTS=/app/certs/ca-cert.pem
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # VITE_API_BASE_URL is intentionally not set - frontend uses Vite proxy
+      # This allows browser to connect via proxy instead of directly to backend
+      - VITE_BACKEND_URL=https://backend:8000
+      - VITE_TLS_CERT=/app/certs/frontend-cert.pem
+      - VITE_TLS_KEY=/app/certs/frontend-key.pem
+      - VITE_TLS_CA=/app/certs/ca-cert.pem
+    volumes:
+      - ./frontend:/app
+      - ./certs/frontend:/app/certs:ro
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - aip-network-tls
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'vite' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # MCP Discovery Server with mTLS
+  mcp-discovery:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-discovery-tls
+    environment:
+      # TLS Server Configuration
+      - TLS_ENABLED=true
+      - TLS_CERT_FILE=/app/certs/mcp-discovery-cert.pem
+      - TLS_KEY_FILE=/app/certs/mcp-discovery-key.pem
+      - TLS_CA_FILE=/app/certs/ca-cert.pem
+      
+      # OpenSearch mTLS Configuration
+      - MCP_SERVER_NAME=discovery
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=https
+      - OPENSEARCH_USE_SSL=true
+      - OPENSEARCH_VERIFY_CERTS=true
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
+      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-discovery-cert.pem
+      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-discovery-key.pem
+      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+      - ./certs/mcp:/app/certs:ro
+    ports:
+      - "8001:8000"
+    networks:
+      - aip-network-tls
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # MCP Metrics Server with mTLS
+  mcp-metrics:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-metrics-tls
+    environment:
+      # TLS Server Configuration
+      - TLS_ENABLED=true
+      - TLS_CERT_FILE=/app/certs/mcp-metrics-cert.pem
+      - TLS_KEY_FILE=/app/certs/mcp-metrics-key.pem
+      - TLS_CA_FILE=/app/certs/ca-cert.pem
+      
+      # OpenSearch mTLS Configuration
+      - MCP_SERVER_NAME=metrics
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=https
+      - OPENSEARCH_USE_SSL=true
+      - OPENSEARCH_VERIFY_CERTS=true
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
+      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-metrics-cert.pem
+      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-metrics-key.pem
+      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+      - ./certs/mcp:/app/certs:ro
+    ports:
+      - "8002:8000"
+    networks:
+      - aip-network-tls
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # MCP Optimization Server with mTLS
+  mcp-optimization:
+    build:
+      context: ./mcp-servers
+      dockerfile: Dockerfile
+    container_name: aip-mcp-optimization-tls
+    environment:
+      # TLS Server Configuration
+      - TLS_ENABLED=true
+      - TLS_CERT_FILE=/app/certs/mcp-optimization-cert.pem
+      - TLS_KEY_FILE=/app/certs/mcp-optimization-key.pem
+      - TLS_CA_FILE=/app/certs/ca-cert.pem
+      
+      # OpenSearch mTLS Configuration
+      - MCP_SERVER_NAME=optimization
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=https
+      - OPENSEARCH_USE_SSL=true
+      - OPENSEARCH_VERIFY_CERTS=true
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
+      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-optimization-cert.pem
+      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-optimization-key.pem
+      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
+    env_file:
+      - .env
+    volumes:
+      - ./mcp-servers:/app
+      - ./certs/mcp:/app/certs:ro
+    ports:
+      - "8004:8000"
+    networks:
+      - aip-network-tls
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # Demo Gateway (HTTP only - external service)
+  demo-gateway:
+    build:
+      context: ./demo-gateway
+      dockerfile: Dockerfile
+    container_name: aip-demo-gateway-tls
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # HTTP Configuration (no TLS)
+      - SERVER_SSL_ENABLED=false
+      
+      # OpenSearch mTLS Configuration
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=https
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
+      - OPENSEARCH_SSL_VERIFY=false
+    volumes:
+      - ./certs/ca:/app/certs/ca:ro
+      - ./certs/opensearch:/app/certs/opensearch:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - aip-network-tls
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+networks:
+  aip-network-tls:
+    driver: bridge
+
+volumes:
+  opensearch-data-tls:
+    driver: local
+  backend-cache-tls:
+    driver: local
+
+# Zero-Trust Architecture:
+# - All services use TLS for server endpoints
+# - All inter-service communication uses mTLS (mutual authentication)
+# - Certificate-based authentication between services
+# - No plaintext communication within the network
+
+# Made with Bob

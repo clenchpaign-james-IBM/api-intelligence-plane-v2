@@ -79,14 +79,11 @@ def create_client_ssl_context(
     Returns:
         Configured SSL context for client connections
     """
-    # Create context with TLS 1.3 minimum
+    # Create context with TLS 1.2 minimum (OpenSearch compatibility)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     
-    # Set minimum TLS version to 1.3
-    context.minimum_version = ssl.TLSVersion.TLSv1_3
-    
-    # Set maximum TLS version to 1.3
-    context.maximum_version = ssl.TLSVersion.TLSv1_3
+    # Set minimum TLS version to 1.2 for compatibility
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     
     # TLS 1.3 cipher suites are configured automatically
     # All TLS 1.3 ciphers are AEAD and FIPS 140-3 compliant
@@ -101,8 +98,8 @@ def create_client_ssl_context(
     else:
         context.load_default_certs()
     
-    # Enable hostname checking
-    context.check_hostname = True
+    # Disable hostname checking for internal services
+    context.check_hostname = False
     context.verify_mode = ssl.CERT_REQUIRED
     
     return context
@@ -131,6 +128,9 @@ def get_opensearch_ssl_config() -> dict[str, Any]:
     """
     Get SSL configuration for OpenSearch client.
     
+    The opensearchpy library uses the requests library which requires
+    ca_certs, client_cert, and client_key parameters instead of ssl_context.
+    
     Returns:
         Dictionary with SSL configuration for OpenSearch
     """
@@ -143,29 +143,17 @@ def get_opensearch_ssl_config() -> dict[str, Any]:
         "ssl_show_warn": False,
     }
     
-    # Only create SSL context if certificate files actually exist
-    # For development, we can use SSL without client certificates
-    cert_exists = (
-        settings.OPENSEARCH_CLIENT_CERT
-        and settings.OPENSEARCH_CLIENT_KEY
-        and os.path.isfile(settings.OPENSEARCH_CLIENT_CERT)
-        and os.path.isfile(settings.OPENSEARCH_CLIENT_KEY)
-    )
-    ca_exists = settings.OPENSEARCH_CA_CERT and os.path.isfile(settings.OPENSEARCH_CA_CERT)
+    # Add CA certificate if it exists
+    if settings.OPENSEARCH_CA_CERT and os.path.isfile(settings.OPENSEARCH_CA_CERT):
+        config["ca_certs"] = settings.OPENSEARCH_CA_CERT
     
-    if cert_exists:
-        ssl_context = create_client_ssl_context(
-            certfile=settings.OPENSEARCH_CLIENT_CERT,
-            keyfile=settings.OPENSEARCH_CLIENT_KEY,
-            cafile=settings.OPENSEARCH_CA_CERT if ca_exists else None,
-        )
-        config["ssl_context"] = ssl_context
-    elif ca_exists:
-        # If only CA cert is provided, create context with just CA verification
-        ssl_context = create_client_ssl_context(
-            cafile=settings.OPENSEARCH_CA_CERT,
-        )
-        config["ssl_context"] = ssl_context
+    # Add client certificates if they exist (for mTLS)
+    if (settings.OPENSEARCH_CLIENT_CERT and
+        settings.OPENSEARCH_CLIENT_KEY and
+        os.path.isfile(settings.OPENSEARCH_CLIENT_CERT) and
+        os.path.isfile(settings.OPENSEARCH_CLIENT_KEY)):
+        config["client_cert"] = settings.OPENSEARCH_CLIENT_CERT
+        config["client_key"] = settings.OPENSEARCH_CLIENT_KEY
     
     return config
 

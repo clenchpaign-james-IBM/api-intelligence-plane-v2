@@ -351,8 +351,8 @@ This is a distributed web application with microservices architecture:
 
 ### Demo Gateway - Rate Limiting
 
-- [ ] T150 [US5] Implement rate limiting policy engine in demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java
-- [ ] T151 [US5] Integrate rate limiting with API routing in demo-gateway/src/main/java/com/example/gateway/service/RoutingService.java
+- [X] T150 [US5] Implement rate limiting policy engine in demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java
+- [X] T151 [US5] Integrate rate limiting with API routing in demo-gateway/src/main/java/com/example/gateway/controller/APIController.java
 
 ### Frontend - Rate Limiting View
 

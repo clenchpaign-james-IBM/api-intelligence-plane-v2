@@ -497,6 +497,59 @@ async def deactivate_rate_limit_policy(
         )
 
 
+@router.post(
+    "/rate-limits/{policy_id}/apply",
+    response_model=dict,
+    summary="Apply rate limit policy to Gateway",
+)
+async def apply_rate_limit_policy_to_gateway(
+    policy_id: UUID,
+) -> dict:
+    """
+    Apply a rate limit policy to the actual Gateway.
+    
+    This endpoint:
+    1. Retrieves the policy and associated API/Gateway information
+    2. Connects to the Gateway using the appropriate adapter
+    3. Applies the rate limiting policy to the Gateway
+    4. Updates the policy status to ACTIVE
+    
+    Args:
+        policy_id: Policy UUID to apply
+        
+    Returns:
+        Application result with success status and details
+    """
+    try:
+        rate_limit_repo = RateLimitPolicyRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        service = RateLimitService(rate_limit_repo, metrics_repo, api_repo)
+        
+        result = await service.apply_policy_to_gateway(policy_id)
+        
+        return result
+        
+    except ValueError as e:
+        logger.warning(f"Invalid request: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except RuntimeError as e:
+        logger.error(f"Failed to apply rate limit policy: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error applying rate limit policy: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to apply rate limit policy: {str(e)}",
+        )
+
+
 @router.get(
     "/rate-limits/suggest/{api_id}",
     response_model=PolicySuggestionResponse,

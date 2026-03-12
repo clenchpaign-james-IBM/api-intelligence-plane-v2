@@ -94,6 +94,18 @@ const Optimization = () => {
     },
   });
 
+  // Apply policy mutation
+  const applyMutation = useMutation({
+    mutationFn: (policyId: string) => api.rateLimits.apply(policyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
+      alert('Rate limit policy applied to Gateway successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to apply policy: ${error.message || 'Unknown error'}`);
+    },
+  });
+
   // Loading state
   if (isLoading) {
     return (
@@ -624,6 +636,7 @@ const Optimization = () => {
                                 policy={policy}
                                 onActivate={(id) => activateMutation.mutate(id)}
                                 onDeactivate={(id) => deactivateMutation.mutate(id)}
+                                onApply={(id) => applyMutation.mutate(id)}
                               />
                             </div>
                           ))}
@@ -651,6 +664,10 @@ const Optimization = () => {
                               }}
                               onDeactivate={(id) => {
                                 deactivateMutation.mutate(id);
+                                setSelectedPolicy(null);
+                              }}
+                              onApply={(id) => {
+                                applyMutation.mutate(id);
                                 setSelectedPolicy(null);
                               }}
                             />

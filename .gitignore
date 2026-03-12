@@ -313,3 +313,9 @@ k8s/*.secret.yaml
 !.gitkeep
 !.gitignore
 !.env.example
+.bob/custom_modes.yaml
+.bob/mcp.json
+.bob/rules-carbon-react/1_carbon_essentials.xml
+.bob/rules-carbon-react/2_working_practices.xml
+.bob/rules-carbon-react/3_workflow.xml
+.bob/rules-carbon-react/4_design_analysis.xml

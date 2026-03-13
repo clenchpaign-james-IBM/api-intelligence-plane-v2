@@ -24,55 +24,13 @@ The API Intelligence Plane is a microservices-based platform with clear separati
 
 ### Core Application Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (React)                         │
-│              Dashboard, APIs, Security, Query UI             │
-└─────────────────────────────────────────────────────────────┘
-                               │
-                               │ REST API
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Backend API (FastAPI)                       │
-│         Discovery, Metrics, Predictions, Security            │
-│              (Single Source of Truth)                        │
-└─────────────────────────────────────────────────────────────┘
-           │                   │
-    ┌──────┴──────┐     ┌─────┴─────┐
-    ▼             ▼     ▼           ▼
-┌─────────┐  ┌─────────────────────────┐
-│OpenSearch│ │  Demo Gateway           │
-│  (Data   │ │  (Spring Boot)          │
-│  Store)  │ │  Native API Gateway     │
-└─────────┘  └─────────────────────────┘
-```
+<img alt="image" src="./docs/diagrams/APIIP-High-Level Architecture.drawio.png" width="750">
 
 ### Optional: External AI Agent Integration
 
 MCP servers are **optional** components for external AI agents (Bob IDE, Claude Desktop):
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│              MCP Servers (for AI Agents)                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Discovery   │  │   Metrics    │  │Optimization  │      │
-│  │   (8001)     │  │   (8002)     │  │   (8004)     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│         │                  │                  │              │
-│         └──────────────────┼──────────────────┘              │
-│                            ▼                                 │
-│                     Backend API (8000)                       │
-└─────────────────────────────────────────────────────────────┘
-         ▲
-         │ MCP Protocol
-         │
-┌────────┴────────┐
-│   AI Agents     │
-│  (Bob IDE,      │
-│   Claude        │
-│   Desktop)      │
-└─────────────────┘
-```
+<img alt="image" src="./docs/diagrams/APIIP-MCP Architecture.drawio.png" width="450">
 
 **Note**: MCP servers are NOT required for core functionality. They only enable external AI agents to interact with the platform programmatically.
 

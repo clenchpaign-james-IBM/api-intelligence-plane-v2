@@ -1,5 +1,16 @@
 # MCP Server Architecture
 
+> 📊 **Enhanced Diagrams**: See [MCP Architecture Diagrams](diagrams/mcp-architecture.md) for comprehensive visual documentation including:
+> - MCP Server Architecture Overview
+> - Thin Wrapper Pattern (Before/After)
+> - Discovery, Metrics, and Optimization Server Architecture
+> - MCP Communication Flow
+> - Backend Client Architecture
+> - Health Check Architecture
+> - Error Handling Flow
+> - Configuration & Environment
+> - Integration with AI Agents
+
 ## Overview
 
 The MCP (Model Context Protocol) servers in the API Intelligence Plane have been refactored to follow a **thin wrapper architecture pattern**. This document describes the new architecture, its benefits, and implementation details.

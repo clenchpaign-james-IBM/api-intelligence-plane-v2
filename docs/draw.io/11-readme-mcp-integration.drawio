@@ -1,0 +1,64 @@
+<mxfile host="app.diagrams.net" modified="2026-03-13T11:37:00.000Z" agent="draw.io" version="24.0.0">
+  <diagram name="MCP External Agent Integration" id="readme-mcp">
+    <mxGraphModel dx="600" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="700" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- MCP Servers Container -->
+        <mxCell id="mcp-container" value="MCP Servers (for AI Agents)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#00ACC1;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="50" width="500" height="180" as="geometry" />
+        </mxCell>
+        
+        <!-- Discovery Server -->
+        <mxCell id="discovery" value="Discovery&#xa;(8001)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="110" width="110" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Metrics Server -->
+        <mxCell id="metrics" value="Metrics&#xa;(8002)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="295" y="110" width="110" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Optimization Server -->
+        <mxCell id="optimization" value="Optimization&#xa;(8004)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="110" width="110" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Backend API -->
+        <mxCell id="backend" value="Backend API (8000)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;fontSize=13;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="225" y="310" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- AI Agents -->
+        <mxCell id="ai-agents" value="AI Agents&#xa;(Bob IDE,&#xa;Claude&#xa;Desktop)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="250" y="500" width="200" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows from MCP servers to Backend -->
+        <mxCell id="arrow1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="discovery" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="metrics" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="optimization" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from AI Agents to Backend -->
+        <mxCell id="arrow4" value="MCP Protocol" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="ai-agents" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Label for connection -->
+        <mxCell id="label1" value="(connects to)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="300" y="250" width="100" height="20" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

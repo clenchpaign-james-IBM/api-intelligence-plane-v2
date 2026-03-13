@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net" modified="2026-03-13T11:02:00.000Z" agent="draw.io" version="24.0.0">
+  <diagram name="Kubernetes Production Deployment" id="k8s-deploy">
+    <mxGraphModel dx="1000" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Kubernetes Cluster -->
+        <mxCell id="k8s-cluster" value="Kubernetes Cluster" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;fontSize=16;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="50" y="50" width="900" height="800" as="geometry" />
+        </mxCell>
+        
+        <!-- Namespace Container -->
+        <mxCell id="namespace" value="Namespace: api-intelligence-plane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="600" height="600" as="geometry" />
+        </mxCell>
+        
+        <!-- Deployments -->
+        <mxCell id="backend-deploy" value="Deployment:&#xa;backend&#xa;(3 replicas)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="180" width="120" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="frontend-deploy" value="Deployment:&#xa;frontend&#xa;(2 replicas)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="180" width="120" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="gateway-deploy" value="Deployment:&#xa;demo-gateway&#xa;(2 replicas)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="180" width="120" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="opensearch-stateful" value="StatefulSet:&#xa;opensearch&#xa;(3 nodes)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFCCBC;strokeColor=#E64A19;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="300" width="120" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Services -->
+        <mxCell id="backend-svc" value="Service:&#xa;backend-service" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="310" width="120" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="frontend-svc" value="Service:&#xa;frontend-service" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="310" width="120" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="opensearch-svc" value="Service:&#xa;opensearch-service" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="430" width="120" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Infrastructure -->
+        <mxCell id="ingress" value="Ingress:&#xa;api-intelligence-ingress" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#E1BEE7;strokeColor=#7B1FA2;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="440" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="configmap" value="ConfigMap:&#xa;app-config" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="440" width="100" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Optional MCP -->
+        <mxCell id="mcp-deploy" value="Deployment:&#xa;mcp-servers&#xa;(1 replica each)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=10;fontStyle=1;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="140" y="560" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="optional-label" value="Optional (for AI agent integration)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="140" y="530" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Monitoring Container -->
+        <mxCell id="monitoring" value="Monitoring" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="750" y="120" width="180" height="200" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="prometheus" value="Prometheus" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="180" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="grafana" value="Grafana" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="250" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows -->
+        <mxCell id="arrow1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="namespace" target="monitoring">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

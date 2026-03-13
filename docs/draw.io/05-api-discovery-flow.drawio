@@ -1,0 +1,44 @@
+<mxfile host="app.diagrams.net" modified="2026-03-13T11:00:00.000Z" agent="draw.io" version="24.0.0">
+  <diagram name="API Discovery Flow" id="discovery-flow">
+    <mxGraphModel dx="500" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="450" pageHeight="650" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Scheduler -->
+        <mxCell id="scheduler" value="Scheduler&#xa;(Every 5 minutes)" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="125" y="40" width="200" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- DiscoveryService -->
+        <mxCell id="discovery" value="DiscoveryService&#xa;- Query Gateway&#xa;- Detect APIs&#xa;- Identify Shadow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="170" width="250" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Gateway Adapter -->
+        <mxCell id="adapter" value="Gateway Adapter&#xa;(Strategy Pattern)&#xa;- Native/Kong/Apigee" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#E64A19;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="310" width="250" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- OpenSearch -->
+        <mxCell id="opensearch" value="OpenSearch&#xa;- Store in&#xa;  api-inventory" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="460" width="170" height="110" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows -->
+        <mxCell id="arrow1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=3;endArrow=classic;endFill=1;" edge="1" parent="1" source="scheduler" target="discovery">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=3;endArrow=classic;endFill=1;" edge="1" parent="1" source="discovery" target="adapter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=3;endArrow=classic;endFill=1;" edge="1" parent="1" source="adapter" target="opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

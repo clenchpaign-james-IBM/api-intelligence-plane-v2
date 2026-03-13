@@ -1,0 +1,44 @@
+<mxfile host="app.diagrams.net" modified="2026-03-13T11:37:00.000Z" agent="draw.io" version="24.0.0">
+  <diagram name="Core Application Architecture" id="readme-core">
+    <mxGraphModel dx="600" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="700" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Frontend -->
+        <mxCell id="frontend" value="Frontend (React)&#xa;Dashboard, APIs, Security, Query UI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;fontSize=13;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="50" width="400" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Backend API -->
+        <mxCell id="backend" value="Backend API (FastAPI)&#xa;Discovery, Metrics, Predictions, Security&#xa;(Single Source of Truth)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;fontSize=13;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="200" width="400" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- OpenSearch -->
+        <mxCell id="opensearch" value="OpenSearch&#xa;(Data Store)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="360" width="140" height="110" as="geometry" />
+        </mxCell>
+        
+        <!-- Demo Gateway -->
+        <mxCell id="gateway" value="Demo Gateway&#xa;(Spring Boot)&#xa;Native API Gateway" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="380" y="360" width="170" height="110" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows -->
+        <mxCell id="arrow1" value="REST API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="frontend" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="backend" target="opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.7;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="backend" target="gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

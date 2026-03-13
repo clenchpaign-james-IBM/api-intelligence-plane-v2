@@ -94,12 +94,60 @@ class PredictionRepository(BaseRepository[Prediction]):
             from_=from_,
         )
 
+        # Enrich predictions with API names
+        predictions = self._enrich_with_api_names(predictions)
+
         return {
             "predictions": predictions,
             "total": total,
             "page": page,
             "page_size": page_size,
         }
+    
+    def _enrich_with_api_names(self, predictions: List[Prediction]) -> List[Prediction]:
+        """
+        Enrich predictions with API names by fetching from API inventory
+        
+        Args:
+            predictions: List of predictions
+            
+        Returns:
+            Predictions with api_name populated
+        """
+        if not predictions:
+            return predictions
+        
+        # Get unique API IDs
+        api_ids = list(set(str(p.api_id) for p in predictions))
+        
+        # Fetch API names in bulk
+        api_names = {}
+        try:
+            # Fetch each API document individually
+            for api_id in api_ids:
+                try:
+                    result = self.client.get(
+                        index="api-inventory",
+                        id=api_id,
+                        params={"_source": "name"}
+                    )
+                    if result.get("found"):
+                        source = result.get("_source", {})
+                        api_names[api_id] = source.get("name", "Unknown API")
+                except Exception:
+                    # API not found, skip
+                    pass
+        except Exception as e:
+            # Log error but don't fail the request
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to fetch API names: {e}")
+        
+        # Populate api_name in predictions
+        for prediction in predictions:
+            prediction.api_name = api_names.get(str(prediction.api_id), f"API {str(prediction.api_id)[:8]}")
+        
+        return predictions
 
     def get_active_predictions_for_api(self, api_id: str) -> List[Prediction]:
         """

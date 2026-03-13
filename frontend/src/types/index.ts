@@ -201,7 +201,7 @@ export interface Prediction {
   prediction_type: PredictionType;
   predicted_at: string;
   predicted_time: string;
-  confidence: number;
+  confidence_score: number;
   severity: PredictionSeverity;
   status: PredictionStatus;
   description?: string;

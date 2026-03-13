@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Zap, TrendingUp, Filter, DollarSign, Shield, Sparkles } from 'lucide-react';
+import { Heading, Button, Toggle, Select, SelectItem, Tabs, TabList, Tab, TabPanels, TabPanel, Tag, ClickableTile } from '@carbon/react';
+import { Zap, TrendingUp, Filter, DollarSign, Shield, Sparkles, CurrencyDollar } from '../utils/carbonIcons';
+import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
 import RateLimitPolicy from '../components/optimization/RateLimitPolicy';
@@ -109,7 +111,7 @@ const Optimization = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Loading message="Loading optimization recommendations..." />
       </div>
     );
@@ -118,7 +120,7 @@ const Optimization = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Error
           message="Failed to load recommendations"
           details={error as Error}
@@ -130,32 +132,32 @@ const Optimization = () => {
   const recommendations = data?.recommendations || [];
   const total = data?.total || 0;
   const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
-  const highPriorityCount = recommendations.filter((r: Recommendation) => 
+  const highPriorityCount = recommendations.filter((r: Recommendation) =>
     r.priority === 'critical' || r.priority === 'high'
   ).length;
   const totalSavings = stats?.total_cost_savings || 0;
   const avgImprovement = stats?.avg_improvement || 0;
 
-  // Priority badge color
-  const getPriorityColor = (priority: RecommendationPriority) => {
+  // Priority tag type
+  const getPriorityTagType = (priority: RecommendationPriority): 'red' | 'magenta' | 'purple' | 'blue' | 'gray' => {
     switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'critical': return 'red';
+      case 'high': return 'magenta';
+      case 'medium': return 'purple';
+      case 'low': return 'blue';
+      default: return 'gray';
     }
   };
 
-  // Status badge color
-  const getStatusColor = (status: RecommendationStatus) => {
+  // Status tag type
+  const getStatusTagType = (status: RecommendationStatus): 'warm-gray' | 'blue' | 'green' | 'gray' | 'red' => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'implemented': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-gray-100 text-gray-800';
-      case 'expired': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'warm-gray';
+      case 'in_progress': return 'blue';
+      case 'implemented': return 'green';
+      case 'rejected': return 'gray';
+      case 'expired': return 'red';
+      default: return 'gray';
     }
   };
 
@@ -167,257 +169,239 @@ const Optimization = () => {
   };
 
   return (
-    <div className="p-6">
+    <div style={{ padding: 'var(--cds-spacing-06)' }}>
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
+      <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-06)' }}>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <Heading>Performance Optimization</Heading>
+            <p style={{ marginTop: 'var(--cds-spacing-03)', fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
               {useAi ? 'LLM-enhanced recommendations with detailed insights' : 'Rule-based recommendations'} and intelligent rate limiting
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
             {/* AI Toggle Switch */}
             {activeTab === 'recommendations' && (
-              <div className="flex items-center gap-2 bg-white rounded-lg shadow px-4 py-2">
-                <Sparkles className={`w-5 h-5 ${useAi ? 'text-purple-600' : 'text-gray-400'}`} />
-                <span className="text-sm font-medium text-gray-700">AI Enhanced</span>
-                <button
-                  onClick={() => setUseAi(!useAi)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    useAi ? 'bg-purple-600' : 'bg-gray-300'
-                  }`}
-                  role="switch"
-                  aria-checked={useAi}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      useAi ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px' }}>
+                <Sparkles size={20} style={{ color: useAi ? 'var(--cds-support-info)' : 'var(--cds-icon-secondary)' }} />
+                <Toggle
+                  id="ai-toggle-opt"
+                  labelText="AI Enhanced"
+                  toggled={useAi}
+                  onToggle={() => setUseAi(!useAi)}
+                  size="sm"
+                />
               </div>
             )}
-            <button
+            <Button
+              kind="primary"
+              renderIcon={TrendingUp}
               onClick={() => {
                 setIsGenerating(true);
                 refetch().finally(() => setIsGenerating(false));
               }}
               disabled={isGenerating}
-              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                isGenerating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white`}
             >
-              <TrendingUp className="w-5 h-5" />
               {isGenerating ? 'Refreshing...' : 'Refresh List'}
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mt-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('recommendations')}
-              className={`${
-                activeTab === 'recommendations'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
-            >
-              <Zap className="w-5 h-5" />
-              Recommendations
-            </button>
-            <button
-              onClick={() => setActiveTab('rate-limiting')}
-              className={`${
-                activeTab === 'rate-limiting'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
-            >
-              <Shield className="w-5 h-5" />
-              Rate Limiting
-            </button>
-          </nav>
-        </div>
+        <Tabs selectedIndex={activeTab === 'recommendations' ? 0 : 1} onChange={(e) => setActiveTab(e.selectedIndex === 0 ? 'recommendations' : 'rate-limiting')}>
+          <TabList aria-label="Optimization tabs">
+            <Tab renderIcon={Zap}>Recommendations</Tab>
+            <Tab renderIcon={Shield}>Rate Limiting</Tab>
+          </TabList>
+        </Tabs>
       </div>
 
       {/* Recommendations Tab Content */}
       {activeTab === 'recommendations' && (
         <>
           {/* Stats */}
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
+          <div style={{ marginBottom: 'var(--cds-spacing-08)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-06)' }}>
+            <Card padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="text-sm text-gray-600">Pending Actions</p>
-                  <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Pending Actions</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{pendingCount}</p>
                 </div>
-                <Zap className="w-8 h-8 text-yellow-500" />
+                <Zap size={32} style={{ color: 'var(--cds-support-warning)' }} />
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
+            </Card>
+            <Card padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="text-sm text-gray-600">High Priority</p>
-                  <p className="text-2xl font-bold text-orange-600">{highPriorityCount}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>High Priority</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-error)' }}>{highPriorityCount}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-orange-500" />
+                <TrendingUp size={32} style={{ color: 'var(--cds-support-error)' }} />
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
+            </Card>
+            <Card padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="text-sm text-gray-600">Avg Improvement</p>
-                  <p className="text-2xl font-bold text-green-600">{avgImprovement.toFixed(1)}%</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Avg Improvement</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-success)' }}>{avgImprovement.toFixed(1)}%</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-green-500" />
+                <TrendingUp size={32} style={{ color: 'var(--cds-support-success)' }} />
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
+            </Card>
+            <Card padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="text-sm text-gray-600">Potential Savings</p>
-                  <p className="text-2xl font-bold text-blue-600">${totalSavings.toFixed(0)}/mo</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Potential Savings</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-link-primary)' }}>${totalSavings.toFixed(0)}/mo</p>
                 </div>
-                <DollarSign className="w-8 h-8 text-blue-500" />
+                <DollarSign size={32} style={{ color: 'var(--cds-link-primary)' }} />
               </div>
-            </div>
+            </Card>
           </div>
 
           {/* Filters */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <Filter className="w-5 h-5 text-gray-500" />
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Priority:</label>
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value as RecommendationPriority | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Status:</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as RecommendationStatus | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="implemented">Implemented</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Type:</label>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value as RecommendationType | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="caching">Caching</option>
-              <option value="query_optimization">Query Optimization</option>
-              <option value="resource_allocation">Resource Allocation</option>
-              <option value="compression">Compression</option>
-              <option value="connection_pooling">Connection Pooling</option>
-            </select>
-          </div>
-        </div>
+          <div style={{ marginBottom: 'var(--cds-spacing-08)' }}>
+            <Card padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-06)', flexWrap: 'wrap' }}>
+                <Filter size={20} style={{ color: 'var(--cds-icon-secondary)' }} />
+                <Select
+                  id="priority-select"
+                  labelText="Priority"
+                  value={selectedPriority}
+                  onChange={(e) => setSelectedPriority(e.target.value as RecommendationPriority | 'all')}
+                  size="sm"
+                  inline
+                >
+                  <SelectItem value="all" text="All" />
+                  <SelectItem value="critical" text="Critical" />
+                  <SelectItem value="high" text="High" />
+                  <SelectItem value="medium" text="Medium" />
+                  <SelectItem value="low" text="Low" />
+                </Select>
+                <Select
+                  id="status-select"
+                  labelText="Status"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value as RecommendationStatus | 'all')}
+                  size="sm"
+                  inline
+                >
+                  <SelectItem value="all" text="All" />
+                  <SelectItem value="pending" text="Pending" />
+                  <SelectItem value="in_progress" text="In Progress" />
+                  <SelectItem value="implemented" text="Implemented" />
+                  <SelectItem value="rejected" text="Rejected" />
+                </Select>
+                <Select
+                  id="type-select"
+                  labelText="Type"
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value as RecommendationType | 'all')}
+                  size="sm"
+                  inline
+                >
+                  <SelectItem value="all" text="All" />
+                  <SelectItem value="caching" text="Caching" />
+                  <SelectItem value="query_optimization" text="Query Optimization" />
+                  <SelectItem value="resource_allocation" text="Resource Allocation" />
+                  <SelectItem value="compression" text="Compression" />
+                  <SelectItem value="connection_pooling" text="Connection Pooling" />
+                </Select>
+              </div>
+            </Card>
           </div>
 
           {/* Recommendations List */}
           <div>
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Recommendations</h2>
-        {recommendations.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No recommendations found</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Recommendations are generated automatically every 30 minutes
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {recommendations.map((recommendation: Recommendation) => (
-              <div
-                key={recommendation.id}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setSelectedRecommendation(recommendation)}
-              >
+            <Heading style={{ fontSize: '1.25rem', marginBottom: 'var(--cds-spacing-06)' }}>Recommendations</Heading>
+            {recommendations.length === 0 ? (
+              <Card padding="lg">
+                <div style={{ textAlign: 'center' }}>
+                  <Zap size={48} style={{ color: 'var(--cds-icon-secondary)', margin: '0 auto var(--cds-spacing-05)' }} />
+                  <p style={{ color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>No recommendations found</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-helper)' }}>
+                    Recommendations are generated automatically every 30 minutes
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+                {recommendations.map((recommendation: Recommendation, index: number) => (
+                  <ClickableTile
+                    key={recommendation.id}
+                    onClick={() => setSelectedRecommendation(recommendation)}
+                    style={{
+                      padding: 'var(--cds-spacing-06)',
+                      border: '1px solid var(--cds-border-subtle)',
+                      borderRadius: '4px',
+                      marginBottom: index < recommendations.length - 1 ? 'var(--cds-spacing-07)' : '0'
+                    }}
+                  >
                 {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-05)' }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-03)' }}>
                       {recommendation.title}
                     </h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">
+                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', lineHeight: '1.5' }}>
                       {recommendation.description}
                     </p>
                   </div>
                 </div>
 
                 {/* Badges */}
-                <div className="flex items-center gap-2 mb-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(recommendation.priority)}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', marginBottom: 'var(--cds-spacing-05)' }}>
+                  <Tag type={getPriorityTagType(recommendation.priority)} size="sm">
                     {recommendation.priority.toUpperCase()}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(recommendation.status)}`}>
+                  </Tag>
+                  <Tag type={getStatusTagType(recommendation.status)} size="sm">
                     {recommendation.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  </Tag>
+                  <Tag type="purple" size="sm">
                     {getTypeDisplayName(recommendation.recommendation_type)}
-                  </span>
+                  </Tag>
                 </div>
 
                 {/* Impact */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Expected Impact</span>
-                    <span className="text-lg font-bold text-green-600">
+                <div style={{
+                  backgroundColor: 'var(--cds-layer-01)',
+                  borderRadius: 'var(--cds-spacing-02)',
+                  padding: 'var(--cds-spacing-05)',
+                  marginBottom: 'var(--cds-spacing-05)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-03)' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)' }}>Expected Impact</span>
+                    <span style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-support-success)' }}>
                       +{recommendation.estimated_impact.improvement_percentage.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="text-xs text-gray-600">
-                    <div className="flex justify-between">
+                  <div style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Current: {recommendation.estimated_impact.current_value.toFixed(2)}ms</span>
                       <span>Expected: {recommendation.estimated_impact.expected_value.toFixed(2)}ms</span>
                     </div>
-                    <div className="mt-1">
+                    <div style={{ marginTop: 'var(--cds-spacing-02)' }}>
                       Confidence: {(recommendation.estimated_impact.confidence * 100).toFixed(0)}%
                     </div>
                   </div>
                 </div>
 
                 {/* Effort & Savings */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600">Effort:</span>
-                    <span className="font-medium text-gray-900 capitalize">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                    <span style={{ color: 'var(--cds-text-secondary)' }}>Effort:</span>
+                    <span style={{ fontWeight: 500, color: 'var(--cds-text-primary)', textTransform: 'capitalize' }}>
                       {recommendation.implementation_effort}
                     </span>
                   </div>
                   {recommendation.cost_savings && (
-                    <div className="flex items-center gap-1 text-blue-600 font-medium">
-                      <DollarSign className="w-4 h-4" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)', color: 'var(--cds-link-primary)', fontWeight: 500 }}>
+                      <CurrencyDollar size={16} />
                       {recommendation.cost_savings.toFixed(0)}/mo
                     </div>
                   )}
                 </div>
-              </div>
+              </ClickableTile>
             ))}
           </div>
         )}
@@ -425,60 +409,81 @@ const Optimization = () => {
 
           {/* Detailed View Modal */}
           {selectedRecommendation && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedRecommendation(null)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 'var(--cds-spacing-05)',
+                zIndex: 9999
+              }}
+              onClick={() => setSelectedRecommendation(null)}
+            >
+              <div
+                style={{
+                  backgroundColor: 'var(--cds-layer-01)',
+                  borderRadius: 'var(--cds-spacing-02)',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                  maxWidth: '1024px',
+                  width: '100%',
+                  maxHeight: '90vh',
+                  overflowY: 'auto'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ padding: 'var(--cds-spacing-07)' }}>
               {/* Header */}
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-03)' }}>
                   {selectedRecommendation.title}
                 </h2>
-                <p className="text-gray-600">{selectedRecommendation.description}</p>
-                <div className="flex items-center gap-2 mt-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedRecommendation.priority)}`}>
+                <p style={{ color: 'var(--cds-text-secondary)' }}>{selectedRecommendation.description}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', marginTop: 'var(--cds-spacing-05)' }}>
+                  <Tag type={getPriorityTagType(selectedRecommendation.priority)}>
                     {selectedRecommendation.priority.toUpperCase()}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRecommendation.status)}`}>
+                  </Tag>
+                  <Tag type={getStatusTagType(selectedRecommendation.status)}>
                     {selectedRecommendation.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                  </Tag>
+                  <Tag type="purple">
                     {getTypeDisplayName(selectedRecommendation.recommendation_type)}
-                  </span>
+                  </Tag>
                 </div>
               </div>
 
               {/* Impact Details */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Expected Impact</h3>
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4">
-                  <div className="grid grid-cols-2 gap-4">
+              <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-05)' }}>Expected Impact</h3>
+                <div style={{
+                  background: 'linear-gradient(to right, var(--cds-layer-01), var(--cds-layer-02))',
+                  borderRadius: 'var(--cds-spacing-02)',
+                  padding: 'var(--cds-spacing-05)'
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--cds-spacing-05)' }}>
                     <div>
-                      <p className="text-sm text-gray-600">Current Value</p>
-                      <p className="text-2xl font-bold text-gray-900">
+                      <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Current Value</p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                         {selectedRecommendation.estimated_impact.current_value.toFixed(2)}ms
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Expected Value</p>
-                      <p className="text-2xl font-bold text-green-600">
+                      <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Expected Value</p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-success)' }}>
                         {selectedRecommendation.estimated_impact.expected_value.toFixed(2)}ms
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Improvement</p>
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Improvement</p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-link-primary)' }}>
                         +{selectedRecommendation.estimated_impact.improvement_percentage.toFixed(1)}%
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Confidence</p>
-                      <p className="text-2xl font-bold text-purple-600">
+                      <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Confidence</p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-info)' }}>
                         {(selectedRecommendation.estimated_impact.confidence * 100).toFixed(0)}%
                       </p>
                     </div>
@@ -487,32 +492,44 @@ const Optimization = () => {
               </div>
 
               {/* Implementation Steps */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Implementation Steps</h3>
-                <ol className="space-y-2">
+              <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-05)' }}>Implementation Steps</h3>
+                <ol style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
                   {selectedRecommendation.implementation_steps.map((step, index) => (
-                    <li key={index} className="flex gap-3">
-                      <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">
+                    <li key={index} style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                      <span style={{
+                        flexShrink: 0,
+                        width: '24px',
+                        height: '24px',
+                        backgroundColor: 'var(--cds-link-primary)',
+                        color: 'var(--cds-text-on-color)',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.875rem',
+                        fontWeight: 500
+                      }}>
                         {index + 1}
                       </span>
-                      <span className="text-gray-700 pt-0.5">{step}</span>
+                      <span style={{ color: 'var(--cds-text-secondary)', paddingTop: '2px' }}>{step}</span>
                     </li>
                   ))}
                 </ol>
               </div>
 
               {/* Additional Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1">Implementation Effort</p>
-                  <p className="text-lg font-semibold text-gray-900 capitalize">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-07)' }}>
+                <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: 'var(--cds-spacing-02)', padding: 'var(--cds-spacing-05)' }}>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Implementation Effort</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', textTransform: 'capitalize' }}>
                     {selectedRecommendation.implementation_effort}
                   </p>
                 </div>
                 {selectedRecommendation.cost_savings && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-600 mb-1">Monthly Savings</p>
-                    <p className="text-lg font-semibold text-green-600">
+                  <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: 'var(--cds-spacing-02)', padding: 'var(--cds-spacing-05)' }}>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Monthly Savings</p>
+                    <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-support-success)' }}>
                       ${selectedRecommendation.cost_savings.toFixed(2)}
                     </p>
                   </div>
@@ -520,27 +537,29 @@ const Optimization = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
-                <button
+              <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                <Button
+                  kind="secondary"
                   onClick={() => setSelectedRecommendation(null)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                  style={{ flex: 1 }}
                 >
                   Close
-                </button>
-                <button
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                </Button>
+                <Button
+                  kind="primary"
                   onClick={() => {
                     // TODO: Implement mark as in progress
                     alert('Mark as in progress - to be implemented');
                   }}
+                  style={{ flex: 1 }}
                 >
                   Start Implementation
-                </button>
+                </Button>
+              </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
         </>
       )}
           
@@ -548,90 +567,105 @@ const Optimization = () => {
       {activeTab === 'rate-limiting' && (
                   <>
                     {/* Rate Limiting Stats */}
-                    <div className="mb-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-lg shadow p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-600">Active Policies</p>
-                              <p className="text-2xl font-bold text-gray-900">
-                                {rateLimitData?.items?.filter((p: RateLimitPolicyType) => p.status === 'active').length || 0}
-                              </p>
+                    <div style={{ marginBottom: 'var(--cds-spacing-08)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--cds-spacing-06)' }}>
+                        <div style={{ padding: 'var(--cds-spacing-05)' }}>
+                          <Card>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Active Policies</p>
+                                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                                  {rateLimitData?.items?.filter((p: RateLimitPolicyType) => p.status === 'active').length || 0}
+                                </p>
+                              </div>
+                              <Shield size={32} style={{ color: 'var(--cds-support-success)' }} />
                             </div>
-                            <Shield className="w-8 h-8 text-green-500" />
-                          </div>
+                          </Card>
                         </div>
-                        <div className="bg-white rounded-lg shadow p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-600">Total Policies</p>
-                              <p className="text-2xl font-bold text-gray-900">{rateLimitData?.total || 0}</p>
+                        <div style={{ padding: 'var(--cds-spacing-05)' }}>
+                          <Card>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Total Policies</p>
+                                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{rateLimitData?.total || 0}</p>
+                              </div>
+                              <Shield size={32} style={{ color: 'var(--cds-link-primary)' }} />
                             </div>
-                            <Shield className="w-8 h-8 text-blue-500" />
-                          </div>
+                          </Card>
                         </div>
-                        <div className="bg-white rounded-lg shadow p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-600">Avg Effectiveness</p>
-                              <p className="text-2xl font-bold text-green-600">
-                                {rateLimitData?.items?.length > 0
-                                  ? (
-                                      (rateLimitData.items
-                                        .filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined)
-                                        .reduce((sum: number, p: RateLimitPolicyType) => sum + (p.effectiveness_score || 0), 0) /
-                                        rateLimitData.items.filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined).length) *
-                                      100
-                                    ).toFixed(0)
-                                  : 0}
-                                %
-                              </p>
+                        <div style={{ padding: 'var(--cds-spacing-05)' }}>
+                          <Card>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Avg Effectiveness</p>
+                                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-success)' }}>
+                                  {rateLimitData?.items?.length > 0
+                                    ? (
+                                        (rateLimitData.items
+                                          .filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined)
+                                          .reduce((sum: number, p: RateLimitPolicyType) => sum + (p.effectiveness_score || 0), 0) /
+                                          rateLimitData.items.filter((p: RateLimitPolicyType) => p.effectiveness_score !== undefined).length) *
+                                        100
+                                      ).toFixed(0)
+                                    : 0}
+                                  %
+                                </p>
+                              </div>
+                              <TrendingUp size={32} style={{ color: 'var(--cds-support-success)' }} />
                             </div>
-                            <TrendingUp className="w-8 h-8 text-green-500" />
-                          </div>
+                          </Card>
                         </div>
                       </div>
                     </div>
           
                     {/* Filters */}
-                    <div className="mb-6 bg-white rounded-lg shadow p-4">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <Filter className="w-5 h-5 text-gray-500" />
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-medium text-gray-700">Status:</label>
-                          <select
-                            value={selectedPolicyStatus}
-                            onChange={(e) => setSelectedPolicyStatus(e.target.value as PolicyStatus | 'all')}
-                            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="all">All</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="testing">Testing</option>
-                          </select>
-                        </div>
+                    <div style={{ marginBottom: 'var(--cds-spacing-08)' }}>
+                      <div style={{ padding: 'var(--cds-spacing-05)' }}>
+                        <Card>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)', flexWrap: 'wrap' }}>
+                            <Filter size={20} style={{ color: 'var(--cds-icon-secondary)' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                              <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)' }}>Status:</label>
+                              <Select
+                                id="policy-status-filter"
+                                value={selectedPolicyStatus}
+                                onChange={(e) => setSelectedPolicyStatus(e.target.value as PolicyStatus | 'all')}
+                                size="sm"
+                              >
+                                <SelectItem value="all" text="All" />
+                                <SelectItem value="active" text="Active" />
+                                <SelectItem value="inactive" text="Inactive" />
+                                <SelectItem value="testing" text="Testing" />
+                              </Select>
+                            </div>
+                          </div>
+                        </Card>
                       </div>
                     </div>
           
                     {/* Rate Limit Policies List */}
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900 mb-4">Rate Limit Policies</h2>
+                      <Heading style={{ marginBottom: 'var(--cds-spacing-06)' }}>Rate Limit Policies</Heading>
                       {rateLimitLoading ? (
                         <Loading message="Loading rate limit policies..." />
                       ) : rateLimitError ? (
                         <Error message="Failed to load rate limit policies" details={rateLimitError as Error} />
                       ) : !rateLimitData?.items || rateLimitData.items.length === 0 ? (
-                        <div className="bg-white rounded-lg shadow p-8 text-center">
-                          <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-600">No rate limit policies found</p>
-                          <p className="text-sm text-gray-500 mt-2">
-                            Create policies to protect your APIs from excessive traffic
-                          </p>
+                        <div style={{ padding: 'var(--cds-spacing-05)' }}>
+                          <Card>
+                            <div style={{ padding: 'var(--cds-spacing-07)', textAlign: 'center' }}>
+                              <Shield size={48} style={{ color: 'var(--cds-icon-disabled)', margin: '0 auto var(--cds-spacing-05)' }} />
+                              <p style={{ color: 'var(--cds-text-secondary)' }}>No rate limit policies found</p>
+                              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-03)' }}>
+                                Create policies to protect your APIs from excessive traffic
+                              </p>
+                            </div>
+                          </Card>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {rateLimitData.items.map((policy: RateLimitPolicyType) => (
-                            <div key={policy.id} onClick={() => setSelectedPolicy(policy)}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+                          {rateLimitData.items.map((policy: RateLimitPolicyType, index: number) => (
+                            <div key={policy.id} onClick={() => setSelectedPolicy(policy)} style={{ marginBottom: index < rateLimitData.items.length - 1 ? 'var(--cds-spacing-07)' : '0' }}>
                               <RateLimitPolicy
                                 policy={policy}
                                 onActivate={(id) => activateMutation.mutate(id)}
@@ -647,14 +681,31 @@ const Optimization = () => {
                     {/* Policy Detail Modal */}
                     {selectedPolicy && (
                       <div
-                        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+                        style={{
+                          position: 'fixed',
+                          inset: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 'var(--cds-spacing-05)',
+                          zIndex: 9999
+                        }}
                         onClick={() => setSelectedPolicy(null)}
                       >
                         <div
-                          className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                          style={{
+                            backgroundColor: 'var(--cds-layer-01)',
+                            borderRadius: 'var(--cds-spacing-02)',
+                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                            maxWidth: '1024px',
+                            width: '100%',
+                            maxHeight: '90vh',
+                            overflowY: 'auto'
+                          }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="p-6">
+                          <div style={{ padding: 'var(--cds-spacing-07)' }}>
                             <RateLimitPolicy
                               policy={selectedPolicy}
                               detailed={true}
@@ -674,19 +725,20 @@ const Optimization = () => {
           
                             {/* Effectiveness Chart */}
                             {effectivenessData && (
-                              <div className="mt-6">
+                              <div style={{ marginTop: 'var(--cds-spacing-07)' }}>
                                 <RateLimitChart effectiveness={effectivenessData} />
                               </div>
                             )}
           
                             {/* Close Button */}
-                            <div className="mt-6">
-                              <button
+                            <div style={{ marginTop: 'var(--cds-spacing-07)' }}>
+                              <Button
+                                kind="secondary"
                                 onClick={() => setSelectedPolicy(null)}
-                                className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                                style={{ width: '100%' }}
                               >
                                 Close
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </div>

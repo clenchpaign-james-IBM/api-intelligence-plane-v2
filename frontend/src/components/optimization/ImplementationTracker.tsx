@@ -1,4 +1,4 @@
-import { CheckCircle, Circle, Clock, XCircle } from 'lucide-react';
+import { CheckCircle, Circle, Clock, XCircle } from '../../utils/carbonIcons';
 import type { Recommendation, RecommendationStatus } from '../../types';
 
 interface ImplementationTrackerProps {

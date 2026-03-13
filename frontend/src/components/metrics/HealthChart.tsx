@@ -1,4 +1,6 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart } from '@carbon/charts-react';
+import { ScaleTypes } from '@carbon/charts';
+import '@carbon/charts-react/styles.css';
 import Card from '../common/Card';
 import type { TimeSeriesDataPoint } from '../../types';
 
@@ -30,182 +32,135 @@ const HealthChart = ({
   // Format timestamp for display
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: false 
+      hour12: false
     });
   };
 
-  // Format data for chart
-  const chartData = data.map((point) => ({
-    timestamp: formatTimestamp(point.timestamp),
-    fullTimestamp: point.timestamp,
-    responseTimeP50: point.response_time_p50,
-    responseTimeP95: point.response_time_p95,
-    responseTimeP99: point.response_time_p99,
-    errorRate: point.error_rate * 100, // Convert to percentage
-    throughput: point.throughput,
-    availability: point.availability,
-  }));
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="text-sm font-medium text-gray-900 mb-2">
-            {new Date(data.fullTimestamp).toLocaleString()}
-          </p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              <span className="font-medium">{entry.name}:</span>{' '}
-              {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
-              {entry.name.includes('Rate') ? '%' : entry.name.includes('Time') ? 'ms' : ''}
-            </p>
-          ))}
-        </div>
+  // Prepare data for Carbon Charts
+  const chartData: any[] = [];
+  
+  data.forEach((point) => {
+    const timestamp = formatTimestamp(point.timestamp);
+    
+    if (metrics.includes('response_time')) {
+      chartData.push(
+        { group: 'Response Time P50', date: timestamp, value: point.response_time_p50 },
+        { group: 'Response Time P95', date: timestamp, value: point.response_time_p95 },
+        { group: 'Response Time P99', date: timestamp, value: point.response_time_p99 }
       );
     }
-    return null;
+    
+    if (metrics.includes('error_rate')) {
+      chartData.push({ group: 'Error Rate', date: timestamp, value: point.error_rate * 100 });
+    }
+    
+    if (metrics.includes('throughput')) {
+      chartData.push({ group: 'Throughput', date: timestamp, value: point.throughput });
+    }
+    
+    if (metrics.includes('availability')) {
+      chartData.push({ group: 'Availability', date: timestamp, value: point.availability });
+    }
+  });
+
+  // Calculate summary statistics
+  const calculateAverage = (metricName: string, getValue: (point: TimeSeriesDataPoint) => number) => {
+    if (data.length === 0) return 0;
+    return data.reduce((sum, point) => sum + getValue(point), 0) / data.length;
   };
 
   if (!data || data.length === 0) {
     return (
       <Card title={title} subtitle={subtitle}>
-        <div className="flex items-center justify-center h-64 text-gray-500">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '256px',
+          color: 'var(--cds-text-secondary)'
+        }}>
           No metrics data available
         </div>
       </Card>
     );
   }
 
+  const options = {
+    title: title,
+    axes: {
+      bottom: {
+        title: 'Time',
+        mapsTo: 'date',
+        scaleType: ScaleTypes.LABELS,
+      },
+      left: {
+        mapsTo: 'value',
+        title: 'Value',
+      },
+    },
+    height: `${height}px`,
+    curve: 'curveMonotoneX',
+    toolbar: {
+      enabled: false,
+    },
+    legend: {
+      enabled: true,
+    },
+  };
+
   return (
     <Card title={title} subtitle={subtitle}>
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis 
-            dataKey="timestamp" 
-            stroke="#6b7280"
-            style={{ fontSize: '12px' }}
-          />
-          <YAxis 
-            stroke="#6b7280"
-            style={{ fontSize: '12px' }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ fontSize: '12px' }}
-            iconType="line"
-          />
-          
-          {/* Response Time Lines */}
-          {metrics.includes('response_time') && (
-            <>
-              <Line
-                type="monotone"
-                dataKey="responseTimeP50"
-                name="Response Time P50"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="responseTimeP95"
-                name="Response Time P95"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="responseTimeP99"
-                name="Response Time P99"
-                stroke="#ef4444"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-            </>
-          )}
-
-          {/* Error Rate Line */}
-          {metrics.includes('error_rate') && (
-            <Line
-              type="monotone"
-              dataKey="errorRate"
-              name="Error Rate"
-              stroke="#dc2626"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
-
-          {/* Throughput Line */}
-          {metrics.includes('throughput') && (
-            <Line
-              type="monotone"
-              dataKey="throughput"
-              name="Throughput (req/s)"
-              stroke="#10b981"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
-
-          {/* Availability Line */}
-          {metrics.includes('availability') && (
-            <Line
-              type="monotone"
-              dataKey="availability"
-              name="Availability"
-              stroke="#8b5cf6"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
+      <LineChart data={chartData} options={options} />
 
       {/* Summary Statistics */}
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+      <div style={{
+        marginTop: 'var(--cds-spacing-05)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 'var(--cds-spacing-05)',
+        paddingTop: 'var(--cds-spacing-05)',
+        borderTop: '1px solid var(--cds-border-subtle)'
+      }}>
         {metrics.includes('response_time') && (
           <div>
-            <p className="text-xs text-gray-600">Avg Response Time (P95)</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {(chartData.reduce((sum, d) => sum + d.responseTimeP95, 0) / chartData.length).toFixed(1)}ms
+            <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Avg Response Time (P95)
+            </p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+              {calculateAverage('response_time_p95', (p) => p.response_time_p95).toFixed(1)}ms
             </p>
           </div>
         )}
         {metrics.includes('error_rate') && (
           <div>
-            <p className="text-xs text-gray-600">Avg Error Rate</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {(chartData.reduce((sum, d) => sum + d.errorRate, 0) / chartData.length).toFixed(2)}%
+            <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Avg Error Rate
+            </p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+              {(calculateAverage('error_rate', (p) => p.error_rate) * 100).toFixed(2)}%
             </p>
           </div>
         )}
         {metrics.includes('throughput') && (
           <div>
-            <p className="text-xs text-gray-600">Avg Throughput</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {(chartData.reduce((sum, d) => sum + d.throughput, 0) / chartData.length).toFixed(1)} req/s
+            <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Avg Throughput
+            </p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+              {calculateAverage('throughput', (p) => p.throughput).toFixed(1)} req/s
             </p>
           </div>
         )}
         {metrics.includes('availability') && (
           <div>
-            <p className="text-xs text-gray-600">Avg Availability</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {(chartData.reduce((sum, d) => sum + d.availability, 0) / chartData.length).toFixed(2)}%
+            <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Avg Availability
+            </p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+              {calculateAverage('availability', (p) => p.availability).toFixed(2)}%
             </p>
           </div>
         )}

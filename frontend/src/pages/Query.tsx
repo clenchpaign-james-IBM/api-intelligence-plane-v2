@@ -1,11 +1,13 @@
 /**
  * Query Page
- * 
+ *
  * Natural language query interface for API intelligence.
  * Provides a chat-like interface for asking questions about APIs.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Heading, Button, Tag, InlineNotification } from '@carbon/react';
+import { WarningAltFilled } from '@carbon/icons-react';
 import { QueryHistory } from '../components/query/QueryHistory';
 import { QueryInput } from '../components/query/QueryInput';
 import { useQuerySession } from '../hooks/useQuerySession';
@@ -66,59 +68,73 @@ export const Query: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-gray-50">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--cds-layer-01)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div style={{
+        backgroundColor: 'var(--cds-background)',
+        borderBottom: '1px solid var(--cds-border-subtle)',
+        padding: 'var(--cds-spacing-06)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <Heading style={{ marginBottom: 'var(--cds-spacing-02)' }}>
               Natural Language Query
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            </Heading>
+            <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
               Ask questions about your APIs in plain English
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
             {sessionId && (
-              <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+              <Tag type="gray" size="sm">
                 Session: {sessionId.slice(0, 8)}...
-              </div>
+              </Tag>
             )}
             {queries.length > 0 && (
-              <button
+              <Button
+                kind="danger--ghost"
+                size="sm"
                 onClick={handleClearSession}
-                className="text-sm text-red-600 hover:text-red-700 font-medium"
               >
                 Clear History
-              </button>
+              </Button>
             )}
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto relative">
+      <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         {error && (
-          <div className="flex justify-center items-center p-8">
-            <div className="max-w-md w-full bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-red-900 mb-2">Connection Error</h3>
-              <p className="text-sm text-red-700 mb-4">
-                Unable to connect to the backend server. Please make sure the server is running.
-              </p>
-              <div className="bg-white rounded p-3 mb-4">
-                <p className="text-xs text-gray-600 font-mono">{error}</p>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 'var(--cds-spacing-07)' }}>
+            <div style={{
+              maxWidth: '28rem',
+              width: '100%',
+              padding: 'var(--cds-spacing-07)'
+            }}>
+              <InlineNotification
+                kind="error"
+                title="Connection Error"
+                subtitle="Unable to connect to the backend server. Please make sure the server is running."
+                lowContrast
               >
-                Retry Connection
-              </button>
+                <div style={{
+                  backgroundColor: 'var(--cds-background)',
+                  borderRadius: 'var(--cds-spacing-02)',
+                  padding: 'var(--cds-spacing-04)',
+                  marginTop: 'var(--cds-spacing-04)',
+                  marginBottom: 'var(--cds-spacing-04)'
+                }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', fontFamily: 'monospace' }}>{error}</p>
+                </div>
+                <Button
+                  kind="danger"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry Connection
+                </Button>
+              </InlineNotification>
             </div>
           </div>
         )}
@@ -129,29 +145,32 @@ export const Query: React.FC = () => {
         />
 
         {isLoading && (
-          <div className="flex justify-center p-4">
-            <div className="flex items-center gap-2 text-gray-600">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', color: 'var(--cds-text-secondary)' }}>
               <Loading size="sm" />
-              <span className="text-sm">Processing your query...</span>
+              <span style={{ fontSize: '0.875rem' }}>Processing your query...</span>
             </div>
           </div>
         )}
 
         {/* Help Section - shown when no queries */}
         {queries.length === 0 && !isLoading && (
-          <div className="flex justify-center p-4">
-            <div className="w-full max-w-2xl">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-900 mb-2">
-                  💡 Tips for better results:
-                </h3>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>• Be specific about what you want to know</li>
-                  <li>• Use natural language - no need for technical syntax</li>
-                  <li>• Ask follow-up questions to dive deeper</li>
-                  <li>• Try asking about health, performance, security, or predictions</li>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ width: '100%', maxWidth: '42rem' }}>
+              <InlineNotification
+                kind="info"
+                title="💡 Tips for better results:"
+                subtitle=""
+                lowContrast
+                hideCloseButton
+              >
+                <ul style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', paddingLeft: 'var(--cds-spacing-05)', marginTop: 'var(--cds-spacing-03)' }}>
+                  <li>Be specific about what you want to know</li>
+                  <li>Use natural language - no need for technical syntax</li>
+                  <li>Ask follow-up questions to dive deeper</li>
+                  <li>Try asking about health, performance, security, or predictions</li>
                 </ul>
-              </div>
+              </InlineNotification>
             </div>
           </div>
         )}

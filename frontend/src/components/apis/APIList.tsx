@@ -1,10 +1,12 @@
-import { Search, Filter, AlertCircle } from 'lucide-react';
+import { Search, Filter, WarningAltFilled } from '../../utils/carbonIcons';
 import { useState } from 'react';
+import { Search as CarbonSearch, Select, SelectItem, Tag, Tile, ClickableTile } from '@carbon/react';
+import Loading from '../common/Loading';
 import type { API } from '../../types';
 
 /**
  * API List Component
- * 
+ *
  * Displays a filterable list of APIs with search and status filtering.
  * Shows key metrics and health indicators for each API.
  */
@@ -22,7 +24,7 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
 
   // Filter APIs based on search and filters
   const filteredAPIs = apis.filter((api) => {
-    const matchesSearch = 
+    const matchesSearch =
       api.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       api.base_path.toLowerCase().includes(searchTerm.toLowerCase()) ||
       api.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -33,168 +35,172 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
     return matchesSearch && matchesStatus && matchesShadow;
   });
 
-  // Get health score color
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 bg-green-100';
-    if (score >= 50) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+  // Get health score tag type
+  const getHealthTagType = (score: number): 'green' | 'warm-gray' | 'red' => {
+    if (score >= 80) return 'green';
+    if (score >= 50) return 'warm-gray';
+    return 'red';
   };
 
-  // Get status badge color
-  const getStatusColor = (status: string) => {
+  // Get status tag type
+  const getStatusTagType = (status: string): 'green' | 'gray' | 'warm-gray' | 'red' => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'deprecated': return 'bg-orange-100 text-orange-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'active': return 'green';
+      case 'inactive': return 'gray';
+      case 'deprecated': return 'warm-gray';
+      case 'failed': return 'red';
+      default: return 'gray';
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--cds-spacing-09)' }}>
+        <Loading />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        {/* Search */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search APIs by name, path, or tags..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+        <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--cds-spacing-05)' }}>
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: '300px' }}>
+            <CarbonSearch
+              id="api-search"
+              labelText="Search"
+              placeholder="Search APIs by name, path, or tags..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="lg"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div style={{ minWidth: '180px' }}>
+            <Select
+              id="status-filter"
+              labelText="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              size="lg"
+            >
+              <SelectItem value="all" text="All Status" />
+              <SelectItem value="active" text="Active" />
+              <SelectItem value="inactive" text="Inactive" />
+              <SelectItem value="deprecated" text="Deprecated" />
+              <SelectItem value="failed" text="Failed" />
+            </Select>
+          </div>
+
+          {/* Shadow Filter */}
+          <div style={{ minWidth: '180px' }}>
+            <Select
+              id="shadow-filter"
+              labelText="API Type"
+              value={shadowFilter.toString()}
+              onChange={(e) => setShadowFilter(e.target.value === 'all' ? 'all' : e.target.value === 'true')}
+              size="lg"
+            >
+              <SelectItem value="all" text="All APIs" />
+              <SelectItem value="false" text="Documented" />
+              <SelectItem value="true" text="Shadow APIs" />
+            </Select>
+          </div>
         </div>
 
-        {/* Status Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="text-gray-400 w-5 h-5" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="deprecated">Deprecated</option>
-            <option value="failed">Failed</option>
-          </select>
+        {/* Results Count */}
+        <div style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', fontWeight: 500 }}>
+          Showing {filteredAPIs.length} of {apis.length} APIs
         </div>
-
-        {/* Shadow Filter */}
-        <select
-          value={shadowFilter.toString()}
-          onChange={(e) => setShadowFilter(e.target.value === 'all' ? 'all' : e.target.value === 'true')}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="all">All APIs</option>
-          <option value="false">Documented</option>
-          <option value="true">Shadow APIs</option>
-        </select>
-      </div>
-
-      {/* Results Count */}
-      <div className="text-sm text-gray-600">
-        Showing {filteredAPIs.length} of {apis.length} APIs
       </div>
 
       {/* API List */}
-      <div className="space-y-3">
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {filteredAPIs.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No APIs found matching your criteria</p>
-          </div>
+          <Tile style={{ padding: 'var(--cds-spacing-09)', textAlign: 'center' }}>
+            <WarningAltFilled size={48} style={{ margin: '0 auto var(--cds-spacing-05)', color: 'var(--cds-icon-disabled)' }} />
+            <p style={{ color: 'var(--cds-text-secondary)' }}>No APIs found matching your criteria</p>
+          </Tile>
         ) : (
-          filteredAPIs.map((api) => (
-            <div
-              key={api.id}
-              onClick={() => onSelectAPI?.(api)}
-              className={`p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all ${
-                onSelectAPI ? 'cursor-pointer' : ''
-              } ${api.is_shadow ? 'border-l-4 border-l-orange-500' : ''}`}
-            >
-              <div className="flex items-start justify-between">
-                {/* API Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{api.name}</h3>
-                    {api.version && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                        v{api.version}
-                      </span>
-                    )}
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(api.status)}`}>
-                      {api.status}
-                    </span>
-                    {api.is_shadow && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded">
-                        Shadow API
-                      </span>
-                    )}
-                  </div>
-                  
-                  <p className="text-sm text-gray-600 mb-2">{api.base_path}</p>
-                  
-                  {/* Tags */}
-                  {api.tags && api.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {api.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {api.tags.length > 3 && (
-                        <span className="px-2 py-0.5 text-xs text-gray-500">
-                          +{api.tags.length - 3} more
-                        </span>
+          filteredAPIs.map((api, index) => {
+            const TileComponent = onSelectAPI ? ClickableTile : Tile;
+            return (
+              <TileComponent
+                key={api.id}
+                onClick={() => onSelectAPI?.(api)}
+                style={{
+                  padding: 'var(--cds-spacing-06)',
+                  border: '1px solid var(--cds-border-subtle)',
+                  borderLeft: api.is_shadow ? '4px solid var(--cds-support-warning)' : '1px solid var(--cds-border-subtle)',
+                  marginBottom: index < filteredAPIs.length - 1 ? 'var(--cds-spacing-07)' : 0
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--cds-spacing-05)' }}>
+                  {/* API Info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', marginBottom: 'var(--cds-spacing-04)', flexWrap: 'wrap' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)', margin: 0 }}>{api.name}</h3>
+                      {api.version && (
+                        <Tag type="gray" size="sm">v{api.version}</Tag>
+                      )}
+                      <Tag type={getStatusTagType(api.status)} size="sm">
+                        {api.status}
+                      </Tag>
+                      {api.is_shadow && (
+                        <Tag type="warm-gray" size="sm">Shadow API</Tag>
                       )}
                     </div>
-                  )}
+                    
+                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-04)', fontFamily: 'monospace' }}>{api.base_path}</p>
+                    
+                    {/* Tags */}
+                    {api.tags && api.tags.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)', marginBottom: 'var(--cds-spacing-04)' }}>
+                        {api.tags.slice(0, 3).map((tag) => (
+                          <Tag key={tag} type="blue" size="sm">{tag}</Tag>
+                        ))}
+                        {api.tags.length > 3 && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', alignSelf: 'center' }}>
+                            +{api.tags.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Metrics */}
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                    <span>
-                      <span className="font-medium">Endpoints:</span> {api.endpoints.length}
-                    </span>
-                    <span>
-                      <span className="font-medium">Methods:</span> {api.methods.join(', ')}
-                    </span>
-                    <span>
-                      <span className="font-medium">Auth:</span> {api.authentication_type}
-                    </span>
-                    <span>
-                      <span className="font-medium">P95:</span> {api.current_metrics.response_time_p95.toFixed(1)}ms
-                    </span>
-                    <span>
-                      <span className="font-medium">Error Rate:</span> {(api.current_metrics.error_rate * 100).toFixed(2)}%
-                    </span>
+                    {/* Metrics */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-06)', fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                      <span>
+                        <span style={{ fontWeight: 500 }}>Endpoints:</span> {api.endpoints.length}
+                      </span>
+                      <span>
+                        <span style={{ fontWeight: 500 }}>Methods:</span> {api.methods.join(', ')}
+                      </span>
+                      <span>
+                        <span style={{ fontWeight: 500 }}>Auth:</span> {api.authentication_type}
+                      </span>
+                      <span>
+                        <span style={{ fontWeight: 500 }}>P95:</span> {api.current_metrics.response_time_p95.toFixed(1)}ms
+                      </span>
+                      <span>
+                        <span style={{ fontWeight: 500 }}>Error Rate:</span> {(api.current_metrics.error_rate * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Health Score */}
+                  <div style={{ textAlign: 'center', minWidth: '90px', flexShrink: 0 }}>
+                    <Tag type={getHealthTagType(api.health_score)} size="md" style={{ fontSize: '1.25rem', fontWeight: 600, padding: 'var(--cds-spacing-05)', display: 'block' }}>
+                      {api.health_score.toFixed(0)}
+                    </Tag>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-03)', fontWeight: 500 }}>Health Score</p>
                   </div>
                 </div>
-
-                {/* Health Score */}
-                <div className="ml-4 text-center">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg ${getHealthColor(api.health_score)}`}>
-                    {api.health_score.toFixed(0)}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Health</p>
-                </div>
-              </div>
-            </div>
-          ))
+              </TileComponent>
+            );
+          })
         )}
       </div>
     </div>

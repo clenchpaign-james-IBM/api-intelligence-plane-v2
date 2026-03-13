@@ -7,6 +7,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Tag, Button } from '@carbon/react';
+import { Flash, CheckmarkFilled, Document } from '@carbon/icons-react';
 import { QueryResponse as QueryResponseType } from '../../types';
 import { Card } from '../common';
 
@@ -19,10 +21,10 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
   response,
   onFollowUpClick,
 }) => {
-  const getConfidenceColor = (score: number): string => {
-    if (score >= 0.8) return 'text-green-600';
-    if (score >= 0.6) return 'text-yellow-600';
-    return 'text-red-600';
+  const getConfidenceTagType = (score: number): 'green' | 'warm-gray' | 'red' => {
+    if (score >= 0.8) return 'green';
+    if (score >= 0.6) return 'warm-gray';
+    return 'red';
   };
 
   const getConfidenceLabel = (score: number): string => {
@@ -32,83 +34,98 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
       {/* User Query */}
-      <div className="flex justify-end">
-        <div className="max-w-[80%] bg-blue-600 text-white rounded-lg px-4 py-3">
-          <p className="text-sm">{response.query_text}</p>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{
+          maxWidth: '80%',
+          backgroundColor: 'var(--cds-link-primary)',
+          color: 'var(--cds-text-on-color)',
+          borderRadius: 'var(--cds-spacing-03)',
+          padding: 'var(--cds-spacing-05)'
+        }}>
+          <p style={{ fontSize: '0.875rem', margin: 0 }}>{response.query_text}</p>
         </div>
       </div>
 
       {/* AI Response */}
-      <div className="flex justify-start">
-        <Card className="max-w-[80%]">
-          <div className="space-y-4">
-            {/* Response Text with Markdown */}
-            <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:text-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {response.response_text}
-              </ReactMarkdown>
-            </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <div style={{ maxWidth: '80%', width: '100%' }}>
+          <Card>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+              {/* Response Text with Markdown */}
+              <div style={{
+                fontSize: '0.875rem',
+                lineHeight: 1.6,
+                color: 'var(--cds-text-primary)'
+              }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({node, ...props}) => <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-04)', color: 'var(--cds-text-primary)' }} {...props} />,
+                    h2: ({node, ...props}) => <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-03)', color: 'var(--cds-text-primary)' }} {...props} />,
+                    h3: ({node, ...props}) => <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-03)', color: 'var(--cds-text-primary)' }} {...props} />,
+                    p: ({node, ...props}) => <p style={{ marginBottom: 'var(--cds-spacing-04)', color: 'var(--cds-text-primary)' }} {...props} />,
+                    a: ({node, ...props}) => <a style={{ color: 'var(--cds-link-primary)', textDecoration: 'underline' }} {...props} />,
+                    code: ({node, inline, ...props}: any) => inline
+                      ? <code style={{ backgroundColor: 'var(--cds-layer-01)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.875em' }} {...props} />
+                      : <code style={{ display: 'block', backgroundColor: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-04)', borderRadius: 'var(--cds-spacing-02)', fontFamily: 'monospace', fontSize: '0.875em', overflowX: 'auto' }} {...props} />,
+                    ul: ({node, ...props}) => <ul style={{ marginLeft: 'var(--cds-spacing-06)', marginBottom: 'var(--cds-spacing-04)' }} {...props} />,
+                    ol: ({node, ...props}) => <ol style={{ marginLeft: 'var(--cds-spacing-06)', marginBottom: 'var(--cds-spacing-04)' }} {...props} />,
+                    li: ({node, ...props}) => <li style={{ marginBottom: 'var(--cds-spacing-02)' }} {...props} />,
+                  }}
+                >
+                  {response.response_text}
+                </ReactMarkdown>
+              </div>
 
-            {/* Metadata */}
-            <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-3">
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                <span>{response.execution_time_ms}ms</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span className={getConfidenceColor(response.confidence_score)}>
-                  {getConfidenceLabel(response.confidence_score)} Confidence ({Math.round(response.confidence_score * 100)}%)
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-                <span>{response.results.count} results</span>
-              </div>
-            </div>
-
-            {/* Follow-up Suggestions */}
-            {response.follow_up_queries && response.follow_up_queries.length > 0 && (
-              <div className="border-t pt-3">
-                <p className="text-xs font-medium text-gray-700 mb-2">Suggested follow-ups:</p>
-                <div className="flex flex-wrap gap-2">
-                  {response.follow_up_queries.map((query, index) => (
-                    <button
-                      key={index}
-                      onClick={() => onFollowUpClick?.(query)}
-                      className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
-                    >
-                      {query}
-                    </button>
-                  ))}
+              {/* Metadata */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--cds-spacing-05)',
+                fontSize: '0.75rem',
+                color: 'var(--cds-text-secondary)',
+                borderTop: '1px solid var(--cds-border-subtle)',
+                paddingTop: 'var(--cds-spacing-04)',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+                  <Flash size={16} />
+                  <span>{response.execution_time_ms}ms</span>
+                </div>
+                <Tag type={getConfidenceTagType(response.confidence_score)} size="sm">
+                  {getConfidenceLabel(response.confidence_score)} ({Math.round(response.confidence_score * 100)}%)
+                </Tag>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+                  <Document size={16} />
+                  <span>{response.results.count} results</span>
                 </div>
               </div>
-            )}
-          </div>
-        </Card>
+
+              {/* Follow-up Suggestions */}
+              {response.follow_up_queries && response.follow_up_queries.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-04)' }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>
+                    Suggested follow-ups:
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)' }}>
+                    {response.follow_up_queries.map((query, index) => (
+                      <Button
+                        key={index}
+                        kind="ghost"
+                        size="sm"
+                        onClick={() => onFollowUpClick?.(query)}
+                      >
+                        {query}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

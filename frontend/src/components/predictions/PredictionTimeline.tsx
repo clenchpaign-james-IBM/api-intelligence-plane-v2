@@ -1,4 +1,5 @@
-import { Clock, AlertTriangle } from 'lucide-react';
+import { Clock, AlertTriangle } from '../../utils/carbonIcons';
+import { Tile } from '@carbon/react';
 import type { Prediction } from '../../types';
 
 interface PredictionTimelineProps {
@@ -7,7 +8,7 @@ interface PredictionTimelineProps {
 
 /**
  * Prediction Timeline Component
- * 
+ *
  * Visualizes predictions on a timeline showing:
  * - When predictions were made
  * - When events are predicted to occur
@@ -37,12 +38,12 @@ const PredictionTimeline = ({ predictions }: PredictionTimelineProps) => {
     return Math.max(0, Math.min(100, (current / total) * 100));
   };
 
-  // Severity colors
+  // Severity colors (Carbon colors)
   const severityColors = {
-    critical: 'bg-red-500',
-    high: 'bg-orange-500',
-    medium: 'bg-yellow-500',
-    low: 'bg-blue-500',
+    critical: '#da1e28',
+    high: '#ff832b',
+    medium: '#f1c21b',
+    low: '#0f62fe',
   };
 
   // Format time
@@ -65,52 +66,52 @@ const PredictionTimeline = ({ predictions }: PredictionTimelineProps) => {
 
   if (sortedPredictions.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-        <Clock className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-        <p>No active predictions to display</p>
-      </div>
+      <Tile style={{ padding: 'var(--cds-spacing-06)', textAlign: 'center' }}>
+        <Clock size={48} style={{ color: 'var(--cds-icon-secondary)', margin: '0 auto var(--cds-spacing-03)' }} />
+        <p style={{ color: 'var(--cds-text-secondary)' }}>No active predictions to display</p>
+      </Tile>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <Tile style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', borderRadius: '4px' }}>
       {/* Timeline Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+          <Clock size={20} style={{ color: 'var(--cds-text-secondary)' }} />
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
             Prediction Timeline (Next 48 Hours)
           </span>
         </div>
-        <div className="text-xs text-gray-500">
+        <div style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)' }}>
           {formatTime(earliest.toISOString())} → {formatTime(latest.toISOString())}
         </div>
       </div>
 
       {/* Timeline Visualization */}
-      <div className="relative">
+      <div style={{ position: 'relative' }}>
         {/* Timeline bar */}
-        <div className="absolute top-8 left-0 right-0 h-1 bg-gray-200 rounded-full" />
+        <div style={{ position: 'absolute', top: '32px', left: 0, right: 0, height: '4px', backgroundColor: 'var(--cds-border-subtle)', borderRadius: '2px' }} />
 
         {/* Current time marker */}
         <div
-          className="absolute top-6 transform -translate-x-1/2"
-          style={{ left: `${getPosition(now.toISOString())}%` }}
+          style={{ position: 'absolute', top: '24px', left: `${getPosition(now.toISOString())}%`, transform: 'translateX(-50%)' }}
         >
-          <div className="flex flex-col items-center">
-            <div className="w-0.5 h-4 bg-green-500" />
-            <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-            <div className="w-0.5 h-4 bg-green-500" />
-            <span className="text-xs font-medium text-green-600 mt-1">Now</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '2px', height: '16px', backgroundColor: 'var(--cds-support-success)' }} />
+            <div style={{ width: '12px', height: '12px', backgroundColor: 'var(--cds-support-success)', borderRadius: '50%', border: '2px solid var(--cds-layer)' }} />
+            <div style={{ width: '2px', height: '16px', backgroundColor: 'var(--cds-support-success)' }} />
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-support-success)', marginTop: 'var(--cds-spacing-02)' }}>Now</span>
           </div>
         </div>
 
         {/* Prediction markers */}
         <div
-          className="relative pt-16"
           style={{
+            position: 'relative',
+            paddingTop: '64px',
             minHeight: `${Math.max(180, 16 + Math.ceil(sortedPredictions.length / 3) * 60 + 80)}px`,
-            paddingBottom: '1rem'
+            paddingBottom: 'var(--cds-spacing-05)'
           }}
         >
           {sortedPredictions.map((prediction, index) => {
@@ -121,39 +122,44 @@ const PredictionTimeline = ({ predictions }: PredictionTimelineProps) => {
             return (
               <div
                 key={prediction.id}
-                className="absolute transform -translate-x-1/2"
                 style={{
+                  position: 'absolute',
                   left: `${position}%`,
                   top: `${16 + (index % 3) * 60}px`,
+                  transform: 'translateX(-50%)'
                 }}
               >
-                <div className="flex flex-col items-center">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   {/* Connector line */}
-                  <div className="w-0.5 h-8 bg-gray-300" />
+                  <div style={{ width: '2px', height: '32px', backgroundColor: 'var(--cds-border-subtle)' }} />
 
                   {/* Marker */}
                   <div
-                    className={`w-4 h-4 rounded-full border-2 border-white ${
-                      severityColors[prediction.severity]
-                    }`}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      border: '2px solid var(--cds-layer)',
+                      backgroundColor: severityColors[prediction.severity]
+                    }}
                     title={`${prediction.api_name || 'API'} - ${prediction.severity}`}
                   />
 
                   {/* Label */}
-                  <div className="mt-2 text-center min-w-[100px]">
-                    <div className="text-xs font-medium text-gray-900 truncate">
+                  <div style={{ marginTop: 'var(--cds-spacing-03)', textAlign: 'center', minWidth: '100px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {prediction.api_name || `API ${prediction.api_id.slice(0, 8)}`}
                     </div>
-                    <div className="text-xs text-gray-600">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
                       {isOverdue ? (
-                        <span className="text-red-600 font-medium">Overdue</span>
+                        <span style={{ color: 'var(--cds-support-error)', fontWeight: 600 }}>Overdue</span>
                       ) : (
                         `${hoursUntil}h`
                       )}
                     </div>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <AlertTriangle className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500 capitalize">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--cds-spacing-02)', marginTop: 'var(--cds-spacing-02)' }}>
+                      <AlertTriangle size={12} style={{ color: 'var(--cds-icon-secondary)' }} />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)', textTransform: 'capitalize' }}>
                         {prediction.prediction_type}
                       </span>
                     </div>
@@ -166,27 +172,27 @@ const PredictionTimeline = ({ predictions }: PredictionTimelineProps) => {
       </div>
 
       {/* Legend */}
-      <div className="mt-8 pt-4 border-t border-gray-200">
-        <div className="flex items-center justify-center gap-6 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-gray-600">Critical</span>
+      <div style={{ marginTop: 'var(--cds-spacing-08)', paddingTop: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--cds-spacing-07)', fontSize: '0.875rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#da1e28' }} />
+            <span style={{ color: 'var(--cds-text-secondary)' }}>Critical</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-orange-500" />
-            <span className="text-gray-600">High</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ff832b' }} />
+            <span style={{ color: 'var(--cds-text-secondary)' }}>High</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500" />
-            <span className="text-gray-600">Medium</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f1c21b' }} />
+            <span style={{ color: 'var(--cds-text-secondary)' }}>Medium</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span className="text-gray-600">Low</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0f62fe' }} />
+            <span style={{ color: 'var(--cds-text-secondary)' }}>Low</span>
           </div>
         </div>
       </div>
-    </div>
+    </Tile>
   );
 };
 

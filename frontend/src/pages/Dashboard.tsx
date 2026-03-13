@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, Server, Zap, Plus } from 'lucide-react';
+import { Grid, Column, Heading, Tag, Tile, ClickableTile } from '@carbon/react';
+import { Activity, AlertTriangle, Server, Zap, Plus } from '../utils/carbonIcons';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
@@ -54,7 +55,7 @@ const Dashboard = () => {
   // Loading state
   if (apisLoading || gatewaysLoading) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Loading message="Loading dashboard..." />
       </div>
     );
@@ -63,7 +64,7 @@ const Dashboard = () => {
   // Error state
   if (apisError || gatewaysError) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Error
           message="Failed to load dashboard data"
           details={(apisError || gatewaysError) as Error}
@@ -73,231 +74,277 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div style={{ padding: 'var(--cds-spacing-06)' }}>
       {/* Page Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-sm text-gray-600">
+      <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <Heading style={{ marginBottom: 'var(--cds-spacing-03)' }}>Dashboard</Heading>
+        <p style={{ color: 'var(--cds-text-secondary)', fontSize: '0.875rem' }}>
           Overview of your API infrastructure and health metrics
         </p>
       </div>
 
       {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total APIs */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total APIs</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.total_apis}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {stats.active_apis} active
-              </p>
+      <Grid narrow style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <Column lg={4} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>Total APIs</p>
+                <p style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>{stats.total_apis}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                  {stats.active_apis} active
+                </p>
+              </div>
+              <div style={{ padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-accent)', borderRadius: 'var(--cds-spacing-02)' }}>
+                <Server size={32} />
+              </div>
             </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Server className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-        </Card>
+          </Tile>
+        </Column>
 
-        {/* Average Health Score */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg Health Score</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {stats.avg_health_score.toFixed(1)}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                out of 100
-              </p>
+        <Column lg={4} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>Avg Health Score</p>
+                <p style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>
+                  {stats.avg_health_score.toFixed(1)}
+                </p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                  out of 100
+                </p>
+              </div>
+              <div style={{ padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-accent)', borderRadius: 'var(--cds-spacing-02)' }}>
+                <Activity size={32} />
+              </div>
             </div>
-            <div className={`p-3 rounded-lg ${
-              stats.avg_health_score >= 80 ? 'bg-green-100' :
-              stats.avg_health_score >= 50 ? 'bg-yellow-100' : 'bg-red-100'
-            }`}>
-              <Activity className={`w-8 h-8 ${
-                stats.avg_health_score >= 80 ? 'text-green-600' :
-                stats.avg_health_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-              }`} />
-            </div>
-          </div>
-        </Card>
+          </Tile>
+        </Column>
 
-        {/* Shadow APIs */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Shadow APIs</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.shadow_apis}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {stats.shadow_apis > 0 ? 'Needs attention' : 'All documented'}
-              </p>
+        <Column lg={4} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>Shadow APIs</p>
+                <p style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>{stats.shadow_apis}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                  {stats.shadow_apis > 0 ? 'Needs attention' : 'All documented'}
+                </p>
+              </div>
+              <div style={{ padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-accent)', borderRadius: 'var(--cds-spacing-02)' }}>
+                <AlertTriangle size={32} />
+              </div>
             </div>
-            <div className={`p-3 rounded-lg ${
-              stats.shadow_apis > 0 ? 'bg-orange-100' : 'bg-green-100'
-            }`}>
-              <AlertTriangle className={`w-8 h-8 ${
-                stats.shadow_apis > 0 ? 'text-orange-600' : 'text-green-600'
-              }`} />
-            </div>
-          </div>
-        </Card>
+          </Tile>
+        </Column>
 
-        {/* Active Gateways */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Gateways</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.active_gateways}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                of {stats.total_gateways} total
-              </p>
+        <Column lg={4} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>Active Gateways</p>
+                <p style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>{stats.active_gateways}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                  of {stats.total_gateways} total
+                </p>
+              </div>
+              <div style={{ padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-accent)', borderRadius: 'var(--cds-spacing-02)' }}>
+                <Zap size={32} />
+              </div>
             </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Zap className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-        </Card>
-      </div>
+          </Tile>
+        </Column>
+      </Grid>
 
       {/* API Health Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Grid narrow style={{ marginBottom: 'var(--cds-spacing-07)' }}>
         {/* Top APIs by Health Score */}
-        <Card title="Top Performing APIs" subtitle="Highest health scores">
-          <div className="space-y-3">
-            {apis?.items
-              ?.sort((a: API, b: API) => b.health_score - a.health_score)
-              .slice(0, 5)
-              .map((api: API) => (
-                <div
-                  key={api.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{api.name}</p>
-                    <p className="text-sm text-gray-500">{api.base_path}</p>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">
-                        {api.health_score.toFixed(1)}
-                      </p>
-                      <p className="text-xs text-gray-500">Health Score</p>
+        <Column lg={8} md={4} sm={4}>
+          <Card title="Top Performing APIs" subtitle="Highest health scores">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+              {apis?.items
+                ?.sort((a: API, b: API) => b.health_score - a.health_score)
+                .slice(0, 5)
+                .map((api: API) => (
+                  <Tile
+                    key={api.id}
+                    style={{
+                      padding: 'var(--cds-spacing-05)',
+                      border: '1px solid var(--cds-border-subtle)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--cds-spacing-04)' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-02)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{api.name}</p>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{api.base_path}</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', flexShrink: 0 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>
+                            {api.health_score.toFixed(1)}
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Health Score</p>
+                        </div>
+                        <Tag
+                          type={api.health_score >= 80 ? 'green' : api.health_score >= 50 ? 'warm-gray' : 'red'}
+                          size="md"
+                        >
+                          {api.health_score >= 80 ? 'Healthy' : api.health_score >= 50 ? 'Fair' : 'Poor'}
+                        </Tag>
+                      </div>
                     </div>
-                    <div className={`w-3 h-3 rounded-full ${
-                      api.health_score >= 80 ? 'bg-green-500' :
-                      api.health_score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`} />
-                  </div>
-                </div>
-              ))}
-            {(!apis?.items || apis.items.length === 0) && (
-              <p className="text-center text-gray-500 py-4">No APIs found</p>
-            )}
-          </div>
-        </Card>
+                  </Tile>
+                ))}
+              {(!apis?.items || apis.items.length === 0) && (
+                <p style={{ textAlign: 'center', color: 'var(--cds-text-secondary)', padding: 'var(--cds-spacing-07)' }}>No APIs found</p>
+              )}
+            </div>
+          </Card>
+        </Column>
 
         {/* APIs Needing Attention */}
-        <Card title="APIs Needing Attention" subtitle="Low health scores or issues">
-          <div className="space-y-3">
-            {apis?.items
-              ?.filter((a: API) => a.health_score < 70 || a.status === 'failed')
-              .sort((a: API, b: API) => a.health_score - b.health_score)
-              .slice(0, 5)
-              .map((api: API) => (
-                <div
-                  key={api.id}
-                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{api.name}</p>
-                    <p className="text-sm text-gray-500">{api.base_path}</p>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-red-600">
-                        {api.health_score.toFixed(1)}
-                      </p>
-                      <p className="text-xs text-gray-500">Health Score</p>
+        <Column lg={8} md={4} sm={4}>
+          <Card title="APIs Needing Attention" subtitle="Low health scores or issues">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+              {apis?.items
+                ?.filter((a: API) => a.health_score < 70 || a.status === 'failed')
+                .sort((a: API, b: API) => a.health_score - b.health_score)
+                .slice(0, 5)
+                .map((api: API) => (
+                  <Tile
+                    key={api.id}
+                    style={{
+                      padding: 'var(--cds-spacing-05)',
+                      border: '1px solid var(--cds-border-subtle)',
+                      borderLeft: '4px solid var(--cds-support-error)',
+                      backgroundColor: 'var(--cds-layer-01)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--cds-spacing-04)' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-02)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{api.name}</p>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{api.base_path}</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', flexShrink: 0 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-support-error)', lineHeight: 1, marginBottom: 'var(--cds-spacing-02)' }}>
+                            {api.health_score.toFixed(1)}
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Health Score</p>
+                        </div>
+                        <AlertTriangle size={24} style={{ color: 'var(--cds-support-error)' }} />
+                      </div>
                     </div>
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                  </div>
+                  </Tile>
+                ))}
+              {(!apis?.items || apis.items.filter((a: API) => a.health_score < 70).length === 0) && (
+                <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-07)' }}>
+                  <p style={{ color: 'var(--cds-support-success)', fontWeight: 500, marginBottom: 'var(--cds-spacing-02)' }}>
+                    All APIs are performing well! 🎉
+                  </p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
+                    No APIs require immediate attention
+                  </p>
                 </div>
-              ))}
-            {(!apis?.items || apis.items.filter((a: API) => a.health_score < 70).length === 0) && (
-              <p className="text-center text-green-600 py-4">
-                All APIs are performing well! 🎉
-              </p>
+              )}
+            </div>
+          </Card>
+        </Column>
+      </Grid>
+
+      {/* Gateway Status */}
+      <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <Card title="Gateway Status" subtitle="Connected API gateways">
+          <Grid narrow>
+            {gateways?.items?.map((gateway: Gateway) => (
+              <Column key={gateway.id} lg={5} md={4} sm={4} style={{ marginBottom: 'var(--cds-spacing-06)' }}>
+                <Tile
+                  style={{
+                    padding: 'var(--cds-spacing-05)',
+                    border: '1px solid var(--cds-border-subtle)',
+                    height: '100%',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-04)', gap: 'var(--cds-spacing-03)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--cds-text-primary)', fontSize: '1rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gateway.name}</h4>
+                    <Tag
+                      type={gateway.status === 'connected' ? 'green' : gateway.status === 'disconnected' ? 'gray' : 'red'}
+                      size="md"
+                    >
+                      {gateway.status}
+                    </Tag>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                      <Server size={16} style={{ color: 'var(--cds-icon-secondary)', flexShrink: 0 }} />
+                      <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', fontWeight: 500 }}>{gateway.vendor}</p>
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 'calc(16px + var(--cds-spacing-03))' }}>
+                      {gateway.connection_url}
+                    </p>
+                    {gateway.last_connected_at && (
+                      <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)', marginTop: 'var(--cds-spacing-02)', paddingLeft: 'calc(16px + var(--cds-spacing-03))' }}>
+                        Last connected: {new Date(gateway.last_connected_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </Tile>
+              </Column>
+            ))}
+            {(!gateways?.items || gateways.items.length === 0) && (
+              <Column lg={16} md={8} sm={4}>
+                <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-09)' }}>
+                  <Server size={48} style={{ color: 'var(--cds-icon-disabled)', margin: '0 auto var(--cds-spacing-05)' }} />
+                  <p style={{ color: 'var(--cds-text-secondary)', fontWeight: 500, marginBottom: 'var(--cds-spacing-02)' }}>
+                    No gateways configured
+                  </p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-helper)' }}>
+                    Add a gateway to start discovering APIs
+                  </p>
+                </div>
+              </Column>
             )}
-          </div>
+          </Grid>
         </Card>
       </div>
 
-      {/* Gateway Status */}
-      <Card title="Gateway Status" subtitle="Connected API gateways">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {gateways?.items?.map((gateway: Gateway) => (
-            <div
-              key={gateway.id}
-              className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-gray-900">{gateway.name}</h4>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  gateway.status === 'active' ? 'bg-green-100 text-green-800' :
-                  gateway.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {gateway.status}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">{gateway.type}</p>
-              <p className="text-xs text-gray-500 truncate">{gateway.base_url}</p>
-              {gateway.last_sync_at && (
-                <p className="text-xs text-gray-400 mt-2">
-                  Last sync: {new Date(gateway.last_sync_at).toLocaleString()}
-                </p>
-              )}
-            </div>
-          ))}
-          {(!gateways?.items || gateways.items.length === 0) && (
-            <div className="col-span-full text-center text-gray-500 py-8">
-              No gateways configured. Add a gateway to start discovering APIs.
-            </div>
-          )}
-        </div>
-      </Card>
-
       {/* Quick Actions */}
-      <Card title="Quick Actions" padding="md">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={() => setShowAddGatewayForm(true)}
-            className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-center"
-          >
-            <Plus className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-            <p className="font-medium text-gray-900">Add Gateway</p>
-            <p className="text-sm text-gray-500 mt-1">Connect a new API gateway</p>
-          </button>
-          <Link
-            to="/apis"
-            className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-center block"
-          >
-            <Server className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-            <p className="font-medium text-gray-900">View All APIs</p>
-            <p className="text-sm text-gray-500 mt-1">Browse API inventory</p>
-          </Link>
-          <Link
-            to="/metrics"
-            className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-center block"
-          >
-            <Activity className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-            <p className="font-medium text-gray-900">View Metrics</p>
-            <p className="text-sm text-gray-500 mt-1">Analyze performance</p>
-          </Link>
-        </div>
-      </Card>
+      <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <Heading style={{ marginBottom: 'var(--cds-spacing-05)', fontSize: '1.125rem' }}>Quick Actions</Heading>
+        <Grid narrow>
+          <Column lg={5} md={4} sm={4}>
+            <ClickableTile onClick={() => setShowAddGatewayForm(true)}>
+              <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-04)' }}>
+                <Plus size={32} style={{ margin: '0 auto var(--cds-spacing-04)', color: 'var(--cds-icon-secondary)' }} />
+                <p style={{ fontWeight: 500, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-02)' }}>Add Gateway</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Connect a new API gateway</p>
+              </div>
+            </ClickableTile>
+          </Column>
+          <Column lg={5} md={4} sm={4}>
+            <Link to="/apis" style={{ textDecoration: 'none' }}>
+              <ClickableTile>
+                <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-04)' }}>
+                  <Server size={32} style={{ margin: '0 auto var(--cds-spacing-04)', color: 'var(--cds-icon-secondary)' }} />
+                  <p style={{ fontWeight: 500, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-02)' }}>View All APIs</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Browse API inventory</p>
+                </div>
+              </ClickableTile>
+            </Link>
+          </Column>
+          <Column lg={5} md={4} sm={4}>
+            <Link to="/predictions" style={{ textDecoration: 'none' }}>
+              <ClickableTile>
+                <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-04)' }}>
+                  <Activity size={32} style={{ margin: '0 auto var(--cds-spacing-04)', color: 'var(--cds-icon-secondary)' }} />
+                  <p style={{ fontWeight: 500, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-02)' }}>View Predictions</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Analyze predictions</p>
+                </div>
+              </ClickableTile>
+            </Link>
+          </Column>
+        </Grid>
+      </div>
 
       {/* Add Gateway Modal */}
       {showAddGatewayForm && (

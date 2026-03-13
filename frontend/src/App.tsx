@@ -1,6 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import {
+  Header,
+  HeaderContainer,
+  HeaderName,
+  HeaderNavigation,
+  HeaderMenuItem,
+  HeaderGlobalBar,
+  HeaderGlobalAction,
+  SkipToContent,
+  Content,
+  Theme,
+} from '@carbon/react';
+import { Notification, UserAvatar } from '@carbon/icons-react';
 
 // Page imports
 import Dashboard from './pages/Dashboard';
@@ -10,10 +22,27 @@ import Predictions from './pages/Predictions';
 import Optimization from './pages/Optimization';
 import { Query } from './pages/Query';
 
-// Placeholder components for routes (will be implemented in user stories)
-const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
-const Security = () => <div className="p-6"><h1 className="text-2xl font-bold">Security</h1></div>;
-const NotFound = () => <div className="p-6"><h1 className="text-2xl font-bold">404 - Page Not Found</h1></div>;
+// Placeholder components for routes
+const Metrics = () => (
+  <div style={{ padding: '2rem' }}>
+    <h1>Metrics</h1>
+    <p>Performance metrics will be displayed here.</p>
+  </div>
+);
+
+const Security = () => (
+  <div style={{ padding: '2rem' }}>
+    <h1>Security</h1>
+    <p>Security findings will be displayed here.</p>
+  </div>
+);
+
+const NotFound = () => (
+  <div style={{ padding: '2rem' }}>
+    <h1>404 - Page Not Found</h1>
+    <p>The page you are looking for does not exist.</p>
+  </div>
+);
 
 // Create QueryClient instance
 const queryClient = new QueryClient({
@@ -26,6 +55,107 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Navigation component with Carbon UI Shell
+ */
+function Navigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
+  return (
+    <HeaderContainer
+      render={({ isSideNavExpanded, onClickSideNavExpand }) => (
+        <Header aria-label="API Intelligence Plane">
+          <SkipToContent />
+          <HeaderName href="/" prefix="" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
+            API Intelligence Plane
+          </HeaderName>
+          <HeaderNavigation aria-label="API Intelligence Plane">
+            <HeaderMenuItem
+              href="/"
+              isActive={isActive('/')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/');
+              }}
+            >
+              Dashboard
+            </HeaderMenuItem>
+            <HeaderMenuItem
+              href="/apis"
+              isActive={isActive('/apis')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/apis');
+              }}
+            >
+              APIs
+            </HeaderMenuItem>
+            <HeaderMenuItem
+              href="/gateways"
+              isActive={isActive('/gateways')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/gateways');
+              }}
+            >
+              Gateways
+            </HeaderMenuItem>
+            <HeaderMenuItem
+              href="/predictions"
+              isActive={isActive('/predictions')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/predictions');
+              }}
+            >
+              Predictions
+            </HeaderMenuItem>
+            <HeaderMenuItem
+              href="/optimization"
+              isActive={isActive('/optimization')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/optimization');
+              }}
+            >
+              Optimization
+            </HeaderMenuItem>
+            <HeaderMenuItem
+              href="/query"
+              isActive={isActive('/query')}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/query');
+              }}
+            >
+              Query
+            </HeaderMenuItem>
+          </HeaderNavigation>
+          <HeaderGlobalBar>
+            <HeaderGlobalAction
+              aria-label="Notifications"
+              tooltipAlignment="end"
+            >
+              <Notification size={20} />
+            </HeaderGlobalAction>
+            <HeaderGlobalAction
+              aria-label="User Avatar"
+              tooltipAlignment="end"
+            >
+              <UserAvatar size={20} />
+            </HeaderGlobalAction>
+          </HeaderGlobalBar>
+        </Header>
+      )}
+    />
+  );
+}
 
 /**
  * Main App component with routing configuration.
@@ -42,62 +172,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="min-h-screen bg-gray-50">
-          {/* Navigation will be added in user story implementation */}
-          <nav className="bg-white shadow-sm border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between h-16">
-                <div className="flex">
-                  <div className="flex-shrink-0 flex items-center">
-                    <h1 className="text-xl font-bold text-gray-900">
-                      API Intelligence Plane
-                    </h1>
-                  </div>
-                  <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    <Link
-                      to="/"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      Dashboard
-                    </Link>
-                    <Link
-                      to="/apis"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      APIs
-                    </Link>
-                    <Link
-                      to="/gateways"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      Gateways
-                    </Link>                    
-                    <Link
-                      to="/predictions"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      Predictions
-                    </Link>
-                    <Link
-                      to="/optimization"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      Optimization
-                    </Link>                    
-                    <Link
-                      to="/query"
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      Query
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </nav>
-
-          {/* Main content */}
-          <main>
+        <Theme theme="g10">
+          <Navigation />
+          <Content>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/apis" element={<APIs />} />
@@ -110,12 +187,9 @@ function App() {
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
-          </main>
-        </div>
+          </Content>
+        </Theme>
       </BrowserRouter>
-
-      {/* React Query Devtools (only in development) */}
-      {/* {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />} */}
     </QueryClientProvider>
   );
 }

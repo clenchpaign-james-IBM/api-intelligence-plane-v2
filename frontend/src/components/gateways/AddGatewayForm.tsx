@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { X } from '../../utils/carbonIcons';
 import { api } from '../../services/api';
 import Button from '../common/Button';
 import Card from '../common/Card';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { Heading, Button } from '@carbon/react';
+import { ArrowLeft } from '../utils/carbonIcons';
 import APIList from '../components/apis/APIList';
 import APIDetail from '../components/apis/APIDetail';
 import Loading from '../components/common/Loading';
@@ -39,7 +40,7 @@ const APIs = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Loading message="Loading APIs..." />
       </div>
     );
@@ -48,7 +49,7 @@ const APIs = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Error
           message="Failed to load APIs"
           details={error as Error}
@@ -60,24 +61,25 @@ const APIs = () => {
   const apis = data?.items || [];
 
   return (
-    <div className="p-6">
+    <div style={{ padding: 'var(--cds-spacing-06)' }}>
       {/* Header */}
       {!selectedAPI ? (
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">API Inventory</h1>
-          <p className="mt-2 text-sm text-gray-600">
+        <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+          <Heading style={{ marginBottom: 'var(--cds-spacing-03)' }}>API Inventory</Heading>
+          <p style={{ color: 'var(--cds-text-secondary)', fontSize: '0.875rem' }}>
             Browse and manage all discovered APIs across your gateways
           </p>
         </div>
       ) : (
-        <div className="mb-6">
-          <button
+        <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+          <Button
+            kind="ghost"
+            renderIcon={ArrowLeft}
             onClick={handleBack}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
+            style={{ marginBottom: 'var(--cds-spacing-05)' }}
           >
-            <ArrowLeft className="w-5 h-5" />
             Back to API List
-          </button>
+          </Button>
         </div>
       )}
 

@@ -1,7 +1,8 @@
 # API Intelligence Plane - Modernization Evidence Extract
 
-**Generated**: 2026-03-12  
-**Repository**: api-intelligence-plane-v2  
+**Generated**: 2026-03-12
+**Updated**: 2026-03-13 (Carbon Design System Migration)
+**Repository**: api-intelligence-plane-v2
 **Analysis Scope**: Complete workspace scan
 
 ---
@@ -9,6 +10,8 @@
 ## Modernization Summary
 
 The API Intelligence Plane represents a **greenfield modern microservices architecture** built from the ground up with contemporary technologies and cloud-native patterns. This is **not a migration** from legacy systems, but rather a **modern-first implementation** leveraging Python 3.11+ (FastAPI), TypeScript/React 18, Java 17 (Spring Boot 3.2), and containerized deployment. The architecture demonstrates modern best practices including AI/ML integration (LangChain/LangGraph), MCP protocol support, microservices separation, and comprehensive observability.
+
+**Recent Modernization (March 2026)**: The frontend underwent a significant UI framework migration from Tailwind CSS to **IBM Carbon Design System v11**, representing a strategic shift to an enterprise-grade design system with enhanced accessibility, consistency, and maintainability.
 
 ---
 
@@ -27,8 +30,11 @@ The API Intelligence Plane represents a **greenfield modern microservices archit
 - **Framework**: React 18.3+ with TypeScript 5.7+
 - **Build Tool**: Vite 6.0+ (modern ESM-based bundler)
 - **State Management**: TanStack Query 5.62+ (server state)
-- **UI Framework**: Tailwind CSS 3.4+ (utility-first)
-- **Charts**: Recharts 2.15+
+- **UI Framework**: **IBM Carbon Design System v11** (enterprise-grade, migrated from Tailwind CSS)
+- **Design Tokens**: Carbon design tokens for spacing, colors, typography
+- **Components**: Carbon React components (@carbon/react 1.65+)
+- **Icons**: Carbon Icons (@carbon/icons-react 11.49+)
+- **Charts**: Carbon Charts (@carbon/charts-react 1.19+, migrated from Recharts)
 - **HTTP Client**: Axios 1.7+
 - **Code Quality**: ESLint 9.15+, Prettier 3.3+
 
@@ -85,7 +91,10 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 | **Container-First** | `backend/Dockerfile`, `frontend/Dockerfile`, `demo-gateway/Dockerfile` | Multi-stage builds, non-root users |
 | **Modern TypeScript** | `frontend/tsconfig.json`, `frontend/package.json` (TS 5.7+) | Latest TypeScript with strict mode |
 | **Modern State Management** | `frontend/package.json` (TanStack Query 5.62+) | Modern server state management (not Redux) |
-| **Modern CSS** | `frontend/package.json` (Tailwind CSS 3.4+) | Utility-first CSS framework |
+| **Enterprise Design System** | `frontend/package.json` (@carbon/react 1.65+, @carbon/styles 1.65+) | **IBM Carbon Design System v11** (migrated from Tailwind CSS) |
+| **Carbon Components** | `frontend/src/components/`, `frontend/src/pages/` | All components migrated to Carbon React |
+| **Carbon Icons** | `frontend/package.json` (@carbon/icons-react 11.49+) | Replaced lucide-react with Carbon icons |
+| **Carbon Charts** | `frontend/package.json` (@carbon/charts-react 1.19+) | Replaced Recharts with Carbon Charts |
 | **Modern Testing** | `backend/requirements.txt` (pytest 8.3+), `frontend/package.json` (vitest 2.1+) | Modern test frameworks |
 | **Modern Build Tools** | `frontend/package.json` (Vite 6.0+), `demo-gateway/pom.xml` (Maven 3.9+) | Latest build tooling |
 | **Modern Database** | `docker-compose.yml` (OpenSearch 2.18) | Modern search/analytics engine |
@@ -133,8 +142,10 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 - React 18 with concurrent features
 - Vite for fast development/builds
 - TanStack Query for server state
-- Tailwind CSS for styling
-- Recharts for data visualization
+- **IBM Carbon Design System v11** for enterprise UI (migrated from Tailwind CSS)
+- Carbon Charts for data visualization (migrated from Recharts)
+- Carbon Icons for consistent iconography (migrated from lucide-react)
+- SASS for Carbon styles compilation
 
 **Demo Gateway (Java 17)**
 - Spring Boot 3.2 (latest stable)
@@ -195,6 +206,89 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 - `backend/app/middleware/audit.py` - Audit logging
 - `docs/tls-deployment.md` - TLS 1.3 configuration
 - `certs/` directory - Certificate management
+
+---
+
+## Recent UI Framework Migration (March 2026)
+
+### Tailwind CSS → IBM Carbon Design System v11
+
+**Migration Date**: March 12-13, 2026
+**Duration**: 1 day
+**Scope**: Complete frontend UI framework replacement
+
+#### Migration Evidence
+
+| Component | Before | After | Evidence |
+|-----------|--------|-------|----------|
+| **Dependencies** | Tailwind CSS 3.4+, lucide-react, recharts | @carbon/react 1.65+, @carbon/icons-react 11.49+, @carbon/charts-react 1.19+ | `frontend/package.json` |
+| **Configuration** | `tailwind.config.ts`, `postcss.config.js` | Removed, replaced with Carbon SASS imports | `frontend/src/index.css` |
+| **App Shell** | Custom navigation with Tailwind classes | Carbon UI Shell (Header, HeaderNavigation, Content) | `frontend/src/App.tsx` |
+| **Common Components** | Custom components with Tailwind | Carbon Tile, Button, Loading, InlineNotification | `frontend/src/components/common/` |
+| **Page Components** | Tailwind utility classes | Carbon design tokens and components | `frontend/src/pages/` |
+| **Forms** | Custom form components | Carbon TextArea, Select, Button | `frontend/src/components/query/QueryInput.tsx` |
+| **Charts** | Recharts library | Carbon Charts | `frontend/src/components/*/` |
+| **Icons** | lucide-react | @carbon/icons-react | `frontend/src/utils/carbonIcons.ts` |
+
+#### Migration Benefits
+
+1. **Enterprise-Grade Design**: IBM's design system used by Fortune 500 companies
+2. **Accessibility**: WCAG 2.1 AA compliant out of the box
+3. **Consistency**: Unified design language across all components
+4. **Theme Support**: Built-in dark mode and theme switching (g10, g90, g100, white)
+5. **Performance**: Optimized component library with tree-shaking
+6. **Documentation**: Comprehensive documentation and Storybook examples
+7. **Maintenance**: Active development and support from IBM
+
+#### Spacing Standards Established
+
+- **Between sections**: 40px (spacing-08)
+- **Between cards**: 32px (spacing-07)
+- **Card internal padding**: 24-32px (spacing-06 to spacing-07)
+- **Between UI elements**: 16-24px (spacing-04 to spacing-06)
+- **Tight spacing**: 12px (spacing-03) for related items
+
+#### Components Migrated
+
+**Core Application:**
+- ✅ App.tsx - Carbon UI Shell with Header, Navigation, Content
+- ✅ Main layout - Carbon Theme provider (g10 theme)
+
+**Common Components:**
+- ✅ Button.tsx - Carbon Button wrapper
+- ✅ Card.tsx - Carbon Tile wrapper
+- ✅ Loading.tsx - Carbon Loading/InlineLoading
+- ✅ Error.tsx - Carbon InlineNotification
+
+**Page Components:**
+- ✅ Dashboard.tsx - Carbon Heading, Tile, Tag components
+- ✅ APIs.tsx - Carbon Search, Select, ClickableTile
+- ✅ Gateways.tsx - Carbon DataTable, Modal, Form components
+- ✅ Predictions.tsx - Carbon Tabs, Tag, ProgressBar
+- ✅ Optimization.tsx - Carbon Tabs, Select, Button
+- ✅ Query.tsx - Carbon TextArea, Button, InlineNotification
+
+**Form Components:**
+- ✅ AddGatewayForm.tsx - Carbon TextInput, Select, Button
+- ✅ QueryInput.tsx - Carbon TextArea, Button
+
+**Chart Components:**
+- ✅ HealthChart.tsx - Carbon Charts (LineChart)
+- ✅ FactorsChart.tsx - Carbon Charts (BarChart)
+- ✅ RateLimitChart.tsx - Carbon Charts (LineChart)
+
+**UI Polish Completed:**
+- ✅ Dashboard - Enhanced spacing, borders, visual hierarchy
+- ✅ APIs - Increased gaps, better alignment, professional appearance
+- ✅ Predictions - Fixed dense layout, proper spacing between items
+- ✅ Optimization - Fixed recommendation spacing, migrated RateLimitPolicy to Carbon
+- ✅ Query - Fixed Send button alignment and page scroll issues
+
+#### Documentation
+
+- **Migration Guide**: `docs/carbon-migration.md`
+- **Component Examples**: All components updated with Carbon patterns
+- **Design Tokens**: Consistent use of Carbon CSS variables throughout
 
 ---
 
@@ -334,13 +428,17 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 
 The API Intelligence Plane is a **modern, greenfield implementation** showcasing contemporary best practices in microservices architecture, AI/ML integration, and cloud-native design. It is **not a migration** but rather a purpose-built platform using the latest stable technologies (2024-2026 releases).
 
+**Recent Enhancement (March 2026):** The frontend underwent a strategic UI framework migration from Tailwind CSS to IBM Carbon Design System v11, elevating the platform to enterprise-grade design standards with enhanced accessibility, consistency, and maintainability.
+
 **Strengths:**
 - Modern technology stack throughout
+- **Enterprise-grade UI with IBM Carbon Design System v11**
 - AI-first architecture with LangChain/LangGraph
 - Microservices with clear separation of concerns
 - Container-first with Kubernetes readiness
 - Comprehensive security (TLS 1.3, FIPS 140-3)
 - Strong code quality tooling
+- **WCAG 2.1 AA compliant UI components**
 
 **Areas for Production Hardening:**
 - Authentication/authorization implementation
@@ -349,10 +447,11 @@ The API Intelligence Plane is a **modern, greenfield implementation** showcasing
 - Multi-gateway adapter expansion
 - Disaster recovery procedures
 
-**Recommendation:** This is a well-architected modern platform. Focus production hardening efforts on authentication, monitoring, and load testing before production deployment.
+**Recommendation:** This is a well-architected modern platform with enterprise-grade UI. Focus production hardening efforts on authentication, monitoring, and load testing before production deployment.
 
 ---
 
-**Report Generated**: 2026-03-12  
-**Analysis Method**: Workspace file scan, dependency analysis, architecture review  
+**Report Generated**: 2026-03-12
+**Updated**: 2026-03-13 (Carbon Design System Migration)
+**Analysis Method**: Workspace file scan, dependency analysis, architecture review
 **Confidence Level**: High (100% - comprehensive evidence)

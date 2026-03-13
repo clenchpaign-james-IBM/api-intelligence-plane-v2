@@ -1,5 +1,5 @@
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Activity, AlertTriangle } from 'lucide-react';
+import { SimpleBarChart, MeterChart } from '@carbon/charts-react';
+import { TrendingUp, Activity, AlertTriangle } from '../../utils/carbonIcons';
 import type { RateLimitEffectivenessResponse } from '../../types';
 
 interface RateLimitChartProps {
@@ -17,25 +17,34 @@ interface RateLimitChartProps {
  */
 const RateLimitChart = ({ effectiveness }: RateLimitChartProps) => {
   // Prepare data for metrics chart
-  const metricsData = [
+  const metricsChartData = [
     {
-      name: 'Error Rate',
+      group: 'Error Rate',
       value: effectiveness.metrics.error_rate * 100,
-      color: '#ef4444',
     },
     {
-      name: 'Throttled %',
+      group: 'Throttled %',
       value: (effectiveness.metrics.throttled_requests / effectiveness.metrics.total_requests) * 100,
-      color: '#f59e0b',
     },
   ];
 
   // Prepare data for response time visualization
-  const responseTimeData = [
+  const responseTimeChartData = [
     {
-      name: 'Avg Response Time',
+      group: 'Current',
       value: effectiveness.metrics.avg_response_time,
-      target: 200, // Target response time in ms
+    },
+    {
+      group: 'Target',
+      value: 200,
+    },
+  ];
+
+  // Meter chart data for effectiveness score
+  const effectivenessChartData = [
+    {
+      group: 'Effectiveness',
+      value: effectiveness.effectiveness_score * 100,
     },
   ];
 
@@ -127,31 +136,47 @@ const RateLimitChart = ({ effectiveness }: RateLimitChartProps) => {
       {/* Metrics Breakdown Chart */}
       <div className="mb-8">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Metrics Breakdown</h4>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={metricsData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
-            <Tooltip formatter={(value: number) => `${value.toFixed(2)}%`} />
-            <Bar dataKey="value" fill="#3b82f6" />
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ height: '200px' }}>
+          <SimpleBarChart
+            data={metricsChartData}
+            options={{
+              title: '',
+              axes: {
+                left: {
+                  mapsTo: 'value',
+                  title: 'Percentage (%)',
+                },
+                bottom: {
+                  mapsTo: 'group',
+                },
+              },
+              height: '200px',
+            }}
+          />
+        </div>
       </div>
 
       {/* Response Time Comparison */}
       <div className="mb-8">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Response Time Performance</h4>
-        <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={responseTimeData} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" label={{ value: 'Milliseconds', position: 'insideBottom', offset: -5 }} />
-            <YAxis type="category" dataKey="name" />
-            <Tooltip formatter={(value: number) => `${value.toFixed(0)}ms`} />
-            <Legend />
-            <Bar dataKey="value" fill="#3b82f6" name="Current" />
-            <Bar dataKey="target" fill="#10b981" name="Target" />
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ height: '150px' }}>
+          <SimpleBarChart
+            data={responseTimeChartData}
+            options={{
+              title: '',
+              axes: {
+                left: {
+                  mapsTo: 'value',
+                  title: 'Milliseconds',
+                },
+                bottom: {
+                  mapsTo: 'group',
+                },
+              },
+              height: '150px',
+            }}
+          />
+        </div>
       </div>
 
       {/* Recommendations */}

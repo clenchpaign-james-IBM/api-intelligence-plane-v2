@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, TrendingUp, Filter, Sparkles } from 'lucide-react';
+import { Heading, Button, Toggle, Select, SelectItem, Modal } from '@carbon/react';
+import { AlertTriangle, TrendingUp, Filter, Sparkles } from '../utils/carbonIcons';
+import Card from '../components/common/Card';
 import PredictionCard from '../components/predictions/PredictionCard';
 import PredictionTimeline from '../components/predictions/PredictionTimeline';
 import Loading from '../components/common/Loading';
@@ -55,7 +57,7 @@ const Predictions = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Loading message="Loading predictions..." />
       </div>
     );
@@ -64,7 +66,7 @@ const Predictions = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 'var(--cds-spacing-06)' }}>
         <Error
           message="Failed to load predictions"
           details={error as Error}
@@ -79,175 +81,158 @@ const Predictions = () => {
   const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
 
   return (
-    <div className="p-6">
+    <div style={{ padding: 'var(--cds-spacing-06)' }}>
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
+      <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-06)' }}>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">API Failure Predictions</h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <Heading style={{ marginBottom: 'var(--cds-spacing-03)' }}>API Failure Predictions</Heading>
+            <p style={{ color: 'var(--cds-text-secondary)', fontSize: '0.875rem' }}>
               {useAi ? 'LLM-enhanced predictions with detailed explanations' : 'Rule-based predictions of potential API failures'} 24-48 hours in advance
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* AI Toggle Switch */}
-            <div className="flex items-center gap-2 bg-white rounded-lg shadow px-4 py-2">
-              <Sparkles className={`w-5 h-5 ${useAi ? 'text-purple-600' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-700">AI Enhanced</span>
-              <button
-                onClick={() => setUseAi(!useAi)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  useAi ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
-                role="switch"
-                aria-checked={useAi}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    useAi ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+            {/* AI Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', padding: 'var(--cds-spacing-04)', backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px' }}>
+              <Sparkles style={{ width: '20px', height: '20px', color: useAi ? 'var(--cds-support-info)' : 'var(--cds-icon-secondary)' }} />
+              <Toggle
+                id="ai-toggle"
+                labelText="AI Enhanced"
+                toggled={useAi}
+                onToggle={() => setUseAi(!useAi)}
+                size="sm"
+              />
             </div>
-            <button
+            <Button
+              kind="primary"
+              renderIcon={TrendingUp}
               onClick={handleGeneratePredictions}
               disabled={isGenerating}
-              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                isGenerating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white`}
             >
-              <TrendingUp className="w-5 h-5" />
               {isGenerating ? 'Generating...' : 'Generate Predictions'}
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-06)' }}>
+          <Card padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <p className="text-sm text-gray-600">Active Predictions</p>
-                <p className="text-2xl font-bold text-gray-900">{activePredictions.length}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Active Predictions</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{activePredictions.length}</p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-yellow-500" />
+              <AlertTriangle style={{ width: '32px', height: '32px', color: 'var(--cds-support-warning)' }} />
             </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
+          </Card>
+          <Card padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <p className="text-sm text-gray-600">Critical Severity</p>
-                <p className="text-2xl font-bold text-red-600">{criticalCount}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Critical Severity</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-support-error)' }}>{criticalCount}</p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-red-500" />
+              <AlertTriangle style={{ width: '32px', height: '32px', color: 'var(--cds-support-error)' }} />
             </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
+          </Card>
+          <Card padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <p className="text-sm text-gray-600">Total Predictions</p>
-                <p className="text-2xl font-bold text-gray-900">{predictions.length}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Total Predictions</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{predictions.length}</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-blue-500" />
+              <TrendingUp style={{ width: '32px', height: '32px', color: 'var(--cds-support-info)' }} />
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-4">
-          <Filter className="w-5 h-5 text-gray-500" />
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Severity:</label>
-            <select
-              value={selectedSeverity}
-              onChange={(e) => setSelectedSeverity(e.target.value as PredictionSeverity | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Status:</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as PredictionStatus | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="resolved">Resolved</option>
-              <option value="false_positive">False Positive</option>
-              <option value="expired">Expired</option>
-            </select>
-          </div>
+      <div style={{ marginBottom: 'var(--cds-spacing-08)' }}>
+        <Card padding="md">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-06)' }}>
+          <Filter style={{ width: '20px', height: '20px', color: 'var(--cds-icon-secondary)' }} />
+          <Select
+            id="severity-select"
+            labelText="Severity"
+            value={selectedSeverity}
+            onChange={(e) => setSelectedSeverity(e.target.value as PredictionSeverity | 'all')}
+            size="sm"
+            inline
+          >
+            <SelectItem value="all" text="All" />
+            <SelectItem value="critical" text="Critical" />
+            <SelectItem value="high" text="High" />
+            <SelectItem value="medium" text="Medium" />
+            <SelectItem value="low" text="Low" />
+          </Select>
+          <Select
+            id="status-select"
+            labelText="Status"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value as PredictionStatus | 'all')}
+            size="sm"
+            inline
+          >
+            <SelectItem value="all" text="All" />
+            <SelectItem value="active" text="Active" />
+            <SelectItem value="resolved" text="Resolved" />
+            <SelectItem value="false_positive" text="False Positive" />
+            <SelectItem value="expired" text="Expired" />
+          </Select>
         </div>
+        </Card>
       </div>
 
       {/* Timeline View */}
       {activePredictions.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Prediction Timeline</h2>
+        <div style={{ marginBottom: 'var(--cds-spacing-08)' }}>
+          <Heading style={{ fontSize: '1.25rem', marginBottom: 'var(--cds-spacing-06)' }}>Prediction Timeline</Heading>
           <PredictionTimeline predictions={activePredictions} />
         </div>
       )}
 
       {/* Predictions List */}
       <div>
-        <h2 className="text-xl font-bold text-gray-900 mb-4">All Predictions</h2>
+        <Heading style={{ fontSize: '1.25rem', marginBottom: 'var(--cds-spacing-06)' }}>All Predictions</Heading>
         {predictions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No predictions found</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Click "Generate Predictions" to analyze your APIs
-            </p>
-          </div>
+          <Card padding="lg">
+            <div style={{ textAlign: 'center' }}>
+              <AlertTriangle size={48} style={{ color: 'var(--cds-icon-secondary)', margin: '0 auto var(--cds-spacing-05)' }} />
+              <p style={{ color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>No predictions found</p>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-helper)' }}>
+                Click "Generate Predictions" to analyze your APIs
+              </p>
+            </div>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {predictions.map((prediction: Prediction) => (
-              <PredictionCard
-                key={prediction.id}
-                prediction={prediction}
-                onClick={() => setSelectedPrediction(prediction)}
-              />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+            {predictions.map((prediction: Prediction, index: number) => (
+              <div key={prediction.id} style={{ marginBottom: index < predictions.length - 1 ? 'var(--cds-spacing-07)' : '0' }}>
+                <PredictionCard
+                  prediction={prediction}
+                  onClick={() => setSelectedPrediction(prediction)}
+                />
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Detailed View Modal (if needed) */}
+      {/* Detailed View Modal */}
       {selectedPrediction && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedPrediction(null)}
+        <Modal
+          open={true}
+          onRequestClose={() => setSelectedPrediction(null)}
+          modalHeading="Prediction Details"
+          passiveModal
+          size="lg"
         >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
-              <PredictionCard
-                prediction={selectedPrediction}
-                detailed
-                onClick={() => {}}
-              />
-              <button
-                onClick={() => setSelectedPrediction(null)}
-                className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+          <PredictionCard
+            prediction={selectedPrediction}
+            detailed
+            onClick={() => {}}
+          />
+        </Modal>
       )}
     </div>
   );

@@ -1,9 +1,10 @@
 import { ReactNode } from 'react';
+import { Tile } from '@carbon/react';
 
 /**
- * Card Component
+ * Card Component - Carbon Design System Wrapper
  * 
- * Reusable card container with optional header and footer.
+ * Wraps Carbon Tile component with custom header and footer support.
  * Provides consistent styling for content sections.
  */
 
@@ -24,40 +25,53 @@ const Card = ({
   className = '',
   padding = 'md',
 }: CardProps) => {
-  // Padding styles
+  // Padding styles using Carbon spacing tokens
   const paddingStyles = {
     none: '',
-    sm: 'p-3',
-    md: 'p-6',
-    lg: 'p-8',
+    sm: 'cds--spacing-03',
+    md: 'cds--spacing-05',
+    lg: 'cds--spacing-07',
   };
 
+  const paddingClass = paddingStyles[padding];
+
   return (
-    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
+    <Tile className={className}>
       {/* Header */}
       {(title || subtitle) && (
-        <div className={`border-b border-gray-200 ${paddingStyles[padding]}`}>
+        <div className={`${paddingClass}`} style={{ borderBottom: '1px solid var(--cds-border-subtle-01)', marginBottom: 'var(--cds-spacing-05)' }}>
           {title && (
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            <h3 className="cds--type-heading-03" style={{ marginBottom: subtitle ? 'var(--cds-spacing-02)' : 0 }}>
+              {title}
+            </h3>
           )}
           {subtitle && (
-            <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+            <p className="cds--type-body-01" style={{ color: 'var(--cds-text-secondary)' }}>
+              {subtitle}
+            </p>
           )}
         </div>
       )}
 
       {/* Content */}
-      <div className={paddingStyles[padding]}>
+      <div className={paddingClass}>
         {children}
       </div>
 
       {/* Footer */}
       {footer && (
-        <div className={`border-t border-gray-200 ${paddingStyles[padding]} bg-gray-50`}>
+        <div 
+          className={paddingClass} 
+          style={{ 
+            borderTop: '1px solid var(--cds-border-subtle-01)', 
+            marginTop: 'var(--cds-spacing-05)',
+            backgroundColor: 'var(--cds-layer-01)'
+          }}
+        >
           {footer}
         </div>
       )}
-    </div>
+    </Tile>
   );
 };
 

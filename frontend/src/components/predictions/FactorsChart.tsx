@@ -1,4 +1,6 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { SimpleBarChart } from '@carbon/charts-react';
+import { ScaleTypes } from '@carbon/charts';
+import '@carbon/charts-react/styles.css';
 import type { ContributingFactor } from '../../types';
 
 interface FactorsChartProps {
@@ -14,124 +16,88 @@ interface FactorsChartProps {
  * - Tooltip with detailed information
  */
 const FactorsChart = ({ factors }: FactorsChartProps) => {
-  // Prepare data for chart
-  const chartData = factors.map((factor) => ({
-    name: factor.factor.replace(/_/g, ' ').slice(0, 20), // Truncate long names
-    weight: factor.weight * 100, // Convert to percentage
-    current: factor.current_value,
-    threshold: factor.threshold,
-    trend: factor.trend,
-    fullName: factor.factor.replace(/_/g, ' '),
-  }));
+  // Prepare data for Carbon Charts
+  const chartData = factors
+    .map((factor) => ({
+      group: factor.factor.replace(/_/g, ' ').slice(0, 20),
+      value: factor.weight * 100,
+      trend: factor.trend,
+    }))
+    .sort((a, b) => b.value - a.value);
 
-  // Sort by weight descending
-  chartData.sort((a, b) => b.weight - a.weight);
-
-  // Color based on trend
-  const getTrendColor = (trend: string) => {
-    switch (trend.toLowerCase()) {
-      case 'increasing':
-        return '#ef4444'; // red-500
-      case 'decreasing':
-        return '#10b981'; // green-500
-      case 'stable':
-        return '#6b7280'; // gray-500
-      case 'volatile':
-        return '#f59e0b'; // amber-500
-      default:
-        return '#3b82f6'; // blue-500
-    }
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-2">{data.fullName}</p>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-600">Weight:</span>
-              <span className="font-medium text-gray-900">{data.weight.toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-600">Current:</span>
-              <span className="font-medium text-gray-900">{data.current.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-600">Threshold:</span>
-              <span className="font-medium text-gray-900">{data.threshold.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-600">Trend:</span>
-              <span
-                className="font-medium capitalize"
-                style={{ color: getTrendColor(data.trend) }}
-              >
-                {data.trend}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
+  // Color palette based on trend
+  const colorPalette = {
+    increasing: '#da1e28', // Carbon red
+    decreasing: '#24a148', // Carbon green
+    stable: '#8d8d8d', // Carbon gray
+    volatile: '#f1c21b', // Carbon yellow
   };
 
   if (factors.length === 0) {
     return (
-      <div className="text-sm text-gray-500 text-center py-4">
+      <div style={{
+        textAlign: 'center',
+        padding: 'var(--cds-spacing-05)',
+        color: 'var(--cds-text-secondary)'
+      }}>
         No contributing factors available
       </div>
     );
   }
 
-  return (
-    <div className="w-full h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={chartData}
-          margin={{ top: 10, right: 10, left: 0, bottom: 60 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis
-            dataKey="name"
-            angle={-45}
-            textAnchor="end"
-            height={80}
-            tick={{ fontSize: 11, fill: '#6b7280' }}
-          />
-          <YAxis
-            label={{ value: 'Weight (%)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280' } }}
-            tick={{ fontSize: 11, fill: '#6b7280' }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="weight" radius={[4, 4, 0, 0]}>
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={getTrendColor(entry.trend)} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+  const options = {
+    title: 'Contributing Factors',
+    axes: {
+      left: {
+        title: 'Weight (%)',
+        mapsTo: 'value',
+      },
+      bottom: {
+        title: 'Factor',
+        mapsTo: 'group',
+        scaleType: ScaleTypes.LABELS,
+      },
+    },
+    height: '300px',
+    toolbar: {
+      enabled: false,
+    },
+    legend: {
+      enabled: true,
+    },
+    color: {
+      scale: colorPalette,
+    },
+  };
 
+  return (
+    <div style={{ width: '100%' }}>
+      <SimpleBarChart data={chartData} options={options} />
+      
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-2 text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
-          <span className="text-gray-600">Increasing</span>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 'var(--cds-spacing-05)',
+        marginTop: 'var(--cds-spacing-03)',
+        fontSize: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#da1e28' }} />
+          <span style={{ color: 'var(--cds-text-secondary)' }}>Increasing</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#10b981' }} />
-          <span className="text-gray-600">Decreasing</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#24a148' }} />
+          <span style={{ color: 'var(--cds-text-secondary)' }}>Decreasing</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#6b7280' }} />
-          <span className="text-gray-600">Stable</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#8d8d8d' }} />
+          <span style={{ color: 'var(--cds-text-secondary)' }}>Stable</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f59e0b' }} />
-          <span className="text-gray-600">Volatile</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#f1c21b' }} />
+          <span style={{ color: 'var(--cds-text-secondary)' }}>Volatile</span>
         </div>
       </div>
     </div>

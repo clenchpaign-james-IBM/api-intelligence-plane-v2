@@ -1,5 +1,6 @@
 // Force rebuild - Rate Limiting Apply Feature v2
-import { Shield, Activity, TrendingUp, AlertCircle, CheckCircle, Clock, Zap } from 'lucide-react';
+import { Shield, Activity, TrendingUp, AlertCircle, CheckCircle, Clock, Zap } from '../../utils/carbonIcons';
+import { Tile, Tag, Button } from '@carbon/react';
 import type { RateLimitPolicy, PolicyType, PolicyStatus, EnforcementAction } from '../../types';
 
 interface RateLimitPolicyProps {
@@ -32,33 +33,33 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
     }
   };
 
-  // Status badge color
-  const getStatusColor = (status: PolicyStatus) => {
+  // Status tag type
+  const getStatusTagType = (status: PolicyStatus): 'green' | 'gray' | 'blue' => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'testing': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'active': return 'green';
+      case 'inactive': return 'gray';
+      case 'testing': return 'blue';
+      default: return 'gray';
     }
   };
 
   // Status icon
   const getStatusIcon = (status: PolicyStatus) => {
     switch (status) {
-      case 'active': return <CheckCircle className="w-4 h-4" />;
-      case 'inactive': return <AlertCircle className="w-4 h-4" />;
-      case 'testing': return <Activity className="w-4 h-4" />;
-      default: return <AlertCircle className="w-4 h-4" />;
+      case 'active': return <CheckCircle size={16} style={{ color: 'var(--cds-support-success)' }} />;
+      case 'inactive': return <AlertCircle size={16} style={{ color: 'var(--cds-icon-secondary)' }} />;
+      case 'testing': return <Activity size={16} style={{ color: 'var(--cds-support-info)' }} />;
+      default: return <AlertCircle size={16} style={{ color: 'var(--cds-icon-secondary)' }} />;
     }
   };
 
   // Enforcement action display
   const getEnforcementActionDisplay = (action: EnforcementAction) => {
     switch (action) {
-      case 'throttle': return { text: 'Throttle', color: 'text-yellow-600', icon: <Clock className="w-4 h-4" /> };
-      case 'reject': return { text: 'Reject', color: 'text-red-600', icon: <AlertCircle className="w-4 h-4" /> };
-      case 'queue': return { text: 'Queue', color: 'text-blue-600', icon: <Activity className="w-4 h-4" /> };
-      default: return { text: action, color: 'text-gray-600', icon: <AlertCircle className="w-4 h-4" /> };
+      case 'throttle': return { text: 'Throttle', color: 'var(--cds-support-warning)', icon: <Clock size={16} /> };
+      case 'reject': return { text: 'Reject', color: 'var(--cds-support-error)', icon: <AlertCircle size={16} /> };
+      case 'queue': return { text: 'Queue', color: 'var(--cds-support-info)', icon: <Activity size={16} /> };
+      default: return { text: action, color: 'var(--cds-text-secondary)', icon: <AlertCircle size={16} /> };
     }
   };
 
@@ -72,38 +73,40 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
 
   if (detailed) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <Tile style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', borderRadius: '4px' }}>
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{policy.policy_name}</h3>
-              <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(policy.status)} flex items-center gap-1`}>
-                  {getStatusIcon(policy.status)}
+        <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-04)' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-03)' }}>{policy.policy_name}</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                <Tag type={getStatusTagType(policy.status)} size="md" renderIcon={() => getStatusIcon(policy.status)}>
                   {policy.status.toUpperCase()}
-                </span>
-                <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                </Tag>
+                <Tag type="purple" size="md">
                   {getPolicyTypeDisplayName(policy.policy_type)}
-                </span>
+                </Tag>
               </div>
             </div>
-            <Shield className="w-8 h-8 text-blue-500" />
+            <Shield size={32} style={{ color: 'var(--cds-link-primary)' }} />
           </div>
 
           {/* Effectiveness Score */}
           {policy.effectiveness_score !== undefined && (
-            <div className="mt-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Effectiveness Score</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div style={{ marginTop: 'var(--cds-spacing-05)', backgroundColor: 'var(--cds-layer-accent)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--cds-text-secondary)' }}>Effectiveness Score</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                  <div style={{ width: '128px', height: '8px', backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div
-                      className="h-full bg-gradient-to-r from-green-500 to-blue-500"
-                      style={{ width: `${policy.effectiveness_score * 100}%` }}
+                      style={{
+                        height: '100%',
+                        background: 'linear-gradient(to right, var(--cds-support-success), var(--cds-support-info))',
+                        width: `${policy.effectiveness_score * 100}%`
+                      }}
                     />
                   </div>
-                  <span className="text-lg font-bold text-blue-600">
+                  <span style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-link-primary)' }}>
                     {(policy.effectiveness_score * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -113,37 +116,37 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
         </div>
 
         {/* Limit Thresholds */}
-        <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-3">Limit Thresholds</h4>
-          <div className="grid grid-cols-2 gap-4">
+        <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+          <h4 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-04)' }}>Limit Thresholds</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
             {policy.limit_thresholds.requests_per_second && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 mb-1">Requests per Second</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Requests per Second</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                   {policy.limit_thresholds.requests_per_second.toLocaleString()}
                 </p>
               </div>
             )}
             {policy.limit_thresholds.requests_per_minute && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 mb-1">Requests per Minute</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Requests per Minute</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                   {policy.limit_thresholds.requests_per_minute.toLocaleString()}
                 </p>
               </div>
             )}
             {policy.limit_thresholds.requests_per_hour && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 mb-1">Requests per Hour</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Requests per Hour</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                   {policy.limit_thresholds.requests_per_hour.toLocaleString()}
                 </p>
               </div>
             )}
             {policy.limit_thresholds.concurrent_requests && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 mb-1">Concurrent Requests</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Concurrent Requests</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                   {policy.limit_thresholds.concurrent_requests.toLocaleString()}
                 </p>
               </div>
@@ -152,20 +155,20 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
         </div>
 
         {/* Enforcement & Burst */}
-        <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-3">Configuration</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-2">Enforcement Action</p>
-              <div className={`flex items-center gap-2 ${enforcementDisplay.color} font-semibold`}>
+        <div style={{ marginBottom: 'var(--cds-spacing-07)' }}>
+          <h4 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-04)' }}>Configuration</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+            <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-03)' }}>Enforcement Action</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', color: enforcementDisplay.color, fontWeight: 600 }}>
                 {enforcementDisplay.icon}
                 <span>{enforcementDisplay.text}</span>
               </div>
             </div>
             {policy.burst_allowance && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 mb-1">Burst Allowance</p>
-                <p className="text-xl font-bold text-gray-900">
+              <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Burst Allowance</p>
+                <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                   {policy.burst_allowance.toLocaleString()} requests
                 </p>
               </div>
@@ -257,91 +260,92 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
           {policy.status === 'inactive' && onActivate && (
-            <button
+            <Button
+              kind="primary"
+              renderIcon={CheckCircle}
               onClick={() => onActivate(policy.id)}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+              style={{ flex: 1 }}
             >
-              <CheckCircle className="w-5 h-5" />
               Activate Policy
-            </button>
+            </Button>
           )}
           {policy.status === 'active' && onDeactivate && (
-            <button
+            <Button
+              kind="secondary"
+              renderIcon={AlertCircle}
               onClick={() => onDeactivate(policy.id)}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+              style={{ flex: 1 }}
             >
-              <AlertCircle className="w-5 h-5" />
               Deactivate Policy
-            </button>
+            </Button>
           )}
           {(policy.status === 'active' || policy.status === 'inactive') && onApply && (
-            <button
+            <Button
+              kind="tertiary"
+              renderIcon={Zap}
               onClick={() => onApply(policy.id)}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-              title="Apply this rate limiting policy to the Gateway"
+              style={{ flex: 1 }}
             >
-              <Zap className="w-5 h-5" />
               Apply to Gateway
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </Tile>
     );
   }
 
   // Compact view
   return (
-    <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+    <Tile style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', borderRadius: '4px', cursor: 'pointer' }}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{policy.policy_name}</h3>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(policy.status)} flex items-center gap-1`}>
-              {getStatusIcon(policy.status)}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-05)' }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-03)' }}>{policy.policy_name}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <Tag type={getStatusTagType(policy.status)} size="sm" renderIcon={() => getStatusIcon(policy.status)}>
               {policy.status.toUpperCase()}
-            </span>
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+            </Tag>
+            <Tag type="purple" size="sm">
               {getPolicyTypeDisplayName(policy.policy_type)}
-            </span>
+            </Tag>
           </div>
         </div>
-        <Shield className="w-6 h-6 text-blue-500" />
+        <Shield size={24} style={{ color: 'var(--cds-link-primary)' }} />
       </div>
 
       {/* Thresholds Summary */}
-      <div className="bg-gray-50 rounded-lg p-3 mb-4">
-        <div className="grid grid-cols-2 gap-2 text-sm">
+      <div style={{ backgroundColor: 'var(--cds-layer-01)', borderRadius: '4px', padding: 'var(--cds-spacing-04)', marginBottom: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-03)', fontSize: '0.875rem' }}>
           {policy.limit_thresholds.requests_per_second && (
             <div>
-              <span className="text-gray-600">RPS:</span>
-              <span className="ml-1 font-semibold text-gray-900">
+              <span style={{ color: 'var(--cds-text-secondary)' }}>RPS:</span>
+              <span style={{ marginLeft: 'var(--cds-spacing-02)', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                 {policy.limit_thresholds.requests_per_second}
               </span>
             </div>
           )}
           {policy.limit_thresholds.requests_per_minute && (
             <div>
-              <span className="text-gray-600">RPM:</span>
-              <span className="ml-1 font-semibold text-gray-900">
+              <span style={{ color: 'var(--cds-text-secondary)' }}>RPM:</span>
+              <span style={{ marginLeft: 'var(--cds-spacing-02)', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                 {policy.limit_thresholds.requests_per_minute}
               </span>
             </div>
           )}
           {policy.limit_thresholds.requests_per_hour && (
             <div>
-              <span className="text-gray-600">RPH:</span>
-              <span className="ml-1 font-semibold text-gray-900">
+              <span style={{ color: 'var(--cds-text-secondary)' }}>RPH:</span>
+              <span style={{ marginLeft: 'var(--cds-spacing-02)', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                 {policy.limit_thresholds.requests_per_hour.toLocaleString()}
               </span>
             </div>
           )}
           {policy.limit_thresholds.concurrent_requests && (
             <div>
-              <span className="text-gray-600">Concurrent:</span>
-              <span className="ml-1 font-semibold text-gray-900">
+              <span style={{ color: 'var(--cds-text-secondary)' }}>Concurrent:</span>
+              <span style={{ marginLeft: 'var(--cds-spacing-02)', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                 {policy.limit_thresholds.concurrent_requests}
               </span>
             </div>
@@ -350,15 +354,15 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
       </div>
 
       {/* Enforcement & Effectiveness */}
-      <div className="flex items-center justify-between text-sm mb-4">
-        <div className={`flex items-center gap-1 ${enforcementDisplay.color} font-medium`}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: 'var(--cds-spacing-05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)', color: enforcementDisplay.color, fontWeight: 500 }}>
           {enforcementDisplay.icon}
           <span>{enforcementDisplay.text}</span>
         </div>
         {policy.effectiveness_score !== undefined && (
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-green-500" />
-            <span className="font-semibold text-gray-900">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <TrendingUp size={16} style={{ color: 'var(--cds-support-success)' }} />
+            <span style={{ fontWeight: 600, color: 'var(--cds-text-primary)' }}>
               {(policy.effectiveness_score * 100).toFixed(0)}%
             </span>
           </div>
@@ -366,37 +370,42 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
         {policy.status === 'inactive' && onActivate && (
-          <button
+          <Button
+            kind="primary"
+            size="sm"
+            renderIcon={CheckCircle}
             onClick={() => onActivate(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-1"
+            style={{ flex: 1 }}
           >
-            <CheckCircle className="w-4 h-4" />
             Activate
-          </button>
+          </Button>
         )}
         {policy.status === 'active' && onDeactivate && (
-          <button
+          <Button
+            kind="secondary"
+            size="sm"
+            renderIcon={AlertCircle}
             onClick={() => onDeactivate(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
+            style={{ flex: 1 }}
           >
-            <AlertCircle className="w-4 h-4" />
             Deactivate
-          </button>
+          </Button>
         )}
         {(policy.status === 'active' || policy.status === 'inactive') && onApply && (
-          <button
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Zap}
             onClick={() => onApply(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
-            title="Apply this rate limiting policy to the Gateway"
+            style={{ flex: 1 }}
           >
-            <Zap className="w-4 h-4" />
             Apply
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </Tile>
   );
 };
 

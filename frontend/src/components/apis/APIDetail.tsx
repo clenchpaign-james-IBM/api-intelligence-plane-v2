@@ -1,10 +1,11 @@
-import { Clock, Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, Activity, AlertTriangle, CheckCircle, XCircle } from '../../utils/carbonIcons';
+import { Heading, Tag, Tile, Grid, Column, InlineNotification } from '@carbon/react';
 import Card from '../common/Card';
 import type { API } from '../../types';
 
 /**
  * API Detail Component
- * 
+ *
  * Displays detailed information about a specific API including:
  * - Basic information and metadata
  * - Endpoints and methods
@@ -18,170 +19,185 @@ interface APIDetailProps {
 }
 
 const APIDetail = ({ api, onClose }: APIDetailProps) => {
-  // Get health score color
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 bg-green-100';
-    if (score >= 50) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+  // Get health score tag type
+  const getHealthTagType = (score: number): 'green' | 'warm-gray' | 'red' => {
+    if (score >= 80) return 'green';
+    if (score >= 50) return 'warm-gray';
+    return 'red';
+  };
+
+  // Get health label
+  const getHealthLabel = (score: number): string => {
+    if (score >= 80) return 'Excellent';
+    if (score >= 50) return 'Good';
+    return 'Poor';
   };
 
   // Get status icon
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'inactive': return <Clock className="w-5 h-5 text-gray-600" />;
-      case 'deprecated': return <AlertTriangle className="w-5 h-5 text-orange-600" />;
-      case 'failed': return <XCircle className="w-5 h-5 text-red-600" />;
-      default: return <Activity className="w-5 h-5 text-gray-600" />;
+      case 'active': return <CheckCircle size={20} style={{ color: 'var(--cds-support-success)' }} />;
+      case 'inactive': return <Clock size={20} style={{ color: 'var(--cds-icon-secondary)' }} />;
+      case 'deprecated': return <AlertTriangle size={20} style={{ color: 'var(--cds-support-warning)' }} />;
+      case 'failed': return <XCircle size={20} style={{ color: 'var(--cds-support-error)' }} />;
+      default: return <Activity size={20} style={{ color: 'var(--cds-icon-secondary)' }} />;
+    }
+  };
+
+  // Get method tag type
+  const getMethodTagType = (method: string): 'blue' | 'green' | 'warm-gray' | 'red' | 'gray' => {
+    switch (method) {
+      case 'GET': return 'blue';
+      case 'POST': return 'green';
+      case 'PUT': return 'warm-gray';
+      case 'DELETE': return 'red';
+      default: return 'gray';
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-gray-900">{api.name}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', marginBottom: 'var(--cds-spacing-03)', flexWrap: 'wrap' }}>
+            <Heading>{api.name}</Heading>
             {api.version && (
-              <span className="px-3 py-1 text-sm font-medium bg-gray-100 text-gray-700 rounded">
-                v{api.version}
-              </span>
+              <Tag type="gray">v{api.version}</Tag>
             )}
           </div>
-          <p className="text-gray-600">{api.base_path}</p>
+          <p style={{ color: 'var(--cds-text-secondary)', fontSize: '0.875rem' }}>{api.base_path}</p>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <XCircle className="w-6 h-6" />
-          </button>
-        )}
       </div>
 
       {/* Status and Health */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            {getStatusIcon(api.status)}
-            <div>
-              <p className="text-sm text-gray-600">Status</p>
-              <p className="text-lg font-semibold text-gray-900 capitalize">{api.status}</p>
+      <Grid narrow>
+        <Column lg={5} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+              {getStatusIcon(api.status)}
+              <div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Status</p>
+                <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', textTransform: 'capitalize' }}>{api.status}</p>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Tile>
+        </Column>
 
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${getHealthColor(api.health_score)}`}>
-              {api.health_score.toFixed(0)}
+        <Column lg={5} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+              <Tag type={getHealthTagType(api.health_score)} size="md" style={{ fontSize: '1.125rem', fontWeight: 600, padding: 'var(--cds-spacing-04)' }}>
+                {api.health_score.toFixed(0)}
+              </Tag>
+              <div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Health Score</p>
+                <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                  {getHealthLabel(api.health_score)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Health Score</p>
-              <p className="text-lg font-semibold text-gray-900">
-                {api.health_score >= 80 ? 'Excellent' : api.health_score >= 50 ? 'Good' : 'Poor'}
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Tile>
+        </Column>
 
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <Activity className="w-12 h-12 text-blue-600" />
-            <div>
-              <p className="text-sm text-gray-600">Discovery Method</p>
-              <p className="text-lg font-semibold text-gray-900 capitalize">
-                {api.discovery_method.replace('_', ' ')}
-              </p>
+        <Column lg={6} md={4} sm={4}>
+          <Tile style={{ padding: 'var(--cds-spacing-05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+              <Activity size={32} style={{ color: 'var(--cds-link-primary)' }} />
+              <div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Discovery Method</p>
+                <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--cds-text-primary)', textTransform: 'capitalize' }}>
+                  {api.discovery_method.replace('_', ' ')}
+                </p>
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
+          </Tile>
+        </Column>
+      </Grid>
 
       {/* Shadow API Warning */}
       {api.is_shadow && (
-        <div className="p-4 bg-orange-50 border-l-4 border-orange-500 rounded">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600" />
-            <p className="font-medium text-orange-900">Shadow API Detected</p>
-          </div>
-          <p className="text-sm text-orange-700 mt-1">
-            This API was discovered through traffic analysis and may not be officially documented.
-          </p>
-        </div>
+        <InlineNotification
+          kind="warning"
+          title="Shadow API Detected"
+          subtitle="This API was discovered through traffic analysis and may not be officially documented."
+          lowContrast
+          hideCloseButton
+        />
       )}
 
       {/* Current Metrics */}
       <Card title="Current Metrics" subtitle="Latest performance measurements">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <p className="text-sm text-gray-600">Response Time (P50)</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p50.toFixed(1)}ms
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Response Time (P95)</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p95.toFixed(1)}ms
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Response Time (P99)</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p99.toFixed(1)}ms
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Error Rate</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {(api.current_metrics.error_rate * 100).toFixed(2)}%
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Throughput</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.throughput.toFixed(1)} req/s
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Availability</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.availability.toFixed(2)}%
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 text-xs text-gray-500">
+        <Grid narrow>
+          <Column lg={5} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Response Time (P50)</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {api.current_metrics.response_time_p50.toFixed(1)}ms
+              </p>
+            </div>
+          </Column>
+          <Column lg={5} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Response Time (P95)</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {api.current_metrics.response_time_p95.toFixed(1)}ms
+              </p>
+            </div>
+          </Column>
+          <Column lg={6} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Response Time (P99)</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {api.current_metrics.response_time_p99.toFixed(1)}ms
+              </p>
+            </div>
+          </Column>
+          <Column lg={5} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Error Rate</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {(api.current_metrics.error_rate * 100).toFixed(2)}%
+              </p>
+            </div>
+          </Column>
+          <Column lg={5} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Throughput</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {api.current_metrics.throughput.toFixed(1)} req/s
+              </p>
+            </div>
+          </Column>
+          <Column lg={6} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Availability</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                {api.current_metrics.availability.toFixed(2)}%
+              </p>
+            </div>
+          </Column>
+        </Grid>
+        <div style={{ marginTop: 'var(--cds-spacing-05)', fontSize: '0.75rem', color: 'var(--cds-text-helper)' }}>
           Last measured: {new Date(api.current_metrics.measured_at).toLocaleString()}
         </div>
       </Card>
 
       {/* Endpoints */}
       <Card title="Endpoints" subtitle={`${api.endpoints.length} endpoints available`}>
-        <div className="space-y-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
           {api.endpoints.map((endpoint, index) => (
-            <div
-              key={index}
-              className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className={`px-2 py-1 text-xs font-mono font-bold rounded ${
-                  endpoint.method === 'GET' ? 'bg-blue-100 text-blue-800' :
-                  endpoint.method === 'POST' ? 'bg-green-100 text-green-800' :
-                  endpoint.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' :
-                  endpoint.method === 'DELETE' ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
+            <Tile key={index} style={{ padding: 'var(--cds-spacing-04)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                <Tag type={getMethodTagType(endpoint.method)} size="sm" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
                   {endpoint.method}
-                </span>
-                <code className="text-sm font-mono text-gray-900">{endpoint.path}</code>
+                </Tag>
+                <code style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{endpoint.path}</code>
               </div>
               {endpoint.description && (
-                <p className="text-sm text-gray-600 mt-1 ml-16">{endpoint.description}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-02)', marginLeft: 'var(--cds-spacing-09)' }}>{endpoint.description}</p>
               )}
-            </div>
+            </Tile>
           ))}
         </div>
       </Card>
@@ -216,14 +232,9 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
       {/* Tags */}
       {api.tags && api.tags.length > 0 && (
         <Card title="Tags" subtitle="API categorization">
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)' }}>
             {api.tags.map((tag) => (
-              <span
-                key={tag}
-                className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium"
-              >
-                {tag}
-              </span>
+              <Tag key={tag} type="blue">{tag}</Tag>
             ))}
           </div>
         </Card>
@@ -231,32 +242,44 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
 
       {/* Metadata */}
       <Card title="Metadata" subtitle="Additional information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-600">API ID</p>
-            <p className="font-mono text-gray-900">{api.id}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Gateway ID</p>
-            <p className="font-mono text-gray-900">{api.gateway_id}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Discovered At</p>
-            <p className="text-gray-900">{new Date(api.discovered_at).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Last Seen At</p>
-            <p className="text-gray-900">{new Date(api.last_seen_at).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Created At</p>
-            <p className="text-gray-900">{new Date(api.created_at).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Updated At</p>
-            <p className="text-gray-900">{new Date(api.updated_at).toLocaleString()}</p>
-          </div>
-        </div>
+        <Grid narrow>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>API ID</p>
+              <p style={{ fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{api.id}</p>
+            </div>
+          </Column>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Gateway ID</p>
+              <p style={{ fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{api.gateway_id}</p>
+            </div>
+          </Column>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Discovered At</p>
+              <p style={{ color: 'var(--cds-text-primary)' }}>{new Date(api.discovered_at).toLocaleString()}</p>
+            </div>
+          </Column>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Last Seen At</p>
+              <p style={{ color: 'var(--cds-text-primary)' }}>{new Date(api.last_seen_at).toLocaleString()}</p>
+            </div>
+          </Column>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Created At</p>
+              <p style={{ color: 'var(--cds-text-primary)' }}>{new Date(api.created_at).toLocaleString()}</p>
+            </div>
+          </Column>
+          <Column lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-02)' }}>Updated At</p>
+              <p style={{ color: 'var(--cds-text-primary)' }}>{new Date(api.updated_at).toLocaleString()}</p>
+            </div>
+          </Column>
+        </Grid>
       </Card>
     </div>
   );

@@ -1,10 +1,11 @@
 /**
  * Query History Component
- * 
+ *
  * Displays conversation history with queries and responses.
  */
 
 import React from 'react';
+import { Chat } from '@carbon/icons-react';
 import { Query } from '../../types';
 import { QueryResponse } from './QueryResponse';
 
@@ -19,27 +20,25 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
 }) => {
   if (queries.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
-        <svg
-          className="w-16 h-16 mb-4 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-          />
-        </svg>
-        <h3 className="text-lg font-medium mb-2">No queries yet</h3>
-        <p className="text-sm text-center max-w-md">
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: 'var(--cds-text-secondary)',
+        padding: 'var(--cds-spacing-07)'
+      }}>
+        <Chat size={64} style={{ marginBottom: 'var(--cds-spacing-05)', color: 'var(--cds-icon-disabled)' }} />
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 500, marginBottom: 'var(--cds-spacing-03)', color: 'var(--cds-text-primary)' }}>
+          No queries yet
+        </h3>
+        <p style={{ fontSize: '0.875rem', textAlign: 'center', maxWidth: '28rem', color: 'var(--cds-text-secondary)' }}>
           Start by asking a question about your APIs. Try asking about API health, predictions, or security vulnerabilities.
         </p>
-        <div className="mt-6 space-y-2">
-          <p className="text-xs font-medium text-gray-600">Example queries:</p>
-          <ul className="text-xs space-y-1 text-gray-500">
+        <div style={{ marginTop: 'var(--cds-spacing-07)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+          <p style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--cds-text-secondary)' }}>Example queries:</p>
+          <ul style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-02)', color: 'var(--cds-text-secondary)', listStyle: 'none', paddingLeft: 0 }}>
             <li>• "Show me all critical vulnerabilities"</li>
             <li>• "What APIs have high error rates?"</li>
             <li>• "Are there any predictions for the next 24 hours?"</li>
@@ -51,7 +50,7 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', padding: 'var(--cds-spacing-05)' }}>
       {queries.map((query) => (
         <QueryResponse
           key={query.id}

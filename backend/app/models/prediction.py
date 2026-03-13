@@ -82,6 +82,7 @@ class Prediction(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
     api_id: UUID = Field(..., description="Target API")
+    api_name: Optional[str] = Field(None, description="API name (enriched from inventory)")
     prediction_type: PredictionType = Field(..., description="Type of prediction")
     predicted_at: datetime = Field(..., description="When prediction made")
     predicted_time: datetime = Field(..., description="When event expected")

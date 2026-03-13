@@ -85,6 +85,9 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
             <h3 className="font-semibold text-gray-900">
               {prediction.api_name || `API ${prediction.api_id.slice(0, 8)}`}
             </h3>
+            <p className="text-xs text-gray-500 font-mono">
+              ID: {prediction.api_id}
+            </p>
             <p className="text-sm text-gray-600 capitalize">
               {prediction.prediction_type.replace('_', ' ')}
             </p>
@@ -112,11 +115,11 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
             <div className="flex-1 bg-gray-200 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full"
-                style={{ width: `${prediction.confidence * 100}%` }}
+                style={{ width: `${(prediction.confidence_score || 0) * 100}%` }}
               />
             </div>
             <span className="text-sm font-medium text-gray-900">
-              {Math.round(prediction.confidence * 100)}%
+              {Math.round((prediction.confidence_score || 0) * 100)}%
             </span>
           </div>
         </div>

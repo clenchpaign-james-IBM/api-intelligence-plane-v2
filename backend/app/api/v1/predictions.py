@@ -43,6 +43,7 @@ class PredictionResponse(BaseModel):
     
     id: str
     api_id: str
+    api_name: Optional[str] = None
     prediction_type: str
     predicted_at: str
     predicted_time: str
@@ -114,6 +115,7 @@ async def list_predictions(
             PredictionResponse(
                 id=str(p.id),
                 api_id=str(p.api_id),
+                api_name=p.api_name,
                 prediction_type=p.prediction_type.value,
                 predicted_at=p.predicted_at.isoformat(),
                 predicted_time=p.predicted_time.isoformat(),
@@ -189,10 +191,19 @@ async def get_prediction(
                 detail=f"Prediction {prediction_id} not found",
             )
         
+        # Enrich with API name
+        api_repo = APIRepository()
+        try:
+            api = api_repo.get(str(prediction.api_id))
+            api_name = api.name if api else None
+        except Exception:
+            api_name = None
+        
         # Convert to response model
         return PredictionResponse(
             id=str(prediction.id),
             api_id=str(prediction.api_id),
+            api_name=api_name or f"API {str(prediction.api_id)[:8]}",
             prediction_type=prediction.prediction_type.value,
             predicted_at=prediction.predicted_at.isoformat(),
             predicted_time=prediction.predicted_time.isoformat(),

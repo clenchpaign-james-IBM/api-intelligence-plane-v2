@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" modified="2026-03-13T10:57:00.000Z" agent="draw.io" version="24.0.0">
+  <diagram name="High-Level Architecture" id="high-level-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Frontend -->
+        <mxCell id="frontend" value="Frontend (React SPA)&#xa;Dashboard, APIs, Security, Query UI&#xa;Port: 3000 (HTTP/HTTPS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="300" y="50" width="600" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Backend Container -->
+        <mxCell id="backend-container" value="Backend API (FastAPI)&#xa;Discovery, Metrics, Predictions, Security&#xa;(Single Source of Truth)&#xa;Port: 8000 (HTTP/HTTPS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;fontSize=14;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="300" y="250" width="600" height="200" as="geometry" />
+        </mxCell>
+        
+        <!-- Services Box -->
+        <mxCell id="services" value="Services&#xa;(Business Logic)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="340" y="340" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Agents Box -->
+        <mxCell id="agents" value="Agents&#xa;(LangChain/&#xa;LangGraph)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="525" y="340" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Adapters Box -->
+        <mxCell id="adapters" value="Adapters&#xa;(Gateway&#xa;Strategy)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="710" y="340" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- OpenSearch -->
+        <mxCell id="opensearch" value="OpenSearch&#xa;(Data Store)&#xa;&#xa;Port: 9200" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="550" width="150" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- LLM Providers -->
+        <mxCell id="llm" value="LLM Providers&#xa;(OpenAI, Anthropic,&#xa;Azure, etc.)&#xa;via LiteLLM" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="475" y="550" width="250" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Demo Gateway -->
+        <mxCell id="gateway" value="Demo Gateway&#xa;(Spring Boot)&#xa;Native API&#xa;Gateway Impl&#xa;&#xa;Port: 8080" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="850" y="550" width="200" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Optional MCP Container -->
+        <mxCell id="mcp-container" value="OPTIONAL: External Agent Integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#9E9E9E;fontSize=14;fontStyle=1;align=center;verticalAlign=top;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="950" y="50" width="400" height="400" as="geometry" />
+        </mxCell>
+        
+        <!-- AI Agents -->
+        <mxCell id="ai-agents" value="AI Agents&#xa;(Bob IDE,&#xa;Claude Desktop)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#E0F7FA;strokeColor=#00ACC1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="120" width="60" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- MCP Servers -->
+        <mxCell id="mcp-servers" value="MCP Servers&#xa;(Thin Wrappers)&#xa;&#xa;- Discovery (8001)&#xa;- Metrics (8002)&#xa;- Optimization (8004)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=12;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="100" width="180" height="140" as="geometry" />
+        </mxCell>
+        
+        <!-- MCP Backend Reference -->
+        <mxCell id="mcp-backend" value="Backend API (8000)&#xa;(Same as above)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="340" width="180" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows -->
+        <mxCell id="arrow1" value="REST API (JSON)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="frontend" target="backend-container">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;" edge="1" parent="1" source="backend-container" target="opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" edge="1" parent="1" source="backend-container" target="llm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" edge="1" parent="1" source="backend-container" target="gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow5" value="MCP Protocol" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="ai-agents" target="mcp-servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow6" value="HTTP REST API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="mcp-servers" target="mcp-backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

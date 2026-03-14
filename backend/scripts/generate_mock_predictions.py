@@ -68,11 +68,11 @@ class MockPredictionGenerator:
             # Determine severity based on distribution
             severity = self._choose_severity(severity_distribution)
             
-            # Generate prediction
+            # Generate prediction with current timestamp
             prediction = self._create_prediction(
                 api_id=api_id,
                 severity=severity,
-                predicted_at=now - timedelta(hours=random.randint(0, 48)),
+                predicted_at=now,  # Use current time instead of past time
             )
             
             # Store in OpenSearch

@@ -56,6 +56,7 @@ class PredictionResponse(BaseModel):
     actual_time: Optional[str] = None
     accuracy_score: Optional[float] = None
     model_version: str
+    metadata: Optional[dict] = None
     created_at: str
     updated_at: str
 
@@ -137,6 +138,7 @@ async def list_predictions(
                 actual_time=p.actual_time.isoformat() if p.actual_time else None,
                 accuracy_score=p.accuracy_score,
                 model_version=p.model_version,
+                metadata=p.metadata,
                 created_at=p.created_at.isoformat(),
                 updated_at=p.updated_at.isoformat(),
             )

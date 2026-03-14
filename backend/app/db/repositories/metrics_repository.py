@@ -128,7 +128,7 @@ class MetricsRepository(BaseRepository[Metric]):
         query = {
             "bool": {
                 "must": [
-                    {"term": {"api_id": str(api_id)}},
+                    {"term": {"api_id.keyword": str(api_id)}},
                     {
                         "range": {
                             "timestamp": {
@@ -214,7 +214,7 @@ class MetricsRepository(BaseRepository[Metric]):
             Latest metric if found, None otherwise
         """
         query = {
-            "term": {"api_id": str(api_id)}
+            "term": {"api_id.keyword": str(api_id)}
         }
         
         sort = [{"timestamp": {"order": "desc"}}]
@@ -252,7 +252,7 @@ class MetricsRepository(BaseRepository[Metric]):
             query = {
                 "bool": {
                     "must": [
-                        {"term": {"api_id": str(api_id)}},
+                        {"term": {"api_id.keyword": str(api_id)}},
                         {
                             "range": {
                                 "timestamp": {
@@ -344,7 +344,7 @@ class MetricsRepository(BaseRepository[Metric]):
             query = {
                 "bool": {
                     "must": [
-                        {"term": {"api_id": str(api_id)}},
+                        {"term": {"api_id.keyword": str(api_id)}},
                         {
                             "range": {
                                 "timestamp": {

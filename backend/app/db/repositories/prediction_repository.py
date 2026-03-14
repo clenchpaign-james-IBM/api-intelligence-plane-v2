@@ -40,7 +40,28 @@ class PredictionRepository(BaseRepository[Prediction]):
         Returns:
             Prediction if found, None otherwise
         """
-        return self.get(prediction_id)
+        # Search by the id field, not the OpenSearch _id
+        try:
+            result = self.client.search(
+                index=self.index_name,
+                body={
+                    "query": {
+                        "term": {
+                            "id.keyword": prediction_id  # Use .keyword for exact match on UUID string
+                        }
+                    },
+                    "size": 1
+                }
+            )
+            
+            if result['hits']['total']['value'] > 0:
+                hit = result['hits']['hits'][0]
+                return self.model_class(**hit['_source'])
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get prediction {prediction_id}: {e}")
+            return None
 
     def list_predictions(
         self,

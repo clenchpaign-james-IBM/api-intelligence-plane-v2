@@ -361,9 +361,14 @@ const Optimization = () => {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {recommendation.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {recommendation.title}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-blue-600 font-medium mb-1">
+                      API: {recommendation.api_name || `ID: ${recommendation.api_id.substring(0, 8)}...`}
+                    </p>
                     <p className="text-sm text-gray-600 line-clamp-2">
                       {recommendation.description}
                     </p>
@@ -439,6 +444,9 @@ const Optimization = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   {selectedRecommendation.title}
                 </h2>
+                <p className="text-blue-600 font-medium mb-2">
+                  API: {selectedRecommendation.api_name || `ID: ${selectedRecommendation.api_id.substring(0, 8)}...`}
+                </p>
                 <p className="text-gray-600">{selectedRecommendation.description}</p>
                 <div className="flex items-center gap-2 mt-4">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedRecommendation.priority)}`}>

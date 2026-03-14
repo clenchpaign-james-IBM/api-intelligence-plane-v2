@@ -82,9 +82,17 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
         <div className="flex items-center gap-2">
           {statusIcons[prediction.status]}
           <div>
-            <h3 className="font-semibold text-gray-900">
-              {prediction.api_name || `API ${prediction.api_id.slice(0, 8)}`}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900">
+                {prediction.api_name || `API ${prediction.api_id.slice(0, 8)}`}
+              </h3>
+              {prediction.metadata?.ai_explanation && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
+                  <Sparkles className="w-3 h-3" />
+                  AI Enhanced
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-500 font-mono">
               ID: {prediction.api_id}
             </p>
@@ -199,19 +207,19 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
         </div>
       )}
 
-      {/* AI Explanation Section */}
-      {detailed && (
+      {/* AI Explanation Section - Only show for AI-enhanced predictions */}
+      {detailed && prediction.metadata?.ai_explanation && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <button
             onClick={() => setShowAiExplanation(!showAiExplanation)}
-            className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium text-sm"
+            className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium text-sm transition-colors"
           >
             <Sparkles className="w-4 h-4" />
             {showAiExplanation ? 'Hide' : 'Show'} AI Explanation
           </button>
           
           {showAiExplanation && (
-            <div className="mt-3 bg-purple-50 rounded-lg p-4">
+            <div className="mt-3 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
               {explanationLoading ? (
                 <div className="flex items-center gap-2 text-purple-600">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
@@ -219,28 +227,19 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
                 </div>
               ) : aiExplanation ? (
                 <div className="space-y-3">
-                  <div>
-                    <h5 className="text-sm font-semibold text-purple-900 mb-1">Analysis</h5>
-                    <p className="text-sm text-purple-800">{aiExplanation.analysis}</p>
-                  </div>
-                  {aiExplanation.reasoning && (
+                  {/* Display the explanation string with proper formatting */}
+                  {aiExplanation.explanation ? (
                     <div>
-                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Reasoning</h5>
-                      <p className="text-sm text-purple-800">{aiExplanation.reasoning}</p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-5 h-5 text-purple-600" />
+                        <h5 className="text-sm font-semibold text-purple-900">AI-Powered Analysis</h5>
+                      </div>
+                      <div className="text-sm text-purple-900 whitespace-pre-line leading-relaxed">
+                        {aiExplanation.explanation}
+                      </div>
                     </div>
-                  )}
-                  {aiExplanation.confidence_factors && aiExplanation.confidence_factors.length > 0 && (
-                    <div>
-                      <h5 className="text-sm font-semibold text-purple-900 mb-1">Confidence Factors</h5>
-                      <ul className="space-y-1">
-                        {aiExplanation.confidence_factors.map((factor: string, index: number) => (
-                          <li key={index} className="text-sm text-purple-800 flex items-start gap-2">
-                            <span className="text-purple-600 mt-0.5">•</span>
-                            <span>{factor}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                  ) : (
+                    <p className="text-sm text-purple-700">No explanation text available.</p>
                   )}
                 </div>
               ) : (

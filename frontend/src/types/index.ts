@@ -276,6 +276,7 @@ export type VulnerabilityStatus = 'open' | 'in_progress' | 'resolved' | 'false_p
 export interface Recommendation {
   id: string;
   api_id: string;
+  api_name?: string;
   recommendation_type: RecommendationType;
   title: string;
   description: string;

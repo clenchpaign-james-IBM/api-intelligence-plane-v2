@@ -44,6 +44,7 @@ class RecommendationResponse(BaseModel):
     
     id: str
     api_id: str
+    api_name: Optional[str] = None
     recommendation_type: str
     title: str
     description: str
@@ -110,8 +111,9 @@ async def list_recommendations(
         HTTPException: If recommendation retrieval fails
     """
     try:
-        # Initialize repository
+        # Initialize repositories
         recommendation_repo = RecommendationRepository()
+        api_repo = APIRepository()
         
         # Get recommendations with filters
         result = recommendation_repo.list_recommendations(
@@ -123,33 +125,43 @@ async def list_recommendations(
             page_size=page_size,
         )
         
-        # Convert to response models
-        recommendations = [
-            RecommendationResponse(
-                id=str(rec.id),
-                api_id=str(rec.api_id),
-                recommendation_type=rec.recommendation_type.value,
-                title=rec.title,
-                description=rec.description,
-                priority=rec.priority.value,
-                estimated_impact=EstimatedImpactResponse(
-                    metric=rec.estimated_impact.metric,
-                    current_value=rec.estimated_impact.current_value,
-                    expected_value=rec.estimated_impact.expected_value,
-                    improvement_percentage=rec.estimated_impact.improvement_percentage,
-                    confidence=rec.estimated_impact.confidence,
-                ),
-                implementation_effort=rec.implementation_effort.value,
-                implementation_steps=rec.implementation_steps,
-                status=rec.status.value,
-                implemented_at=rec.implemented_at.isoformat() if rec.implemented_at else None,
-                cost_savings=rec.cost_savings,
-                created_at=rec.created_at.isoformat(),
-                updated_at=rec.updated_at.isoformat(),
-                expires_at=rec.expires_at.isoformat() if rec.expires_at else None,
+        # Convert to response models with API name enrichment
+        recommendations = []
+        for rec in result["recommendations"]:
+            # Try to get API name
+            api_name = None
+            try:
+                api = api_repo.get(str(rec.api_id))
+                api_name = api.name if api else None
+            except Exception:
+                pass
+            
+            recommendations.append(
+                RecommendationResponse(
+                    id=str(rec.id),
+                    api_id=str(rec.api_id),
+                    api_name=api_name,
+                    recommendation_type=rec.recommendation_type.value,
+                    title=rec.title,
+                    description=rec.description,
+                    priority=rec.priority.value,
+                    estimated_impact=EstimatedImpactResponse(
+                        metric=rec.estimated_impact.metric,
+                        current_value=rec.estimated_impact.current_value,
+                        expected_value=rec.estimated_impact.expected_value,
+                        improvement_percentage=rec.estimated_impact.improvement_percentage,
+                        confidence=rec.estimated_impact.confidence,
+                    ),
+                    implementation_effort=rec.implementation_effort.value,
+                    implementation_steps=rec.implementation_steps,
+                    status=rec.status.value,
+                    implemented_at=rec.implemented_at.isoformat() if rec.implemented_at else None,
+                    cost_savings=rec.cost_savings,
+                    created_at=rec.created_at.isoformat(),
+                    updated_at=rec.updated_at.isoformat(),
+                    expires_at=rec.expires_at.isoformat() if rec.expires_at else None,
+                )
             )
-            for rec in result["recommendations"]
-        ]
         
         return RecommendationListResponse(
             recommendations=recommendations,

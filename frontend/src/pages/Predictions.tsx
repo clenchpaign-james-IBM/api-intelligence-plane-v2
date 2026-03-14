@@ -156,46 +156,14 @@ const Predictions = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-4">
-          <Filter className="w-5 h-5 text-gray-500" />
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Severity:</label>
-            <select
-              value={selectedSeverity}
-              onChange={(e) => setSelectedSeverity(e.target.value as PredictionSeverity | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Status:</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as PredictionStatus | 'all')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="resolved">Resolved</option>
-              <option value="false_positive">False Positive</option>
-              <option value="expired">Expired</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Timeline View */}
       {activePredictions.length > 0 && (
         <div className="mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Prediction Timeline</h2>
-          <PredictionTimeline predictions={activePredictions} />
+          <PredictionTimeline
+            predictions={activePredictions}
+            onPredictionClick={setSelectedPrediction}
+          />
         </div>
       )}
 
@@ -223,7 +191,7 @@ const Predictions = () => {
         )}
       </div>
 
-      {/* Detailed View Modal (if needed) */}
+      {/* Detailed View Modal */}
       {selectedPrediction && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
@@ -239,12 +207,6 @@ const Predictions = () => {
                 detailed
                 onClick={() => {}}
               />
-              <button
-                onClick={() => setSelectedPrediction(null)}
-                className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

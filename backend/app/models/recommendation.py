@@ -13,14 +13,16 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class RecommendationType(str, Enum):
-    """Type of optimization."""
+    """Type of optimization.
+    
+    Only includes recommendations that can be validated with gateway-observable metrics.
+    Removed: query_optimization, resource_allocation, connection_pooling
+    (These require backend instrumentation to diagnose accurately)
+    """
 
     CACHING = "caching"
-    QUERY_OPTIMIZATION = "query_optimization"
-    RESOURCE_ALLOCATION = "resource_allocation"
     RATE_LIMITING = "rate_limiting"
     COMPRESSION = "compression"
-    CONNECTION_POOLING = "connection_pooling"
 
 
 class RecommendationPriority(str, Enum):

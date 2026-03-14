@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Zap, TrendingUp, Filter, DollarSign, Shield, Sparkles } from 'lucide-react';
+import { Zap, TrendingUp, Filter, DollarSign, Shield } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
 import RateLimitPolicy from '../components/optimization/RateLimitPolicy';
@@ -34,7 +34,6 @@ const Optimization = () => {
   const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<RateLimitPolicyType | null>(null);
   const [selectedPolicyStatus, setSelectedPolicyStatus] = useState<PolicyStatus | 'all'>('all');
-  const [useAi, setUseAi] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   
   const queryClient = useQueryClient();
@@ -78,31 +77,15 @@ const Optimization = () => {
     enabled: !!selectedPolicy && activeTab === 'rate-limiting',
   });
 
-  // Activate policy mutation
-  const activateMutation = useMutation({
-    mutationFn: (policyId: string) => api.rateLimits.activate(policyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
-    },
-  });
-
-  // Deactivate policy mutation
-  const deactivateMutation = useMutation({
-    mutationFn: (policyId: string) => api.rateLimits.deactivate(policyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
-    },
-  });
-
-  // Apply policy mutation
+  // Apply policy mutation (creates or updates policy in Gateway)
   const applyMutation = useMutation({
     mutationFn: (policyId: string) => api.rateLimits.apply(policyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rate-limits'] });
-      alert('Rate limit policy applied to Gateway successfully!');
+      alert('Rate limit policy applied to Gateway successfully! The policy has been created or updated in the Gateway.');
     },
     onError: (error: any) => {
-      alert(`Failed to apply policy: ${error.message || 'Unknown error'}`);
+      alert(`Failed to apply policy to Gateway: ${error.message || 'Unknown error'}`);
     },
   });
 
@@ -130,11 +113,27 @@ const Optimization = () => {
   const recommendations = data?.recommendations || [];
   const total = data?.total || 0;
   const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
-  const highPriorityCount = recommendations.filter((r: Recommendation) => 
+  const highPriorityCount = recommendations.filter((r: Recommendation) =>
     r.priority === 'critical' || r.priority === 'high'
   ).length;
   const totalSavings = stats?.total_cost_savings || 0;
   const avgImprovement = stats?.avg_improvement || 0;
+
+  // Group recommendations by API
+  const groupedRecommendations: Record<string, Recommendation[]> = recommendations.reduce((acc: Record<string, Recommendation[]>, rec: Recommendation) => {
+    const apiKey = rec.api_name || rec.api_id;
+    if (!acc[apiKey]) acc[apiKey] = [];
+    acc[apiKey].push(rec);
+    return acc;
+  }, {} as Record<string, Recommendation[]>);
+
+  // Group rate limit policies by API
+  const groupedPolicies: Record<string, RateLimitPolicyType[]> = (rateLimitData?.items || []).reduce((acc: Record<string, RateLimitPolicyType[]>, policy: RateLimitPolicyType) => {
+    const apiKey = policy.api_name || policy.api_id;
+    if (!acc[apiKey]) acc[apiKey] = [];
+    acc[apiKey].push(policy);
+    return acc;
+  }, {} as Record<string, RateLimitPolicyType[]>);
 
   // Priority badge color
   const getPriorityColor = (priority: RecommendationPriority) => {
@@ -174,31 +173,10 @@ const Optimization = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
             <p className="mt-2 text-sm text-gray-600">
-              {useAi ? 'LLM-enhanced recommendations with detailed insights' : 'Rule-based recommendations'} and intelligent rate limiting
+              Performance recommendations and intelligent rate limiting
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* AI Toggle Switch */}
-            {activeTab === 'recommendations' && (
-              <div className="flex items-center gap-2 bg-white rounded-lg shadow px-4 py-2">
-                <Sparkles className={`w-5 h-5 ${useAi ? 'text-purple-600' : 'text-gray-400'}`} />
-                <span className="text-sm font-medium text-gray-700">AI Enhanced</span>
-                <button
-                  onClick={() => setUseAi(!useAi)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    useAi ? 'bg-purple-600' : 'bg-gray-300'
-                  }`}
-                  role="switch"
-                  aria-checked={useAi}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      useAi ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            )}
             <button
               onClick={() => {
                 setIsGenerating(true);
@@ -330,18 +308,16 @@ const Optimization = () => {
             >
               <option value="all">All</option>
               <option value="caching">Caching</option>
-              <option value="query_optimization">Query Optimization</option>
-              <option value="resource_allocation">Resource Allocation</option>
+              <option value="rate_limiting">Rate Limiting</option>
               <option value="compression">Compression</option>
-              <option value="connection_pooling">Connection Pooling</option>
             </select>
           </div>
         </div>
           </div>
 
-          {/* Recommendations List */}
+          {/* Recommendations List - Grouped by API */}
           <div>
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Recommendations</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Recommendations (Grouped by API)</h2>
         {recommendations.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -351,76 +327,75 @@ const Optimization = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {recommendations.map((recommendation: Recommendation) => (
-              <div
-                key={recommendation.id}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setSelectedRecommendation(recommendation)}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
+          <div className="space-y-8">
+            {Object.entries(groupedRecommendations).map(([apiKey, apiRecs]) => (
+              <div key={apiKey} className="bg-white rounded-lg shadow-lg p-6">
+                {/* API Group Header */}
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {apiRecs[0].api_name || `API ${apiRecs[0].api_id.substring(0, 8)}...`}
+                  </h3>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                    {apiRecs.length} recommendation{apiRecs.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {/* Recommendations Grid for this API */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {apiRecs.map((recommendation: Recommendation) => (
+                    <div
+                      key={recommendation.id}
+                      className="bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => setSelectedRecommendation(recommendation)}
+                    >
+                      {/* Title */}
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">
                         {recommendation.title}
-                      </h3>
-                    </div>
-                    <p className="text-sm text-blue-600 font-medium mb-1">
-                      API: {recommendation.api_name || `ID: ${recommendation.api_id.substring(0, 8)}...`}
-                    </p>
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {recommendation.description}
-                    </p>
-                  </div>
-                </div>
+                      </h4>
+                      <p className="text-sm text-gray-600 line-clamp-2 mb-4">
+                        {recommendation.description}
+                      </p>
 
-                {/* Badges */}
-                <div className="flex items-center gap-2 mb-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(recommendation.priority)}`}>
-                    {recommendation.priority.toUpperCase()}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(recommendation.status)}`}>
-                    {recommendation.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    {getTypeDisplayName(recommendation.recommendation_type)}
-                  </span>
-                </div>
+                      {/* Badges */}
+                      <div className="flex items-center gap-2 mb-4 flex-wrap">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(recommendation.priority)}`}>
+                          {recommendation.priority.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(recommendation.status)}`}>
+                          {recommendation.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {getTypeDisplayName(recommendation.recommendation_type)}
+                        </span>
+                      </div>
 
-                {/* Impact */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Expected Impact</span>
-                    <span className="text-lg font-bold text-green-600">
-                      +{recommendation.estimated_impact.improvement_percentage.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Current: {recommendation.estimated_impact.current_value.toFixed(2)}ms</span>
-                      <span>Expected: {recommendation.estimated_impact.expected_value.toFixed(2)}ms</span>
-                    </div>
-                    <div className="mt-1">
-                      Confidence: {(recommendation.estimated_impact.confidence * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
+                      {/* Impact */}
+                      <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Expected Impact</span>
+                          <span className="text-lg font-bold text-green-600">
+                            +{recommendation.estimated_impact.improvement_percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
 
-                {/* Effort & Savings */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600">Effort:</span>
-                    <span className="font-medium text-gray-900 capitalize">
-                      {recommendation.implementation_effort}
-                    </span>
-                  </div>
-                  {recommendation.cost_savings && (
-                    <div className="flex items-center gap-1 text-blue-600 font-medium">
-                      <DollarSign className="w-4 h-4" />
-                      {recommendation.cost_savings.toFixed(0)}/mo
+                      {/* Effort & Savings */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-600">Effort:</span>
+                          <span className="font-medium text-gray-900 capitalize">
+                            {recommendation.implementation_effort}
+                          </span>
+                        </div>
+                        {recommendation.cost_savings && (
+                          <div className="flex items-center gap-1 text-blue-600 font-medium">
+                            <DollarSign className="w-4 h-4" />
+                            {recommendation.cost_savings.toFixed(0)}/mo
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             ))}
@@ -441,12 +416,16 @@ const Optimization = () => {
             <div className="p-6">
               {/* Header */}
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                <div className="mb-3">
+                  <span className="text-sm font-medium text-gray-600">API:</span>
+                  <span className="ml-2 text-sm font-semibold text-blue-600">
+                    {selectedRecommendation.api_name || `ID: ${selectedRecommendation.api_id.substring(0, 8)}...`}
+                  </span>
+                </div>
+                
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">
                   {selectedRecommendation.title}
                 </h2>
-                <p className="text-blue-600 font-medium mb-2">
-                  API: {selectedRecommendation.api_name || `ID: ${selectedRecommendation.api_id.substring(0, 8)}...`}
-                </p>
                 <p className="text-gray-600">{selectedRecommendation.description}</p>
                 <div className="flex items-center gap-2 mt-4">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedRecommendation.priority)}`}>
@@ -621,9 +600,9 @@ const Optimization = () => {
                       </div>
                     </div>
           
-                    {/* Rate Limit Policies List */}
+                    {/* Rate Limit Policies List - Grouped by API */}
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900 mb-4">Rate Limit Policies</h2>
+                      <h2 className="text-xl font-bold text-gray-900 mb-4">Rate Limit Policies (Grouped by API)</h2>
                       {rateLimitLoading ? (
                         <Loading message="Loading rate limit policies..." />
                       ) : rateLimitError ? (
@@ -633,19 +612,34 @@ const Optimization = () => {
                           <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                           <p className="text-gray-600">No rate limit policies found</p>
                           <p className="text-sm text-gray-500 mt-2">
-                            Create policies to protect your APIs from excessive traffic
+                            Rate limit policies are generated automatically based on API traffic patterns
                           </p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {rateLimitData.items.map((policy: RateLimitPolicyType) => (
-                            <div key={policy.id} onClick={() => setSelectedPolicy(policy)}>
-                              <RateLimitPolicy
-                                policy={policy}
-                                onActivate={(id) => activateMutation.mutate(id)}
-                                onDeactivate={(id) => deactivateMutation.mutate(id)}
-                                onApply={(id) => applyMutation.mutate(id)}
-                              />
+                        <div className="space-y-8">
+                          {Object.entries(groupedPolicies).map(([apiKey, apiPolicies]) => (
+                            <div key={apiKey} className="bg-white rounded-lg shadow-lg p-6">
+                              {/* API Group Header */}
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {apiPolicies[0].api_name || `API ${apiPolicies[0].api_id.substring(0, 8)}...`}
+                                </h3>
+                                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                  {apiPolicies.length} {apiPolicies.length === 1 ? 'policy' : 'policies'}
+                                </span>
+                              </div>
+
+                              {/* Policies Grid for this API */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {apiPolicies.map((policy: RateLimitPolicyType) => (
+                                  <div key={policy.id} onClick={() => setSelectedPolicy(policy)}>
+                                    <RateLimitPolicy
+                                      policy={policy}
+                                      onApply={(id) => applyMutation.mutate(id)}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -666,14 +660,6 @@ const Optimization = () => {
                             <RateLimitPolicy
                               policy={selectedPolicy}
                               detailed={true}
-                              onActivate={(id) => {
-                                activateMutation.mutate(id);
-                                setSelectedPolicy(null);
-                              }}
-                              onDeactivate={(id) => {
-                                deactivateMutation.mutate(id);
-                                setSelectedPolicy(null);
-                              }}
                               onApply={(id) => {
                                 applyMutation.mutate(id);
                                 setSelectedPolicy(null);

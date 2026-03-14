@@ -300,7 +300,7 @@ export interface EstimatedImpact {
   confidence: number;
 }
 
-export type RecommendationType = 'caching' | 'query_optimization' | 'resource_allocation' | 'compression' | 'connection_pooling';
+export type RecommendationType = 'caching' | 'rate_limiting' | 'compression';
 export type RecommendationPriority = 'critical' | 'high' | 'medium' | 'low';
 export type RecommendationStatus = 'pending' | 'in_progress' | 'implemented' | 'rejected' | 'expired';
 export type ImplementationEffort = 'low' | 'medium' | 'high';
@@ -327,6 +327,7 @@ export interface RecommendationStatsResponse {
 export interface RateLimitPolicy {
   id: string;
   api_id: string;
+  api_name?: string;
   policy_name: string;
   policy_type: PolicyType;
   status: PolicyStatus;

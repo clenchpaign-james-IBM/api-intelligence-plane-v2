@@ -112,6 +112,7 @@ class OptimizationService:
             return []
 
         # Analyze metrics and generate recommendations
+        # Only generate recommendations that can be validated with gateway-observable metrics
         recommendations = []
 
         # Check for caching opportunities
@@ -120,29 +121,11 @@ class OptimizationService:
             if caching_rec and caching_rec.estimated_impact.improvement_percentage >= min_impact:
                 recommendations.append(caching_rec)
 
-        # Check for query optimization opportunities
-        if not focus_areas or RecommendationType.QUERY_OPTIMIZATION in focus_areas:
-            query_rec = self._analyze_query_optimization(api_id, metrics)
-            if query_rec and query_rec.estimated_impact.improvement_percentage >= min_impact:
-                recommendations.append(query_rec)
-
-        # Check for resource allocation opportunities
-        if not focus_areas or RecommendationType.RESOURCE_ALLOCATION in focus_areas:
-            resource_rec = self._analyze_resource_allocation(api_id, metrics)
-            if resource_rec and resource_rec.estimated_impact.improvement_percentage >= min_impact:
-                recommendations.append(resource_rec)
-
         # Check for compression opportunities
         if not focus_areas or RecommendationType.COMPRESSION in focus_areas:
             compression_rec = self._analyze_compression_opportunity(api_id, metrics)
             if compression_rec and compression_rec.estimated_impact.improvement_percentage >= min_impact:
                 recommendations.append(compression_rec)
-
-        # Check for connection pooling opportunities
-        if not focus_areas or RecommendationType.CONNECTION_POOLING in focus_areas:
-            pooling_rec = self._analyze_connection_pooling(api_id, metrics)
-            if pooling_rec and pooling_rec.estimated_impact.improvement_percentage >= min_impact:
-                recommendations.append(pooling_rec)
 
         # Store recommendations
         for recommendation in recommendations:
@@ -385,10 +368,10 @@ class OptimizationService:
             id=uuid4(),
             api_id=api_id,
             recommendation_type=RecommendationType.CACHING,
-            title="Implement Response Caching",
+            title="Enable Response Caching Policy",
             description=(
-                f"Current P95 response time is {avg_p95:.0f}ms. Implementing a caching "
-                f"layer (Redis/Memcached) can reduce response times by approximately "
+                f"Current P95 response time is {avg_p95:.0f}ms. Enabling a gateway-level "
+                f"caching policy can reduce response times by approximately "
                 f"{improvement_percentage:.0f}%, bringing P95 down to {expected_p95:.0f}ms."
             ),
             priority=RecommendationPriority.HIGH if avg_p95 > 1000 else RecommendationPriority.MEDIUM,
@@ -399,117 +382,20 @@ class OptimizationService:
                 improvement_percentage=improvement_percentage,
                 confidence=0.85,
             ),
-            implementation_effort=ImplementationEffort.MEDIUM,
+            implementation_effort=ImplementationEffort.LOW,
             implementation_steps=[
-                "Set up Redis/Memcached cluster",
-                "Implement caching middleware in API layer",
-                "Define cache invalidation strategy",
-                "Add cache key generation logic",
-                "Monitor cache hit rates and adjust TTL",
+                "Configure gateway caching policy for this API",
+                "Set cache TTL based on data freshness requirements (e.g., 5-60 minutes)",
+                "Define cache key strategy (URL, headers, query parameters)",
+                "Configure cache invalidation rules",
+                "Monitor cache hit rates and adjust policy as needed",
             ],
             cost_savings=cost_savings,
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 
-    def _analyze_query_optimization(
-        self, api_id: UUID, metrics: List[Metric]
-    ) -> Optional[OptimizationRecommendation]:
-        """Analyze if query optimization would benefit this API."""
-        if not metrics:
-            return None
-
-        # Calculate average response times
-        avg_p99 = statistics.mean([m.response_time_p99 for m in metrics])
-
-        # Check if P99 is significantly higher than P95 (indicates slow queries)
-        avg_p95 = statistics.mean([m.response_time_p95 for m in metrics])
-        p99_p95_ratio = avg_p99 / avg_p95 if avg_p95 > 0 else 1.0
-
-        if p99_p95_ratio < 2.0:  # P99 should be at least 2x P95 for query issues
-            return None
-
-        # Estimate improvement (query optimization typically reduces P99 by 30-50%)
-        improvement_percentage = 40.0
-        expected_p99 = avg_p99 * (1 - improvement_percentage / 100)
-
-        return OptimizationRecommendation(
-            id=uuid4(),
-            api_id=api_id,
-            recommendation_type=RecommendationType.QUERY_OPTIMIZATION,
-            title="Optimize Database Queries",
-            description=(
-                f"P99 response time ({avg_p99:.0f}ms) is {p99_p95_ratio:.1f}x higher than "
-                f"P95 ({avg_p95:.0f}ms), indicating slow database queries. Optimizing queries "
-                f"and adding indexes can reduce P99 by approximately {improvement_percentage:.0f}%."
-            ),
-            priority=RecommendationPriority.HIGH,
-            estimated_impact=EstimatedImpact(
-                metric="response_time_p99",
-                current_value=avg_p99,
-                expected_value=expected_p99,
-                improvement_percentage=improvement_percentage,
-                confidence=0.80,
-            ),
-            implementation_effort=ImplementationEffort.MEDIUM,
-            implementation_steps=[
-                "Identify slow queries using query profiling",
-                "Add database indexes for frequently queried fields",
-                "Optimize N+1 query patterns",
-                "Implement query result pagination",
-                "Add query performance monitoring",
-            ],
-            cost_savings=(avg_p99 - expected_p99) * self.COST_PER_MS_IMPROVEMENT,
-            expires_at=datetime.utcnow() + timedelta(days=30),
-        )
-
-    def _analyze_resource_allocation(
-        self, api_id: UUID, metrics: List[Metric]
-    ) -> Optional[OptimizationRecommendation]:
-        """Analyze if resource allocation changes would benefit this API."""
-        if not metrics:
-            return None
-
-        # Calculate average throughput and error rate
-        avg_throughput = statistics.mean([m.throughput for m in metrics])
-        avg_error_rate = statistics.mean([m.error_rate for m in metrics])
-
-        # Check if low throughput with high error rate (resource constraint)
-        if avg_throughput > self.LOW_THROUGHPUT or avg_error_rate < self.HIGH_ERROR_RATE:
-            return None
-
-        # Estimate improvement
-        improvement_percentage = 30.0
-        expected_error_rate = avg_error_rate * (1 - improvement_percentage / 100)
-
-        return OptimizationRecommendation(
-            id=uuid4(),
-            api_id=api_id,
-            recommendation_type=RecommendationType.RESOURCE_ALLOCATION,
-            title="Increase Resource Allocation",
-            description=(
-                f"Low throughput ({avg_throughput:.1f} req/s) combined with high error rate "
-                f"({avg_error_rate*100:.1f}%) suggests resource constraints. Increasing CPU/memory "
-                f"allocation can reduce errors by approximately {improvement_percentage:.0f}%."
-            ),
-            priority=RecommendationPriority.CRITICAL if avg_error_rate > 0.10 else RecommendationPriority.HIGH,
-            estimated_impact=EstimatedImpact(
-                metric="error_rate",
-                current_value=avg_error_rate,
-                expected_value=expected_error_rate,
-                improvement_percentage=improvement_percentage,
-                confidence=0.75,
-            ),
-            implementation_effort=ImplementationEffort.LOW,
-            implementation_steps=[
-                "Analyze current resource utilization metrics",
-                "Increase CPU allocation by 50%",
-                "Increase memory allocation by 50%",
-                "Monitor performance improvements",
-                "Adjust auto-scaling thresholds",
-            ],
-            cost_savings=(avg_error_rate - expected_error_rate) * 100 * self.COST_PER_PERCENT_ERROR_REDUCTION,
-            expires_at=datetime.utcnow() + timedelta(days=30),
-        )
+    # Removed: _analyze_query_optimization, _analyze_resource_allocation, _analyze_connection_pooling
+    # These methods generated recommendations that cannot be validated with gateway-observable metrics
 
     def _analyze_compression_opportunity(
         self, api_id: UUID, metrics: List[Metric]
@@ -559,54 +445,6 @@ class OptimizationService:
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 
-    def _analyze_connection_pooling(
-        self, api_id: UUID, metrics: List[Metric]
-    ) -> Optional[OptimizationRecommendation]:
-        """Analyze if connection pooling would benefit this API."""
-        if not metrics:
-            return None
-
-        # Calculate average response times and throughput
-        avg_p95 = statistics.mean([m.response_time_p95 for m in metrics])
-        avg_throughput = statistics.mean([m.throughput for m in metrics])
-
-        # Connection pooling helps with high throughput and moderate response times
-        if avg_throughput < 50 or avg_p95 < 200:
-            return None
-
-        # Estimate improvement (connection pooling typically reduces response time by 15-25%)
-        improvement_percentage = 20.0
-        expected_p95 = avg_p95 * (1 - improvement_percentage / 100)
-
-        return OptimizationRecommendation(
-            id=uuid4(),
-            api_id=api_id,
-            recommendation_type=RecommendationType.CONNECTION_POOLING,
-            title="Implement Connection Pooling",
-            description=(
-                f"High throughput ({avg_throughput:.0f} req/s) with P95 of {avg_p95:.0f}ms "
-                f"suggests connection overhead. Implementing connection pooling can reduce "
-                f"response times by approximately {improvement_percentage:.0f}%."
-            ),
-            priority=RecommendationPriority.MEDIUM,
-            estimated_impact=EstimatedImpact(
-                metric="response_time_p95",
-                current_value=avg_p95,
-                expected_value=expected_p95,
-                improvement_percentage=improvement_percentage,
-                confidence=0.85,
-            ),
-            implementation_effort=ImplementationEffort.MEDIUM,
-            implementation_steps=[
-                "Configure database connection pool (size: 10-50)",
-                "Set connection timeout and idle timeout",
-                "Implement connection health checks",
-                "Add connection pool monitoring",
-                "Tune pool size based on load patterns",
-            ],
-            cost_savings=(avg_p95 - expected_p95) * self.COST_PER_MS_IMPROVEMENT,
-            expires_at=datetime.utcnow() + timedelta(days=30),
-        )
 
 
 # Made with Bob

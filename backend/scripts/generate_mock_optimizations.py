@@ -106,12 +106,9 @@ class MockOptimizationGenerator:
     ) -> OptimizationRecommendation:
         """Create a single recommendation with realistic data."""
         
-        # Priority based on type
+        # Priority based on type (only gateway-observable recommendations)
         priority_map = {
-            RecommendationType.QUERY_OPTIMIZATION: RecommendationPriority.CRITICAL,
             RecommendationType.CACHING: RecommendationPriority.HIGH,
-            RecommendationType.CONNECTION_POOLING: RecommendationPriority.HIGH,
-            RecommendationType.RESOURCE_ALLOCATION: RecommendationPriority.MEDIUM,
             RecommendationType.COMPRESSION: RecommendationPriority.LOW,
             RecommendationType.RATE_LIMITING: RecommendationPriority.MEDIUM,
         }
@@ -153,166 +150,145 @@ class MockOptimizationGenerator:
     def _get_type_specific_data(self, rec_type: RecommendationType) -> dict:
         """Get type-specific recommendation data."""
         
-        data_map = {
-            RecommendationType.CACHING: {
-                "title": "Implement Redis caching for frequently accessed data",
-                "description": "Add caching layer to reduce database load and improve response times for read-heavy endpoints. Current cache hit rate is 0%, indicating no caching is in place.",
-                "current_metrics": {
-                    "avg_response_time_ms": random.uniform(400, 600),
-                    "p95_response_time_ms": random.uniform(800, 1200),
-                    "requests_per_minute": random.uniform(150, 250),
-                    "cache_hit_rate": 0.0,
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="response_time_p95",
-                    current_value=random.uniform(800, 1200),
-                    expected_value=random.uniform(300, 500),
-                    improvement_percentage=random.uniform(50, 70),
-                    confidence=random.uniform(0.85, 0.95),
-                ),
-                "implementation_steps": [
-                    "Set up Redis cluster",
-                    "Identify cacheable GET endpoints",
-                    "Implement cache-aside pattern",
-                    "Configure TTL based on data volatility",
-                    "Add cache invalidation logic",
-                    "Monitor cache hit rates and memory usage",
+        # Multiple variations for each recommendation type
+        caching_variations = [
+            {
+                "title": "Enable Response Caching Policy",
+                "description": "Configure gateway-level caching policy to reduce response times for read-heavy endpoints. Current P95 response time is high and no caching policy is enabled.",
+                "steps": [
+                    "Configure gateway caching policy for this API",
+                    "Set cache TTL based on data freshness requirements (e.g., 5-60 minutes)",
+                    "Define cache key strategy (URL, headers, query parameters)",
+                    "Configure cache invalidation rules",
+                    "Monitor cache hit rates and adjust policy as needed",
                 ],
-                "effort": ImplementationEffort.HIGH,
-                "cost_savings": random.uniform(2000, 5000),
             },
-            RecommendationType.QUERY_OPTIMIZATION: {
-                "title": "Optimize database queries with missing indexes",
-                "description": "Add database indexes and optimize N+1 query patterns causing performance bottlenecks. Slow query analysis shows multiple queries taking over 1 second.",
-                "current_metrics": {
-                    "avg_response_time_ms": random.uniform(1000, 1500),
-                    "p95_response_time_ms": random.uniform(2000, 3000),
-                    "requests_per_minute": random.uniform(60, 100),
-                    "slow_query_count": random.randint(30, 60),
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="response_time_p95",
-                    current_value=random.uniform(2000, 3000),
-                    expected_value=random.uniform(500, 800),
-                    improvement_percentage=random.uniform(65, 80),
-                    confidence=random.uniform(0.90, 0.98),
-                ),
-                "implementation_steps": [
-                    "Analyze slow query logs",
-                    "Identify missing indexes",
-                    "Create composite indexes for common queries",
-                    "Refactor N+1 queries to use joins",
-                    "Add query result pagination",
-                    "Monitor query execution times",
+            {
+                "title": "Configure Cache-Control Headers",
+                "description": "Implement proper Cache-Control headers at the gateway level to enable browser and CDN caching. Current responses lack caching directives.",
+                "steps": [
+                    "Add Cache-Control headers to gateway responses",
+                    "Set appropriate max-age values for different endpoints",
+                    "Configure ETag generation for conditional requests",
+                    "Implement Vary headers for content negotiation",
+                    "Test caching behavior across different clients",
                 ],
-                "effort": ImplementationEffort.HIGH,
-                "cost_savings": random.uniform(3000, 7000),
             },
-            RecommendationType.RESOURCE_ALLOCATION: {
-                "title": "Adjust resource allocation based on usage patterns",
-                "description": "Right-size container resources and implement auto-scaling for cost optimization. Current resource utilization shows over-provisioning.",
-                "current_metrics": {
-                    "avg_cpu_usage": random.uniform(20, 35),
-                    "avg_memory_usage": random.uniform(35, 50),
-                    "peak_cpu_usage": random.uniform(60, 75),
-                    "peak_memory_usage": random.uniform(70, 85),
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="cost_per_request",
-                    current_value=random.uniform(0.04, 0.06),
-                    expected_value=random.uniform(0.025, 0.035),
-                    improvement_percentage=random.uniform(30, 40),
-                    confidence=random.uniform(0.85, 0.92),
-                ),
-                "implementation_steps": [
-                    "Analyze resource utilization patterns",
-                    "Right-size container CPU and memory",
-                    "Configure horizontal pod autoscaling",
-                    "Set up resource requests and limits",
-                    "Implement cost monitoring",
+            {
+                "title": "Optimize Cache TTL Strategy",
+                "description": "Fine-tune cache TTL values at the gateway to balance freshness and performance. Current cache policy uses suboptimal TTL values.",
+                "steps": [
+                    "Analyze data volatility patterns per endpoint",
+                    "Adjust cache TTL values in gateway policy",
+                    "Implement stale-while-revalidate strategy",
+                    "Configure cache warming for critical endpoints",
+                    "Monitor cache effectiveness metrics",
                 ],
-                "effort": ImplementationEffort.MEDIUM,
-                "cost_savings": random.uniform(1500, 4000),
             },
-            RecommendationType.COMPRESSION: {
-                "title": "Enable response compression for large payloads",
-                "description": "Implement gzip/brotli compression to reduce bandwidth and improve transfer speeds. Current responses are uncompressed.",
-                "current_metrics": {
-                    "avg_response_size_kb": random.uniform(400, 500),
-                    "bandwidth_usage_gb": random.uniform(100, 150),
-                    "compression_enabled": False,
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="bandwidth_usage",
-                    current_value=random.uniform(100, 150),
-                    expected_value=random.uniform(60, 90),
-                    improvement_percentage=random.uniform(35, 45),
-                    confidence=random.uniform(0.88, 0.94),
-                ),
-                "implementation_steps": [
-                    "Enable gzip compression middleware",
-                    "Configure compression thresholds",
-                    "Test with various content types",
-                    "Monitor compression ratios",
-                    "Measure bandwidth savings",
-                ],
-                "effort": ImplementationEffort.LOW,
-                "cost_savings": random.uniform(800, 2000),
-            },
-            RecommendationType.CONNECTION_POOLING: {
-                "title": "Optimize database connection pooling",
-                "description": "Configure connection pool settings to reduce connection overhead and improve concurrency. Current pool is undersized.",
-                "current_metrics": {
-                    "avg_connection_time_ms": random.uniform(70, 100),
-                    "active_connections": random.randint(12, 18),
-                    "max_connections": 20,
-                    "connection_errors": random.randint(8, 15),
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="connection_time_ms",
-                    current_value=random.uniform(70, 100),
-                    expected_value=random.uniform(40, 60),
-                    improvement_percentage=random.uniform(25, 35),
-                    confidence=random.uniform(0.82, 0.90),
-                ),
-                "implementation_steps": [
-                    "Analyze connection pool metrics",
-                    "Increase pool size based on load",
-                    "Configure connection timeout settings",
-                    "Implement connection retry logic",
-                    "Monitor pool utilization",
-                ],
-                "effort": ImplementationEffort.MEDIUM,
-                "cost_savings": random.uniform(1000, 2500),
-            },
-            RecommendationType.RATE_LIMITING: {
-                "title": "Implement adaptive rate limiting",
-                "description": "Add rate limiting to protect against traffic spikes and abuse. Current API has no rate limiting.",
-                "current_metrics": {
-                    "peak_requests_per_minute": random.uniform(300, 500),
-                    "avg_requests_per_minute": random.uniform(150, 250),
-                    "rate_limit_enabled": False,
-                },
-                "estimated_impact": EstimatedImpact(
-                    metric="availability",
-                    current_value=99.5,
-                    expected_value=99.9,
-                    improvement_percentage=random.uniform(15, 25),
-                    confidence=random.uniform(0.80, 0.88),
-                ),
-                "implementation_steps": [
-                    "Define rate limit policies",
-                    "Implement rate limiting middleware",
-                    "Configure limits per endpoint",
-                    "Add rate limit headers",
-                    "Monitor rate limit violations",
-                ],
-                "effort": ImplementationEffort.MEDIUM,
-                "cost_savings": random.uniform(500, 1500),
-            },
-        }
+        ]
         
-        return data_map.get(rec_type, data_map[RecommendationType.CACHING])
+        compression_variations = [
+            {
+                "title": "Enable Response Compression Policy",
+                "description": "Configure gateway compression to reduce bandwidth usage and improve transfer speeds. Current responses are uncompressed.",
+                "steps": [
+                    "Enable gzip/brotli compression in gateway policy",
+                    "Set minimum response size threshold (e.g., 1KB)",
+                    "Configure compression level (balance speed vs ratio)",
+                    "Test compression with various content types",
+                    "Monitor bandwidth savings and CPU impact",
+                ],
+            },
+            {
+                "title": "Optimize Compression Settings",
+                "description": "Fine-tune gateway compression settings for optimal performance. Current compression policy uses default settings.",
+                "steps": [
+                    "Adjust compression level based on content type",
+                    "Configure selective compression for specific endpoints",
+                    "Enable Brotli for modern clients",
+                    "Set appropriate compression thresholds",
+                    "Measure compression ratio improvements",
+                ],
+            },
+            {
+                "title": "Enable Selective Content Compression",
+                "description": "Configure gateway to compress only appropriate content types. Current policy compresses all responses indiscriminately.",
+                "steps": [
+                    "Define compressible content types (JSON, XML, HTML, CSS, JS)",
+                    "Exclude already-compressed formats (images, video)",
+                    "Configure compression based on Accept-Encoding headers",
+                    "Implement compression bypass for small responses",
+                    "Monitor compression effectiveness per content type",
+                ],
+            },
+        ]
+        
+        rate_limiting_variations = [
+            {
+                "title": "Implement Rate Limiting Policy",
+                "description": "Configure gateway rate limiting to protect against traffic spikes and abuse. Current API has no rate limiting.",
+                "steps": [
+                    "Define rate limit thresholds per endpoint",
+                    "Configure rate limiting policy in gateway",
+                    "Set up rate limit response headers (X-RateLimit-*)",
+                    "Implement different limits for authenticated vs anonymous users",
+                    "Monitor rate limit violations and adjust as needed",
+                ],
+            },
+            {
+                "title": "Configure Adaptive Rate Limiting",
+                "description": "Implement dynamic rate limiting that adjusts based on system load. Current static limits don't account for capacity changes.",
+                "steps": [
+                    "Configure adaptive rate limiting in gateway",
+                    "Set baseline and maximum rate limits",
+                    "Define load-based adjustment triggers",
+                    "Implement gradual limit reduction under high load",
+                    "Monitor system capacity and rate limit effectiveness",
+                ],
+            },
+            {
+                "title": "Optimize Rate Limit Granularity",
+                "description": "Fine-tune rate limiting rules at the gateway for better protection. Current limits are too coarse-grained.",
+                "steps": [
+                    "Implement per-endpoint rate limits",
+                    "Configure different limits for read vs write operations",
+                    "Set up tiered limits based on user roles",
+                    "Add burst allowance for legitimate traffic spikes",
+                    "Review and adjust limits based on usage patterns",
+                ],
+            },
+        ]
+        
+        # Select random variation based on type
+        if rec_type == RecommendationType.CACHING:
+            variation = random.choice(caching_variations)
+        elif rec_type == RecommendationType.COMPRESSION:
+            variation = random.choice(compression_variations)
+        elif rec_type == RecommendationType.RATE_LIMITING:
+            variation = random.choice(rate_limiting_variations)
+        else:
+            variation = caching_variations[0]
+        
+        # Build common data structure
+        return {
+            "title": variation["title"],
+            "description": variation["description"],
+            "current_metrics": {
+                "avg_response_time_ms": random.uniform(400, 600),
+                "p95_response_time_ms": random.uniform(800, 1200),
+                "requests_per_minute": random.uniform(150, 250),
+            },
+            "estimated_impact": EstimatedImpact(
+                metric="response_time_p95" if rec_type == RecommendationType.CACHING else "bandwidth_usage" if rec_type == RecommendationType.COMPRESSION else "availability",
+                current_value=random.uniform(800, 1200) if rec_type == RecommendationType.CACHING else random.uniform(100, 150) if rec_type == RecommendationType.COMPRESSION else 99.5,
+                expected_value=random.uniform(300, 500) if rec_type == RecommendationType.CACHING else random.uniform(60, 90) if rec_type == RecommendationType.COMPRESSION else 99.9,
+                improvement_percentage=random.uniform(50, 70) if rec_type == RecommendationType.CACHING else random.uniform(35, 45) if rec_type == RecommendationType.COMPRESSION else random.uniform(15, 25),
+                confidence=random.uniform(0.85, 0.95),
+            ),
+            "implementation_steps": variation["steps"],
+            "effort": ImplementationEffort.LOW if rec_type in [RecommendationType.CACHING, RecommendationType.COMPRESSION] else ImplementationEffort.MEDIUM,
+            "cost_savings": random.uniform(2000, 5000) if rec_type == RecommendationType.CACHING else random.uniform(800, 2000) if rec_type == RecommendationType.COMPRESSION else random.uniform(500, 1500),
+        }
     
     async def generate_for_all_apis(
         self,

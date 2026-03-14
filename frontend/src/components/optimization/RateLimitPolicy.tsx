@@ -4,23 +4,21 @@ import type { RateLimitPolicy, PolicyType, PolicyStatus, EnforcementAction } fro
 
 interface RateLimitPolicyProps {
   policy: RateLimitPolicy;
-  onActivate?: (policyId: string) => void;
-  onDeactivate?: (policyId: string) => void;
   onApply?: (policyId: string) => void;
   detailed?: boolean;
 }
 
 /**
  * RateLimitPolicy Component
- * 
+ *
  * Displays a rate limit policy with:
  * - Policy name, type, and status
  * - Limit thresholds (RPS, RPM, RPH, concurrent)
  * - Enforcement action and effectiveness score
  * - Priority rules and consumer tiers (if applicable)
- * - Activation/deactivation controls
+ * - Apply to Gateway control
  */
-const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed = false }: RateLimitPolicyProps) => {
+const RateLimitPolicy = ({ policy, onApply, detailed = false }: RateLimitPolicyProps) => {
   // Policy type display name
   const getPolicyTypeDisplayName = (type: PolicyType) => {
     switch (type) {
@@ -257,36 +255,18 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          {policy.status === 'inactive' && onActivate && (
-            <button
-              onClick={() => onActivate(policy.id)}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <CheckCircle className="w-5 h-5" />
-              Activate Policy
-            </button>
-          )}
-          {policy.status === 'active' && onDeactivate && (
-            <button
-              onClick={() => onDeactivate(policy.id)}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <AlertCircle className="w-5 h-5" />
-              Deactivate Policy
-            </button>
-          )}
-          {(policy.status === 'active' || policy.status === 'inactive') && onApply && (
+        {onApply && (
+          <div className="flex gap-3">
             <button
               onClick={() => onApply(policy.id)}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-              title="Apply this rate limiting policy to the Gateway"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              title="Apply or update this rate limiting policy in the Gateway"
             >
               <Zap className="w-5 h-5" />
               Apply to Gateway
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -366,36 +346,18 @@ const RateLimitPolicy = ({ policy, onActivate, onDeactivate, onApply, detailed =
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
-        {policy.status === 'inactive' && onActivate && (
-          <button
-            onClick={() => onActivate(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-1"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Activate
-          </button>
-        )}
-        {policy.status === 'active' && onDeactivate && (
-          <button
-            onClick={() => onDeactivate(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
-          >
-            <AlertCircle className="w-4 h-4" />
-            Deactivate
-          </button>
-        )}
-        {(policy.status === 'active' || policy.status === 'inactive') && onApply && (
+      {onApply && (
+        <div className="flex gap-2">
           <button
             onClick={() => onApply(policy.id)}
-            className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
-            title="Apply this rate limiting policy to the Gateway"
+            className="w-full px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+            title="Apply or update this rate limiting policy in the Gateway"
           >
             <Zap className="w-4 h-4" />
-            Apply
+            Apply to Gateway
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

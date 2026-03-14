@@ -124,6 +124,7 @@ class RateLimitPolicyResponse(BaseModel):
     
     id: str
     api_id: str
+    api_name: Optional[str] = None
     policy_name: str
     policy_type: str
     status: str
@@ -175,11 +176,12 @@ class EffectivenessAnalysisResponse(BaseModel):
     analysis_period: dict
 
 
-def _convert_policy_to_response(policy: RateLimitPolicy) -> RateLimitPolicyResponse:
+def _convert_policy_to_response(policy: RateLimitPolicy, api_name: Optional[str] = None) -> RateLimitPolicyResponse:
     """Convert RateLimitPolicy model to response model."""
     return RateLimitPolicyResponse(
         id=str(policy.id),
         api_id=str(policy.api_id),
+        api_name=api_name,
         policy_name=policy.policy_name,
         policy_type=policy.policy_type.value,
         status=policy.status.value,
@@ -261,8 +263,22 @@ async def list_rate_limit_policies(
             page_size=page_size,
         )
         
-        # Convert to response models
-        policy_responses = [_convert_policy_to_response(p) for p in policies]
+        # Fetch API names for enrichment
+        api_names = {}
+        for policy in policies:
+            if str(policy.api_id) not in api_names:
+                try:
+                    api = api_repo.get(str(policy.api_id))
+                    if api:
+                        api_names[str(policy.api_id)] = api.name
+                except Exception:
+                    pass  # If API not found, skip
+        
+        # Convert to response models with API names
+        policy_responses = [
+            _convert_policy_to_response(p, api_names.get(str(p.api_id)))
+            for p in policies
+        ]
         
         return RateLimitPolicyListResponse(
             items=policy_responses,

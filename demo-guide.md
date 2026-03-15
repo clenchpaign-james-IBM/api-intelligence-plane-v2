@@ -314,7 +314,7 @@ The API Intelligence Plane uses a modern microservices architecture:
 <img alt="image" src="./screenshots/18.Optimization Dashboard - Recommendations Tab.png">
 
 **[SCREENSHOT 19: Recommendations Grouped by API]**
-<img alt="image" src="./screenshots/19.Recommendations Grouped by API">
+<img alt="image" src="./screenshots/19.Recommendations Grouped by API.png">
 
 **[SCREENSHOT 20: Recommendation Card - Summary]**
 <img alt="image" src="./screenshots/20.Recommendation Card - Summary.png">
@@ -381,7 +381,7 @@ The API Intelligence Plane uses a modern microservices architecture:
 <img alt="image" src="./screenshots/27.Query Example - Performance Analysis.png">
 
 **[SCREENSHOT 29: Query Example - Predictions]**
-<img alt="image" src="./screenshots/28.Query Example - Predictionsw.png">
+<img alt="image" src="./screenshots/28.Query Example - Predictions.png">
 
 **[SCREENSHOT 30: Query with Follow-up Questions]**
 <img alt="image" src="./screenshots/29.Query with Follow-up Questions.png">

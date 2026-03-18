@@ -35,10 +35,6 @@ API Intelligence Plane is an AI-driven API management platform that transforms A
 
 ## System Architecture
 
-### Positioning
-
-<img alt="image" src="./diagrams/APIIP-Positioning.drawio.png">
-
 ### High-Level Architecture
 
 <img alt="image" src="./diagrams/APIIP-High-Level Architecture-Combined.drawio.png">

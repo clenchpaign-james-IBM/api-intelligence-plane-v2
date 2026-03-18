@@ -84,7 +84,7 @@ curl http://localhost:8004/health
 
 ```bash
 # Create required indices and mappings
-docker-compose exec backend python scripts/init_opensearch.py
+docker-compose exec backend python scripts/init_opensearch.py --host opensearch
 
 # Expected output: "All indices created successfully"
 ```
@@ -109,7 +109,7 @@ docker-compose exec backend python scripts/generate_mock_data.py
 docker-compose exec backend python scripts/generate_mock_predictions.py
 
 # Generate optimization recommendations
-docker-compose exec backend python scripts/generate_mock_optimizations.py
+docker-compose exec backend python scripts/generate_mock_optimizations.py --all-apis
 
 # Generate rate limiting policies
 docker-compose exec backend python scripts/generate_mock_rate_limits.py

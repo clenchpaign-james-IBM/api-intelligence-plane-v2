@@ -22,6 +22,10 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 
 The API Intelligence Plane is a microservices-based platform with clear separation between the core application and optional external agent integrations.
 
+### Positioning in API management platform
+
+<img alt="image" src="./docs/diagrams/APIIP-Positioning.drawio.png">
+
 ### Core Application Architecture
 
 <img alt="image" src="./docs/diagrams/APIIP-High-Level Architecture.drawio.png" width="750">

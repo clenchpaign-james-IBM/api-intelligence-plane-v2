@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1" pages="11">
   <diagram id="7zF9OFfrKFjMeUzYTsfi" name="High-Level Architecture">
-    <mxGraphModel dx="1647" dy="917" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
+    <mxGraphModel dx="1620" dy="859" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -29,16 +29,16 @@
           <mxGeometry height="120" width="200" x="1480" y="960" as="geometry" />
         </mxCell>
         <mxCell id="HnU9T2LGDwplVOHgXsrw-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#9E9E9E;fontSize=14;fontStyle=1;align=center;verticalAlign=top;dashed=1;dashPattern=8 8;" value="OPTIONAL: External Agent Integration" vertex="1">
-          <mxGeometry height="400" width="400" x="1580" y="460" as="geometry" />
+          <mxGeometry height="400" width="470" x="1580" y="460" as="geometry" />
         </mxCell>
         <mxCell id="HnU9T2LGDwplVOHgXsrw-11" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#E0F7FA;strokeColor=#00ACC1;fontSize=12;" value="AI Agents&#xa;(Bob IDE,&#xa;Claude Desktop)" vertex="1">
-          <mxGeometry height="120" width="60" x="1630" y="530" as="geometry" />
+          <mxGeometry height="120" width="60" x="1630" y="520" as="geometry" />
         </mxCell>
         <mxCell id="HnU9T2LGDwplVOHgXsrw-12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#00ACC1;fontSize=12;fontStyle=1;align=left;" value="MCP Servers&#xa;(Thin Wrappers)&#xa;&#xa;- Discovery (8001)&#xa;- Metrics (8002)&#xa;- Optimization (8004)" vertex="1">
-          <mxGeometry height="140" width="180" x="1780" y="510" as="geometry" />
+          <mxGeometry height="140" width="180" x="1840" y="510" as="geometry" />
         </mxCell>
         <mxCell id="HnU9T2LGDwplVOHgXsrw-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=12;" value="Backend API (8000)&#xa;(Same as above)" vertex="1">
-          <mxGeometry height="80" width="180" x="1730" y="750" as="geometry" />
+          <mxGeometry height="80" width="180" x="1725" y="750" as="geometry" />
         </mxCell>
         <mxCell id="HnU9T2LGDwplVOHgXsrw-14" edge="1" parent="1" source="HnU9T2LGDwplVOHgXsrw-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=12;" target="HnU9T2LGDwplVOHgXsrw-3" value="REST API (JSON)">
           <mxGeometry relative="1" as="geometry" />

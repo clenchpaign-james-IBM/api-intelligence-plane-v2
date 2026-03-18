@@ -22,13 +22,9 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 
 The API Intelligence Plane is a microservices-based platform with clear separation between the core application and optional external agent integrations.
 
-### Positioning in API management platform
-
-<img alt="image" src="./docs/diagrams/APIIP-Positioning.drawio.png">
-
 ### Core Application Architecture
 
-<img alt="image" src="./docs/diagrams/APIIP-High-Level Architecture.drawio.png" width="750">
+<img alt="image" src="./docs/diagrams/APIIP-High-Level Architecture.drawio.png" width="850">
 
 ### Optional: External AI Agent Integration
 
@@ -39,6 +35,10 @@ MCP servers are **optional** components for external AI agents (Bob IDE, Claude 
 **Note**: MCP servers are NOT required for core functionality. They only enable external AI agents to interact with the platform programmatically.
 
 📖 **See [Architecture Documentation](docs/architecture.md) for detailed system design and [MCP Architecture](docs/mcp-architecture.md) for AI agent integration.**
+
+### Positioning in API management platform
+
+<img alt="image" src="./docs/diagrams/APIIP-Positioning.drawio.png" width="850">
 
 ## Quick Start
 

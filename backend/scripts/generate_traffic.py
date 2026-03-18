@@ -10,7 +10,7 @@ This script generates simulated API traffic to test:
 - Anomaly detection
 
 Usage:
-    python backend/scripts/generate_traffic.py --gateway-url http://localhost:8081 --duration 60 --rate 10
+    python backend/scripts/generate_traffic.py --gateway-url http://localhost:8080 --duration 60 --rate 10
 """
 
 import argparse
@@ -303,8 +303,8 @@ async def main():
     parser = argparse.ArgumentParser(description='Generate API traffic for testing')
     parser.add_argument(
         '--gateway-url',
-        default='http://localhost:8081',
-        help='Gateway base URL (default: http://localhost:8081)'
+        default='http://localhost:8080',
+        help='Gateway base URL (default: http://localhost:8080)'
     )
     parser.add_argument(
         '--rate',

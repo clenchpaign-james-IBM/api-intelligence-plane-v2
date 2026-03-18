@@ -232,11 +232,11 @@ async def discover_apis(gateway_id: str) -> dict:
 
 ### 1. Core Application Flow (Frontend → Backend → Gateway)
 
-<img alt="image" src="./diagrams/APIIP-Core Application Data Flow.drawio.png" width="400px">
+<img alt="image" src="./diagrams/APIIP-Core Application Data Flow.drawio.png" width="500px">
 
 ### 2. Optional External Agent Flow (AI Agents → MCP → Backend)
 
-<img alt="image" src="./diagrams/APIIP-External Agent Flow.drawio.png" width="300px">
+<img alt="image" src="./diagrams/APIIP-External Agent Flow.drawio.png" width="250px">
 
 ### 3. API Discovery Flow
 

@@ -332,7 +332,7 @@ The API Intelligence Plane uses a modern microservices architecture:
 <img alt="image" src="./screenshots/23.Rate Limit Policy Card.png">
 
 **[SCREENSHOT 25: Rate Limit Policy Detail with Chart]**
-<img alt="image" src="./screenshots/01.Dashboard Overview.png">
+<img alt="image" src="./screenshots/24.Rate Limit Policy Detail.png">
 
 ---
 

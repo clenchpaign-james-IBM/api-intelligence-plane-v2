@@ -9,10 +9,10 @@ import Gateways from './pages/Gateways';
 import Predictions from './pages/Predictions';
 import Optimization from './pages/Optimization';
 import { Query } from './pages/Query';
+import { Security } from './pages/Security';
 
 // Placeholder components for routes (will be implemented in user stories)
 const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
-const Security = () => <div className="p-6"><h1 className="text-2xl font-bold">Security</h1></div>;
 const NotFound = () => <div className="p-6"><h1 className="text-2xl font-bold">404 - Page Not Found</h1></div>;
 
 // Create QueryClient instance
@@ -83,7 +83,13 @@ function App() {
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
                       Optimization
-                    </Link>                    
+                    </Link>
+                    <Link
+                      to="/security"
+                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                    >
+                      Security
+                    </Link>
                     <Link
                       to="/query"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"

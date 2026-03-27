@@ -212,6 +212,30 @@ The platform includes optional AI-powered features that enhance predictions and 
 
 ## Development
 
+### Generating Mock Data
+
+For testing and demonstration purposes, you can generate realistic mock data:
+
+```bash
+# Generate mock APIs, gateways, and metrics
+cd backend
+python3 scripts/generate_mock_data.py
+
+# Generate security vulnerabilities (50 by default)
+python3 scripts/generate_mock_security_data.py --count 50 --summary
+
+# Generate predictions
+python3 scripts/generate_mock_predictions.py
+
+# Generate optimization recommendations
+python3 scripts/generate_mock_optimizations.py
+
+# Generate rate limit policies
+python3 scripts/generate_mock_rate_limits.py
+```
+
+See [`backend/scripts/README_SECURITY_MOCK_DATA.md`](backend/scripts/README_SECURITY_MOCK_DATA.md) for detailed security mock data documentation.
+
 ### Running Tests
 
 ```bash

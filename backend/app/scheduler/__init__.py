@@ -56,9 +56,10 @@ def setup_scheduler() -> AsyncIOScheduler:
     try:
         from app.scheduler.discovery_jobs import run_discovery_job
         from app.scheduler.metrics_jobs import run_metrics_collection_job
-        from app.scheduler.security_jobs import run_security_scan_job
+        from app.scheduler.security_jobs import setup_security_scheduler
         from app.scheduler.prediction_jobs import run_prediction_job
         from app.scheduler.optimization_jobs import run_optimization_job
+        from app.api.deps import get_security_service
         
         # Add discovery job
         scheduler.add_job(
@@ -84,17 +85,13 @@ def setup_scheduler() -> AsyncIOScheduler:
             f"Scheduled metrics job: every {settings.METRICS_INTERVAL_MINUTES} minutes"
         )
         
-        # Add security scan job
-        scheduler.add_job(
-            run_security_scan_job,
-            trigger=IntervalTrigger(minutes=settings.SECURITY_SCAN_INTERVAL_MINUTES),
-            id="security_job",
-            name="Security Scanning",
-            replace_existing=True,
-        )
-        logger.info(
-            f"Scheduled security job: every {settings.SECURITY_SCAN_INTERVAL_MINUTES} minutes"
-        )
+        # Setup security scheduler - registers all 4 security jobs:
+        # 1. Security scan (every 1 hour)
+        # 2. Automated remediation (every 30 minutes)
+        # 3. Remediation verification (every 2 hours)
+        # 4. Daily security report (8 AM)
+        security_service = get_security_service()
+        setup_security_scheduler(scheduler, settings, security_service)
         
         # Add prediction job
         scheduler.add_job(

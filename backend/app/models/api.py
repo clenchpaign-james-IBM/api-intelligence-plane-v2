@@ -93,6 +93,68 @@ class OwnershipInfo(BaseModel):
     repository: Optional[str] = Field(None, description="Source repository URL")
 
 
+class SecurityPolicies(BaseModel):
+    """Security policies applied to an API."""
+
+    authentication_required: bool = Field(
+        default=True, description="Whether authentication is required"
+    )
+    authorization_enabled: bool = Field(
+        default=True, description="Whether authorization checks are enabled"
+    )
+    rate_limiting_enabled: bool = Field(
+        default=False, description="Whether rate limiting is applied"
+    )
+    rate_limit_config: Optional[dict[str, Any]] = Field(
+        None, description="Rate limit configuration (requests per minute, etc.)"
+    )
+    tls_enforced: bool = Field(
+        default=True, description="Whether TLS/HTTPS is enforced"
+    )
+    tls_version: Optional[str] = Field(
+        None, description="Minimum TLS version (e.g., 'TLS 1.2', 'TLS 1.3')"
+    )
+    cors_enabled: bool = Field(
+        default=False, description="Whether CORS is enabled"
+    )
+    cors_config: Optional[dict[str, Any]] = Field(
+        None, description="CORS configuration (allowed origins, methods, etc.)"
+    )
+    input_validation_enabled: bool = Field(
+        default=False, description="Whether input validation is enforced"
+    )
+    output_sanitization_enabled: bool = Field(
+        default=False, description="Whether output sanitization is applied"
+    )
+    logging_enabled: bool = Field(
+        default=True, description="Whether security logging is enabled"
+    )
+    encryption_at_rest: bool = Field(
+        default=False, description="Whether data encryption at rest is enabled"
+    )
+    waf_enabled: bool = Field(
+        default=False, description="Whether Web Application Firewall is enabled"
+    )
+    ip_whitelisting_enabled: bool = Field(
+        default=False, description="Whether IP whitelisting is applied"
+    )
+    allowed_ips: Optional[list[str]] = Field(
+        None, description="List of whitelisted IP addresses/ranges"
+    )
+    api_key_rotation_enabled: bool = Field(
+        default=False, description="Whether API key rotation is enforced"
+    )
+    key_rotation_days: Optional[int] = Field(
+        None, description="API key rotation period in days"
+    )
+    compliance_standards: Optional[list[str]] = Field(
+        None, description="Compliance standards (e.g., 'PCI-DSS', 'HIPAA', 'SOC2')"
+    )
+    last_policy_update: Optional[datetime] = Field(
+        None, description="Last time policies were updated"
+    )
+
+
 class API(BaseModel):
     """API entity representing a discovered API.
 
@@ -144,6 +206,9 @@ class API(BaseModel):
         ..., ge=0, le=100, description="Overall health (0-100)"
     )
     current_metrics: CurrentMetrics = Field(..., description="Latest metrics snapshot")
+    security_policies: Optional[SecurityPolicies] = Field(
+        None, description="Security policies applied to this API"
+    )
     metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Creation timestamp"

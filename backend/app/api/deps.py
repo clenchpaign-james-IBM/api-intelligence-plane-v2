@@ -14,6 +14,13 @@ from fastapi import Depends
 from opensearchpy import OpenSearch
 
 from app.db.client import get_client, get_opensearch_client, OpenSearchClient
+from app.db.repositories.api_repository import APIRepository
+from app.db.repositories.gateway_repository import GatewayRepository
+from app.db.repositories.metrics_repository import MetricsRepository
+from app.db.repositories.vulnerability_repository import VulnerabilityRepository
+from app.services.security_service import SecurityService
+from app.services.llm_service import LLMService
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +62,23 @@ def get_opensearch() -> OpenSearchClient:
             return os_client.health_check()
     """
     return get_opensearch_client()
+
+
+def get_security_service() -> SecurityService:
+    """
+    Dependency to get SecurityService instance.
+    
+    Returns:
+        SecurityService instance configured with application settings
+        
+    Example:
+        @app.post("/security/scan")
+        async def scan_api(
+            security_service: SecurityService = Depends(get_security_service)
+        ):
+            return await security_service.scan_api_security(api_id)
+    """
+    return SecurityService(settings)
 
 
 # Service dependencies will be added as services are implemented

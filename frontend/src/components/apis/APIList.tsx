@@ -109,14 +109,14 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
       </div>
 
       {/* API List */}
-      <div className="space-y-3">
-        {filteredAPIs.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No APIs found matching your criteria</p>
-          </div>
-        ) : (
-          filteredAPIs.map((api) => (
+      {filteredAPIs.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600">No APIs found matching your criteria</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {filteredAPIs.map((api) => (
             <div
               key={api.id}
               onClick={() => onSelectAPI?.(api)}
@@ -194,9 +194,9 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

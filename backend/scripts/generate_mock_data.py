@@ -151,6 +151,46 @@ class MockDataGenerator:
                 p95 = round(p50 * random.uniform(1.5, 2.5), 2)
                 p99 = round(p95 * random.uniform(1.2, 1.8), 2)
                 
+                # Generate realistic security policies
+                is_production = "production" in gateway_id or random.random() < 0.6
+                has_sensitive_data = name in ["Payment Service", "User Service", "Auth Service"]
+                
+                compliance_standards = []
+                if has_sensitive_data:
+                    compliance_standards = random.sample(
+                        ["PCI-DSS", "HIPAA", "SOC2", "GDPR", "ISO27001"],
+                        k=random.randint(1, 3)
+                    )
+                
+                security_policies = {
+                    "authentication_required": random.choice(auth_types) != "none",
+                    "authorization_enabled": is_production or random.random() < 0.7,
+                    "rate_limiting_enabled": is_production or random.random() < 0.5,
+                    "rate_limit_config": {
+                        "requests_per_minute": random.choice([100, 500, 1000, 5000]),
+                        "burst_size": random.choice([10, 50, 100])
+                    } if is_production or random.random() < 0.5 else None,
+                    "tls_enforced": is_production or random.random() < 0.8,
+                    "tls_version": random.choice(["TLS 1.2", "TLS 1.3"]) if is_production else "TLS 1.2",
+                    "cors_enabled": random.random() < 0.6,
+                    "cors_config": {
+                        "allowed_origins": ["https://app.example.com", "https://admin.example.com"],
+                        "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+                        "allow_credentials": True
+                    } if random.random() < 0.6 else None,
+                    "input_validation_enabled": is_production or random.random() < 0.7,
+                    "output_sanitization_enabled": has_sensitive_data or random.random() < 0.6,
+                    "logging_enabled": True,
+                    "encryption_at_rest": has_sensitive_data or random.random() < 0.5,
+                    "waf_enabled": is_production and (has_sensitive_data or random.random() < 0.4),
+                    "ip_whitelisting_enabled": random.random() < 0.2,
+                    "allowed_ips": ["10.0.0.0/8", "172.16.0.0/12"] if random.random() < 0.2 else None,
+                    "api_key_rotation_enabled": has_sensitive_data or random.random() < 0.3,
+                    "key_rotation_days": random.choice([30, 60, 90]) if has_sensitive_data or random.random() < 0.3 else None,
+                    "compliance_standards": compliance_standards if compliance_standards else None,
+                    "last_policy_update": (datetime.utcnow() - timedelta(days=random.randint(1, 30))).isoformat()
+                }
+                
                 api = {
                     "id": api_id,
                     "gateway_id": gateway_id,
@@ -176,6 +216,7 @@ class MockDataGenerator:
                         "availability": round(random.uniform(95, 100), 2),
                         "measured_at": datetime.utcnow().isoformat()
                     },
+                    "security_policies": security_policies,
                     "metadata": {"criticality": "high", "sla": "99.9%"},
                     "discovered_at": (datetime.utcnow() - timedelta(days=random.randint(1, 90))).isoformat(),
                     "last_seen_at": datetime.utcnow().isoformat(),

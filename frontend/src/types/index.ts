@@ -24,9 +24,39 @@ export interface API {
   status: APIStatus;
   health_score: number;
   current_metrics: CurrentMetrics;
+  security_policies?: SecurityPolicies;
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
+}
+
+export interface SecurityPolicies {
+  authentication_required: boolean;
+  authorization_enabled: boolean;
+  rate_limiting_enabled: boolean;
+  rate_limit_config?: {
+    requests_per_minute: number;
+    burst_size: number;
+  };
+  tls_enforced: boolean;
+  tls_version?: string;
+  cors_enabled: boolean;
+  cors_config?: {
+    allowed_origins: string[];
+    allowed_methods: string[];
+    allow_credentials: boolean;
+  };
+  input_validation_enabled: boolean;
+  output_sanitization_enabled: boolean;
+  logging_enabled: boolean;
+  encryption_at_rest: boolean;
+  waf_enabled: boolean;
+  ip_whitelisting_enabled: boolean;
+  allowed_ips?: string[];
+  api_key_rotation_enabled: boolean;
+  key_rotation_days?: number;
+  compliance_standards?: string[];
+  last_policy_update?: string;
 }
 
 export interface Endpoint {
@@ -270,7 +300,41 @@ export interface Vulnerability {
 
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type VulnerabilityCategory = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'other';
-export type VulnerabilityStatus = 'open' | 'in_progress' | 'resolved' | 'false_positive' | 'accepted_risk';
+export type VulnerabilityStatus = 'open' | 'in_progress' | 'remediated' | 'verified' | 'false_positive' | 'accepted_risk';
+
+// Security Posture
+export interface SecurityPosture {
+  total_vulnerabilities: number;
+  by_severity: Record<VulnerabilitySeverity, number>;
+  by_status: Record<string, number>;
+  by_type: Record<string, number>;
+  remediation_rate: number;
+  risk_score: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  avg_remediation_time_ms?: number;
+}
+
+// Scan Response
+export interface ScanResponse {
+  scan_id: string;
+  api_id: string;
+  api_name: string;
+  scan_completed_at: string;
+  vulnerabilities_found: number;
+  severity_breakdown: Record<VulnerabilitySeverity, number>;
+  vulnerabilities: Vulnerability[];
+  remediation_plan: Record<string, any>;
+  ai_enhanced: boolean;
+}
+
+// Remediation Response
+export interface RemediationResponse {
+  vulnerability_id: string;
+  status: string;
+  remediation_result?: Record<string, any>;
+  verification_result?: Record<string, any>;
+  message?: string;
+}
 
 // Recommendation Entity
 export interface Recommendation {

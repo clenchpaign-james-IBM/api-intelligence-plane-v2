@@ -234,4 +234,14 @@ export const api = {
 
 export default api;
 
+// Convenience exports for common operations
+export const getAPIs = async (params?: any) => {
+  const response = await api.apis.list(params);
+  // Handle paginated response - return items array
+  return response.items || response;
+};
+export const getGateways = () => api.gateways.list();
+export const getPredictions = (params?: any) => api.predictions.list(params);
+export const getRecommendations = (params?: any) => api.recommendations.list(params);
+
 // Made with Bob

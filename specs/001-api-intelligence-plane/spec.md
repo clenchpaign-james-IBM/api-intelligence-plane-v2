@@ -32,12 +32,22 @@ As a DevOps engineer, I need to receive advance warnings of potential API failur
 
 **Independent Test**: Can be tested by simulating degrading API conditions (increasing error rates, latency spikes, resource exhaustion patterns) and verifying that predictions are generated 24-48 hours before critical thresholds are reached. Delivers value by enabling proactive intervention.
 
+**Prediction Architecture**: The system uses a **hybrid approach** combining rule-based predictions (fast, deterministic baseline) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is automatically triggered based on prediction confidence thresholds and system configuration, ensuring reliability while providing intelligent insights when beneficial.
+
+**Contributing Factors**: Predictions include strongly-typed contributing factors categorized into:
+- **Performance** (7 types): error rates, response times, latency, timeouts
+- **Availability** (2 types): declining availability, declining throughput
+- **Capacity** (1 type): rapid request growth
+- **Dependencies** (1 type): downstream service degradation
+- **Traffic** (1 type): abnormal traffic patterns
+
 **Acceptance Scenarios**:
 
-1. **Given** an API shows patterns indicating potential failure, **When** the prediction engine analyzes the trends, **Then** a failure prediction alert is generated 24-48 hours in advance with confidence score and recommended actions
-2. **Given** multiple APIs are monitored, **When** resource contention patterns emerge, **Then** the system predicts which APIs will be affected and when
+1. **Given** an API shows patterns indicating potential failure, **When** the prediction engine analyzes the trends, **Then** a failure prediction alert is generated 24-48 hours in advance with confidence score, strongly-typed contributing factors, and recommended actions
+2. **Given** multiple APIs are monitored, **When** resource contention patterns emerge, **Then** the system predicts which APIs will be affected and when, with categorized contributing factors
 3. **Given** a prediction alert was issued, **When** the predicted time window arrives, **Then** the system tracks prediction accuracy and updates its models
 4. **Given** seasonal traffic patterns exist, **When** analyzing predictions, **Then** the system accounts for expected variations and only alerts on anomalous patterns
+5. **Given** a high-confidence prediction is generated, **When** AI enhancement is enabled, **Then** the system automatically provides natural language explanations and deeper insights without manual intervention
 
 ---
 
@@ -135,12 +145,15 @@ As any user of the system, I need to query API intelligence using natural langua
 - **FR-006**: System MUST complete discovery cycles for new or changed APIs within 5 minutes of deployment
 
 #### Predictive Health Management
-- **FR-007**: System MUST analyze historical API performance data to identify patterns indicating potential failures
-- **FR-008**: System MUST generate failure predictions 24-48 hours in advance with confidence scores
-- **FR-009**: System MUST provide recommended preventive actions with each prediction
+- **FR-007**: System MUST analyze historical API performance data to identify patterns indicating potential failures using a hybrid approach (rule-based + AI-enhanced)
+- **FR-008**: System MUST generate failure predictions 24-48 hours in advance with confidence scores and strongly-typed contributing factors
+- **FR-009**: System MUST provide recommended preventive actions with each prediction, categorized by contributing factor type
 - **FR-010**: System MUST track prediction accuracy and continuously improve prediction models
 - **FR-011**: System MUST account for seasonal patterns, expected traffic variations, and scheduled maintenance when generating predictions
 - **FR-012**: System MUST alert operations teams when prediction confidence exceeds configurable thresholds
+- **FR-012a**: System MUST automatically trigger AI enhancement for high-confidence predictions (≥80% by default) when AI is enabled
+- **FR-012b**: System MUST use 13 strongly-typed contributing factor categories: increasing_error_rate, degrading_response_time, gradual_response_time_increase, high_latency_under_load, spike_in_5xx_errors, spike_in_4xx_errors, timeout_rate_increasing, declining_availability, declining_throughput, rapid_request_growth, downstream_service_degradation, abnormal_traffic_pattern
+- **FR-012c**: System MUST gracefully fallback to rule-based predictions when AI enhancement fails or is unavailable
 
 #### Security Scanning & Remediation
 - **FR-013**: System MUST continuously scan all discovered APIs for security vulnerabilities

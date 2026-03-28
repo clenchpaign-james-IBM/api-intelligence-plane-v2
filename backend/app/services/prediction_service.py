@@ -20,8 +20,10 @@ from app.models.prediction import (
     PredictionSeverity,
     PredictionStatus,
     ContributingFactor,
+    ContributingFactorType,
 )
 from app.models.metric import Metric
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,11 @@ class PredictionService:
     ) -> List[Prediction]:
         """
         Generate failure predictions for a specific API.
+        
+        AI enhancement is automatically applied based on:
+        - PREDICTION_AI_ENABLED configuration
+        - PREDICTION_AI_THRESHOLD configuration
+        - Prediction confidence scores
 
         Args:
             api_id: API UUID
@@ -117,6 +124,9 @@ class PredictionService:
         if capacity_prediction and capacity_prediction.confidence_score >= min_confidence:
             predictions.append(capacity_prediction)
 
+        # Determine if AI enhancement should be used (internal logic only)
+        should_use_ai = self._should_use_ai_enhancement(predictions, use_ai_override=None)
+        
         # Store predictions
         for prediction in predictions:
             try:
@@ -124,6 +134,7 @@ class PredictionService:
                 logger.info(
                     f"Created {prediction.prediction_type.value} prediction for API {api_id} "
                     f"with confidence {prediction.confidence_score:.2f}"
+                    f"{' (AI enhancement available)' if should_use_ai else ''}"
                 )
             except Exception as e:
                 logger.error(f"Failed to store prediction: {e}")
@@ -146,6 +157,27 @@ class PredictionService:
             Dict with predictions and AI analysis
         """
         logger.info(f"Generating AI-enhanced predictions for API {api_id}")
+        
+        # Check if AI is enabled
+        if not settings.PREDICTION_AI_ENABLED:
+            logger.info("AI-enhanced predictions disabled by configuration")
+            predictions = self.generate_predictions_for_api(api_id, min_confidence)
+            api = self.api_repo.get(str(api_id))
+            return {
+                "api_id": str(api_id),
+                "api_name": api.name if api else "Unknown",
+                "predictions": [
+                    {
+                        "id": str(p.id),
+                        "prediction_type": p.prediction_type.value,
+                        "confidence_score": p.confidence_score,
+                        "severity": p.severity.value,
+                        "predicted_time": p.predicted_time.isoformat(),
+                    }
+                    for p in predictions
+                ],
+                "ai_disabled": True,
+            }
         
         # Get API details
         api = self.api_repo.get(str(api_id))
@@ -174,7 +206,7 @@ class PredictionService:
             }
         
         # Try AI-enhanced generation if available
-        if self.llm_service:
+        if self.llm_service and settings.PREDICTION_AI_ENABLED:
             try:
                 # Lazy load prediction agent
                 if self._prediction_agent is None:
@@ -285,7 +317,7 @@ class PredictionService:
             weight = min(0.4, current_error_rate / self.ERROR_RATE_THRESHOLD * 0.4)
             contributing_factors.append(
                 ContributingFactor(
-                    factor="increasing_error_rate",
+                    factor=ContributingFactorType.INCREASING_ERROR_RATE,
                     current_value=current_error_rate,
                     threshold=self.ERROR_RATE_THRESHOLD,
                     trend="increasing",
@@ -303,7 +335,7 @@ class PredictionService:
             weight = min(0.3, current_response_time / self.RESPONSE_TIME_P95_THRESHOLD * 0.3)
             contributing_factors.append(
                 ContributingFactor(
-                    factor="degrading_response_time",
+                    factor=ContributingFactorType.DEGRADING_RESPONSE_TIME,
                     current_value=current_response_time,
                     threshold=self.RESPONSE_TIME_P95_THRESHOLD,
                     trend="increasing",
@@ -321,7 +353,7 @@ class PredictionService:
             weight = min(0.3, (100 - current_availability) / (100 - self.AVAILABILITY_THRESHOLD) * 0.3)
             contributing_factors.append(
                 ContributingFactor(
-                    factor="declining_availability",
+                    factor=ContributingFactorType.DECLINING_AVAILABILITY,
                     current_value=current_availability,
                     threshold=self.AVAILABILITY_THRESHOLD,
                     trend="decreasing",
@@ -391,7 +423,7 @@ class PredictionService:
             weight = 0.35
             contributing_factors.append(
                 ContributingFactor(
-                    factor="gradual_response_time_increase",
+                    factor=ContributingFactorType.GRADUAL_RESPONSE_TIME_INCREASE,
                     current_value=current_response_time,
                     threshold=avg_response_time,
                     trend="increasing",
@@ -410,7 +442,7 @@ class PredictionService:
             weight = 0.25
             contributing_factors.append(
                 ContributingFactor(
-                    factor="declining_throughput",
+                    factor=ContributingFactorType.DECLINING_THROUGHPUT,
                     current_value=current_throughput,
                     threshold=avg_throughput,
                     trend="decreasing",
@@ -428,7 +460,7 @@ class PredictionService:
             weight = 0.20
             contributing_factors.append(
                 ContributingFactor(
-                    factor="increasing_error_rate",
+                    factor=ContributingFactorType.INCREASING_ERROR_RATE,
                     current_value=current_error_rate,
                     threshold=0.05,
                     trend="increasing",
@@ -492,7 +524,7 @@ class PredictionService:
             weight = 0.40
             contributing_factors.append(
                 ContributingFactor(
-                    factor="rapid_request_growth",
+                    factor=ContributingFactorType.RAPID_REQUEST_GROWTH,
                     current_value=current_requests,
                     threshold=avg_requests,
                     trend="increasing",
@@ -510,7 +542,7 @@ class PredictionService:
             weight = 0.30
             contributing_factors.append(
                 ContributingFactor(
-                    factor="high_latency_under_load",
+                    factor=ContributingFactorType.HIGH_LATENCY_UNDER_LOAD,
                     current_value=current_p99,
                     threshold=self.RESPONSE_TIME_P99_THRESHOLD,
                     trend="increasing",
@@ -603,6 +635,37 @@ class PredictionService:
         else:
             return PredictionSeverity.LOW
 
+    def _should_use_ai_enhancement(
+        self, predictions: List[Prediction], use_ai_override: Optional[bool]
+    ) -> bool:
+        """
+        Determine if AI enhancement should be used for predictions.
+        
+        Args:
+            predictions: List of generated predictions
+            use_ai_override: User override (True/False/None)
+            
+        Returns:
+            True if AI enhancement should be used
+        """
+        # If user explicitly requested or disabled AI, honor that
+        if use_ai_override is not None:
+            return use_ai_override
+        
+        # Check if AI is globally enabled
+        if not settings.PREDICTION_AI_ENABLED:
+            return False
+        
+        # Check if LLM service is available
+        if not self.llm_service:
+            return False
+        
+        # Use AI if any prediction exceeds the confidence threshold
+        return any(
+            p.confidence_score >= settings.PREDICTION_AI_THRESHOLD
+            for p in predictions
+        )
+    
     def _generate_recommended_actions(
         self, factors: List[ContributingFactor]
     ) -> List[str]:
@@ -616,29 +679,31 @@ class PredictionService:
             List of recommended actions
         """
         actions = []
-        factor_names = [f.factor for f in factors]
+        factor_types = [f.factor for f in factors]
 
-        if "increasing_error_rate" in factor_names:
+        if ContributingFactorType.INCREASING_ERROR_RATE in factor_types:
             actions.append("Review recent code changes and deployments")
             actions.append("Check application logs for error patterns")
             actions.append("Verify external service dependencies")
 
-        if "degrading_response_time" in factor_names or "gradual_response_time_increase" in factor_names:
+        if (ContributingFactorType.DEGRADING_RESPONSE_TIME in factor_types or
+            ContributingFactorType.GRADUAL_RESPONSE_TIME_INCREASE in factor_types):
             actions.append("Analyze slow query logs and database performance")
             actions.append("Review caching strategy and hit rates")
             actions.append("Check for resource contention (CPU, memory, I/O)")
 
-        if "declining_availability" in factor_names:
+        if ContributingFactorType.DECLINING_AVAILABILITY in factor_types:
             actions.append("Verify health check endpoints")
             actions.append("Check load balancer configuration")
             actions.append("Review instance health and auto-scaling policies")
 
-        if "declining_throughput" in factor_names:
+        if ContributingFactorType.DECLINING_THROUGHPUT in factor_types:
             actions.append("Check for rate limiting or throttling")
             actions.append("Review connection pool settings")
             actions.append("Analyze network latency and bandwidth")
 
-        if "rapid_request_growth" in factor_names or "high_latency_under_load" in factor_names:
+        if (ContributingFactorType.RAPID_REQUEST_GROWTH in factor_types or
+            ContributingFactorType.HIGH_LATENCY_UNDER_LOAD in factor_types):
             actions.append("Scale up API instances horizontally")
             actions.append("Implement or adjust rate limiting")
             actions.append("Consider caching frequently accessed data")

@@ -249,10 +249,14 @@ async def get_prediction(
 async def generate_predictions(
     api_id: Optional[UUID] = Query(None, description="Generate for specific API (or all if not provided)"),
     min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"),
-    use_ai: bool = Query(False, description="Use AI-enhanced prediction generation"),
 ) -> dict:
     """
     Trigger prediction generation for APIs.
+    
+    AI enhancement is automatically applied based on:
+    - PREDICTION_AI_ENABLED configuration (default: true)
+    - PREDICTION_AI_THRESHOLD configuration (default: 0.8)
+    - Prediction confidence score
     
     Args:
         api_id: Optional API ID to generate predictions for (generates for all if not provided)
@@ -270,44 +274,32 @@ async def generate_predictions(
         metrics_repo = MetricsRepository()
         api_repo = APIRepository()
         
+        # Try to initialize LLM service for potential AI enhancement
+        llm_service = None
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import settings
+            llm_service = LLMService(settings)
+        except Exception as e:
+            logger.info(f"LLM service not available: {e}")
+        
         prediction_service = PredictionService(
             prediction_repository=prediction_repo,
             metrics_repository=metrics_repo,
             api_repository=api_repo,
+            llm_service=llm_service,
         )
         
         if api_id:
-            # Generate for specific API
-            if use_ai:
-                # Try to get LLM service for AI-enhanced generation
-                try:
-                    from app.services.llm_service import LLMService
-                    from app.config import Settings
-                    settings = Settings()
-                    llm_service = LLMService(settings)
-                    prediction_service.llm_service = llm_service
-                except Exception as e:
-                    logger.warning(f"LLM service unavailable, using rule-based: {e}")
-                
-                result = await prediction_service.generate_ai_enhanced_predictions(
-                    api_id=api_id,
-                    min_confidence=min_confidence,
-                )
-                
-                return {
-                    "status": "accepted",
-                    "message": f"Generated AI-enhanced predictions for API {api_id}",
-                    "result": result,
-                }
-            else:
-                predictions = prediction_service.generate_predictions_for_api(
-                    api_id=api_id,
-                    min_confidence=min_confidence,
-                )
-                
-                return {
-                    "status": "accepted",
-                    "message": f"Generated {len(predictions)} predictions for API {api_id}",
+            # Generate for specific API (AI enhancement decided internally)
+            predictions = prediction_service.generate_predictions_for_api(
+                api_id=api_id,
+                min_confidence=min_confidence,
+            )
+            
+            return {
+                "status": "accepted",
+                "message": f"Generated {len(predictions)} predictions for API {api_id}",
                     "predictions_generated": len(predictions),
                 }
         else:

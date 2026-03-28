@@ -16,6 +16,7 @@ from app.models.prediction import (
     PredictionStatus,
     ActualOutcome,
     ContributingFactor,
+    ContributingFactorType,
 )
 from app.models.metric import Metric
 from app.models.api import (
@@ -45,21 +46,21 @@ def sample_contributing_factors() -> List[ContributingFactor]:
     """Generate sample contributing factors."""
     return [
         ContributingFactor(
-            factor="increasing_error_rate",
+            factor=ContributingFactorType.INCREASING_ERROR_RATE,
             current_value=0.15,
             threshold=0.10,
             trend="increasing",
             weight=0.4,
         ),
         ContributingFactor(
-            factor="degrading_response_time",
+            factor=ContributingFactorType.DEGRADING_RESPONSE_TIME,
             current_value=450.0,
             threshold=300.0,
             trend="increasing",
             weight=0.3,
         ),
         ContributingFactor(
-            factor="decreasing_availability",
+            factor=ContributingFactorType.DECLINING_AVAILABILITY,
             current_value=94.5,
             threshold=95.0,
             trend="decreasing",
@@ -110,14 +111,14 @@ def critical_prediction(sample_api_id) -> Prediction:
         status=PredictionStatus.ACTIVE,
         contributing_factors=[
             ContributingFactor(
-                factor="critical_error_rate",
+                factor=ContributingFactorType.INCREASING_ERROR_RATE,
                 current_value=0.25,
                 threshold=0.10,
                 trend="increasing",
                 weight=0.5,
             ),
             ContributingFactor(
-                factor="severe_response_degradation",
+                factor=ContributingFactorType.DEGRADING_RESPONSE_TIME,
                 current_value=800.0,
                 threshold=300.0,
                 trend="increasing",
@@ -156,14 +157,14 @@ def resolved_prediction(sample_api_id) -> Prediction:
         status=PredictionStatus.RESOLVED,
         contributing_factors=[
             ContributingFactor(
-                factor="increasing_error_rate",
+                factor=ContributingFactorType.INCREASING_ERROR_RATE,
                 current_value=0.08,
                 threshold=0.05,
                 trend="increasing",
                 weight=0.5,
             ),
             ContributingFactor(
-                factor="response_time_spike",
+                factor=ContributingFactorType.DEGRADING_RESPONSE_TIME,
                 current_value=250.0,
                 threshold=200.0,
                 trend="increasing",
@@ -315,7 +316,7 @@ def create_prediction_with_severity(
         status=PredictionStatus.ACTIVE,
         contributing_factors=[
             ContributingFactor(
-                factor="test_factor",
+                factor=ContributingFactorType.INCREASING_ERROR_RATE,
                 current_value=100.0,
                 threshold=50.0,
                 trend="increasing",

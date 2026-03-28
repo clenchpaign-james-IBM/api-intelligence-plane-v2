@@ -109,6 +109,14 @@ class Settings(BaseSettings):
     AGENT_MAX_RESULTS: int = Field(
         default=3, description="Maximum number of results to enhance with agents"
     )
+    
+    # Prediction AI Settings
+    PREDICTION_AI_ENABLED: bool = Field(
+        default=True, description="Enable AI-enhanced predictions"
+    )
+    PREDICTION_AI_THRESHOLD: float = Field(
+        default=0.8, description="Confidence threshold for triggering AI enhancement"
+    )
     AZURE_OPENAI_ENDPOINT: Optional[str] = Field(
         default=None, description="Azure OpenAI endpoint"
     )

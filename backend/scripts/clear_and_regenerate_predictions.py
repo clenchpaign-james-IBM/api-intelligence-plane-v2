@@ -21,6 +21,7 @@ from app.models.prediction import (
     PredictionSeverity,
     PredictionStatus,
     ContributingFactor,
+    ContributingFactorType,
 )
 
 
@@ -38,7 +39,7 @@ async def main():
     print("\n1. Deleting old predictions...")
     try:
         result = client.delete_by_query(
-            index='predictions',
+            index='api-predictions',
             body={'query': {'match_all': {}}},
             refresh=True
         )
@@ -106,24 +107,24 @@ async def main():
             # Contributing factors
             factors = [
                 ContributingFactor(
-                    factor="increasing_error_rate",
+                    factor=ContributingFactorType.INCREASING_ERROR_RATE,
                     current_value=random.uniform(0.05, 0.25),
                     threshold=0.10,
                     trend="increasing",
                     weight=round(confidence * 0.4, 3)
                 ),
                 ContributingFactor(
-                    factor="degrading_response_time",
+                    factor=ContributingFactorType.DEGRADING_RESPONSE_TIME,
                     current_value=random.uniform(200, 800),
                     threshold=500.0,
                     trend="increasing",
                     weight=round(confidence * 0.35, 3)
                 ),
                 ContributingFactor(
-                    factor="memory_usage_spike",
+                    factor=ContributingFactorType.HIGH_LATENCY_UNDER_LOAD,
                     current_value=random.uniform(70, 95),
                     threshold=80.0,
-                    trend="volatile",
+                    trend="increasing",
                     weight=round(confidence * 0.25, 3)
                 )
             ]

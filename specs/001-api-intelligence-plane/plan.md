@@ -19,6 +19,8 @@ API Intelligence Plane is an AI-driven API management application that transform
 - MCP: FastMCP for server/client implementation with Streamable HTTP transport
 - Demo Gateway: Spring Boot, OpenSearch Java client
 
+**Prediction Architecture**: Hybrid approach combining rule-based predictions (fast, deterministic baseline) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is automatically triggered based on prediction confidence thresholds (default: ≥80%) and system configuration (PREDICTION_AI_ENABLED, PREDICTION_AI_THRESHOLD).
+
 **Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, predictions)
 **Testing**: pytest (Backend), Jest/React Testing Library (Frontend), JUnit (Demo Gateway), Integration tests across all components, End-to-end tests using Demo API Gateway
 **Target Platform**: Linux/macOS servers (Docker containers), Web browsers (Chrome, Firefox, Safari, Edge)
@@ -155,7 +157,7 @@ api-intelligence-plane-v2/
 │   │   │   ├── api.py
 │   │   │   ├── gateway.py
 │   │   │   ├── metric.py
-│   │   │   ├── prediction.py
+│   │   │   ├── prediction.py  # Includes ContributingFactorType enum (13 types)
 │   │   │   ├── vulnerability.py
 │   │   │   ├── recommendation.py
 │   │   │   ├── rate_limit.py
@@ -163,10 +165,11 @@ api-intelligence-plane-v2/
 │   │   ├── services/          # Business logic
 │   │   │   ├── discovery_service.py
 │   │   │   ├── metrics_service.py
-│   │   │   ├── prediction_service.py
+│   │   │   ├── prediction_service.py  # Hybrid: rule-based + AI enhancement
 │   │   │   ├── security_service.py
 │   │   │   ├── optimization_service.py
-│   │   │   └── query_service.py
+│   │   │   ├── query_service.py
+│   │   │   └── llm_service.py  # LiteLLM integration with fallback
 │   │   ├── agents/            # LangChain/LangGraph agents
 │   │   │   ├── prediction_agent.py
 │   │   │   ├── security_agent.py

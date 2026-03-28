@@ -47,10 +47,36 @@ class ActualOutcome(str, Enum):
     FALSE_ALARM = "false_alarm"
 
 
+class ContributingFactorType(str, Enum):
+    """Types of contributing factors for predictions."""
+    
+    # Performance Metrics
+    INCREASING_ERROR_RATE = "increasing_error_rate"
+    DEGRADING_RESPONSE_TIME = "degrading_response_time"
+    GRADUAL_RESPONSE_TIME_INCREASE = "gradual_response_time_increase"
+    HIGH_LATENCY_UNDER_LOAD = "high_latency_under_load"
+    SPIKE_IN_5XX_ERRORS = "spike_in_5xx_errors"
+    SPIKE_IN_4XX_ERRORS = "spike_in_4xx_errors"
+    TIMEOUT_RATE_INCREASING = "timeout_rate_increasing"
+    
+    # Availability & Throughput
+    DECLINING_AVAILABILITY = "declining_availability"
+    DECLINING_THROUGHPUT = "declining_throughput"
+    
+    # Capacity
+    RAPID_REQUEST_GROWTH = "rapid_request_growth"
+    
+    # Dependencies
+    DOWNSTREAM_SERVICE_DEGRADATION = "downstream_service_degradation"
+    
+    # Traffic Patterns
+    ABNORMAL_TRAFFIC_PATTERN = "abnormal_traffic_pattern"
+
+
 class ContributingFactor(BaseModel):
     """Factor leading to prediction."""
 
-    factor: str = Field(..., description="Factor name (e.g., 'increasing_error_rate')")
+    factor: ContributingFactorType = Field(..., description="Factor type")
     current_value: float = Field(..., description="Current value")
     threshold: float = Field(..., description="Threshold value")
     trend: str = Field(..., description="Trend direction (increasing, decreasing, stable)")

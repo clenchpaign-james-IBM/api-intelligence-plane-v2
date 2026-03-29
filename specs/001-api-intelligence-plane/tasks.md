@@ -291,35 +291,61 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-## Phase 6: User Story 4 - Real-time Performance Optimization (Priority: P2)
+## Phase 6: User Story 4 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
 
-**Goal**: Real-time recommendations for optimizing API performance based on usage patterns
+**MERGED**: This phase combines real-time performance optimization and intelligent rate limiting into a unified feature, as both are gateway-level performance optimization techniques.
 
-**Independent Test**: Monitor APIs under load, verify optimization recommendations are generated with estimated impact
+**Goal**: Real-time recommendations for optimizing API performance (caching, compression, rate limiting) with ability to apply policies directly to the Gateway
 
-### Backend - Optimization Service
+**Architecture**:
+- API-centric: All optimizations generated per-API
+- Gateway-level scope: Caching, compression, rate limiting only
+- Hybrid approach: Rule-based + AI-enhanced (controlled by OPTIMIZATION_AI_ENABLED)
+- Real-time policy application via enhanced Gateway adapter interface
+- Unified UI: Single view for all optimization types
+
+**Independent Test**: Monitor APIs under load, verify optimization recommendations are generated, apply policies to Gateway, measure improvements
+
+### Backend - Unified Optimization Service
 
 - [x] T129 [P] [US4] Create OptimizationRecommendation repository in backend/app/db/repositories/recommendation_repository.py
-- [x] T130 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with recommendation generation
+- [x] T130 [US4] Implement Optimization Service in backend/app/services/optimization_service.py with unified recommendation generation (caching, compression, rate limiting)
 - [x] T131 [US4] Create Optimization Agent in backend/app/agents/optimization_agent.py using LangChain/LangGraph
 - [x] T132 [US4] Implement optimization analysis workflow in backend/app/agents/optimization_agent.py
 - [x] T133 [US4] Create optimization scheduler job in backend/app/scheduler/optimization_jobs.py (runs every 30 minutes)
 - [x] T134 [US4] Implement recommendation validation and impact tracking in backend/app/services/optimization_service.py
+- [x] T134a [US4] Add OPTIMIZATION_AI_ENABLED configuration to backend/app/config.py
+- [x] T134b [US4] Add OPTIMIZATION_AI_THRESHOLD configuration to backend/app/config.py (default: 0.8)
+- [x] T134c [US4] Implement _should_use_ai_enhancement() method in backend/app/services/optimization_service.py
+- [x] T134d [US4] Integrate rate limiting analysis into backend/app/services/optimization_service.py (move from rate_limit_service.py)
+- [x] T134e [US4] Remove cost_savings field usage from backend/app/services/optimization_service.py
 
 ### Backend - REST API Endpoints
 
 - [x] T135 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
+- [ ] T135a [P] [US4] Add POST /api/v1/recommendations/{id}/apply endpoint for applying policies to Gateway
+- [ ] T135b [P] [US4] Update GET /recommendations to include rate limiting recommendations
 
-### MCP - Optimization Server (Recommendations)
+### MCP - Unified Optimization Server
 
 - [x] T136 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [X] T136a [P] [US4] Implement manage_rate_limit tool in mcp-servers/optimization_server.py (already exists)
+- [X] T136b [P] [US4] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py (already exists)
 
-### Frontend - Optimization View
+### Frontend - Unified Optimization View
 
-- [x] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with recommendations list
+- [x] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with unified recommendations list
+- [ ] T137a [US4] Remove tab navigation from frontend/src/pages/Optimization.tsx (merge rate limiting into recommendations)
+- [ ] T137b [US4] Update recommendation type filter to include rate_limiting option
+- [ ] T137c [US4] Add "Apply to Gateway" button for all recommendation types
+- [ ] T137d [US4] Remove cost savings display from frontend/src/pages/Optimization.tsx
 - [x] T138 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
+- [ ] T138a [P] [US4] Update RecommendationCard to handle rate limiting recommendations
+- [ ] T138b [P] [US4] Add policy application UI to RecommendationCard
 - [x] T139 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
 - [x] T140 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
+- [X] T140a [P] [US4] Keep RateLimitPolicy component for detailed view in frontend/src/components/optimization/RateLimitPolicy.tsx
+- [X] T140b [P] [US4] Keep RateLimitChart component for effectiveness visualization in frontend/src/components/optimization/RateLimitChart.tsx
 
 ### Test Data & Fixtures
 
@@ -328,57 +354,35 @@ This is a distributed web application with microservices architecture:
 
 ### Integration & Validation
 
-- [x] T141 [US4] Create integration test for optimization recommendations in tests/integration/test_optimization.py
-- [x] T142 [US4] Validate User Story 4 independently with various load patterns
+- [x] T141 [US4] Create integration test for unified optimization recommendations in tests/integration/test_optimization.py
+- [ ] T141a [US4] Add test cases for rate limiting recommendations in tests/integration/test_optimization.py
+- [ ] T141b [US4] Add test cases for policy application in tests/integration/test_optimization.py
+- [x] T142 [US4] Validate User Story 4 independently with various load patterns and traffic simulation
 
-**Checkpoint**: User Story 4 complete - Optimization recommendations work independently
+### Gateway Adapter Enhancement (CRITICAL)
 
----
+- [x] T143 [US4] Add apply_caching_policy() abstract method to backend/app/adapters/base.py
+- [x] T144 [US4] Add apply_compression_policy() abstract method to backend/app/adapters/base.py
+- [x] T145 [US4] Add remove_caching_policy() abstract method to backend/app/adapters/base.py
+- [x] T146 [US4] Add remove_compression_policy() abstract method to backend/app/adapters/base.py
+- [x] T147 [US4] Implement apply_caching_policy() in backend/app/adapters/native_gateway.py
+- [x] T148 [US4] Implement apply_compression_policy() in backend/app/adapters/native_gateway.py
+- [x] T149 [US4] Implement remove_caching_policy() in backend/app/adapters/native_gateway.py
+- [x] T150 [US4] Implement remove_compression_policy() in backend/app/adapters/native_gateway.py
+- [x] T151 [US4] Add caching policy endpoint to demo-gateway/src/main/java/com/example/gateway/controller/PolicyController.java
+- [x] T152 [US4] Add compression policy endpoint to demo-gateway/src/main/java/com/example/gateway/controller/PolicyController.java
+- [x] T153 [US4] Implement caching policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java
+- [x] T154 [US4] Implement compression policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CompressionPolicy.java
 
-## Phase 7: User Story 5 - Intelligent Rate Limiting (Priority: P3)
+**Checkpoint**: User Story 4 complete - Unified performance optimization with policy application works independently
 
-**Goal**: Dynamic rate limiting that adapts to usage patterns and business priorities
-
-**Independent Test**: Simulate various traffic patterns, verify rate limits adjust dynamically
-
-### Backend - Rate Limiting Service
-
-- [X] T143 [P] [US5] Create RateLimitPolicy repository in backend/app/db/repositories/rate_limit_repository.py
-- [X] T144 [US5] Implement Rate Limiting Service in backend/app/services/rate_limit_service.py with adaptive logic
-- [X] T145 [US5] Implement rate limit policy management in backend/app/services/rate_limit_service.py
-- [X] T146 [US5] Create rate limit effectiveness tracking in backend/app/services/rate_limit_service.py
-
-### Backend - REST API Endpoints
-
-- [X] T147 [P] [US5] Implement Rate Limiting endpoints in backend/app/api/v1/rate_limits.py per backend-api.yaml (GET /rate-limits, POST /rate-limits)
-
-### MCP - Optimization Server (Rate Limiting)
-
-- [X] T148 [P] [US5] Implement manage_rate_limit tool in mcp-servers/optimization_server.py per mcp-tools.md
-- [X] T149 [P] [US5] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py per mcp-tools.md
-
-### Demo Gateway - Rate Limiting
-
-- [X] T150 [US5] Implement rate limiting policy engine in demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java
-- [X] T151 [US5] Integrate rate limiting with API routing in demo-gateway/src/main/java/com/example/gateway/controller/APIController.java
-
-### Frontend - Rate Limiting View
-
-- [X] T152 [US5] Add rate limiting section to Optimization page in frontend/src/pages/Optimization.tsx
-- [X] T153 [P] [US5] Create rate limit policy component in frontend/src/components/optimization/RateLimitPolicy.tsx
-- [X] T154 [P] [US5] Create rate limit effectiveness chart in frontend/src/components/optimization/RateLimitChart.tsx
-
-### Integration & Validation
-
-- [X] T154.5 [P] [US5] Create rate limit test fixtures in backend/tests/fixtures/rate_limit_fixtures.py
-- [X] T155 [US5] Create integration test for rate limiting in backend/tests/integration/test_rate_limiting.py
-- [X] T156 [US5] Validate User Story 5 independently with traffic simulation
-
-**Checkpoint**: User Story 5 complete - Rate limiting works independently
+**Note**: Phase 7 (User Story 5 - Intelligent Rate Limiting) has been MERGED into Phase 6. All rate limiting functionality is now part of the unified performance optimization feature.
 
 ---
 
-## Phase 8: User Story 6 - Natural Language Query Interface (Priority: P3)
+## Phase 7: User Story 5 - Natural Language Query Interface (Priority: P3)
+
+**Note**: This was previously Phase 8 / User Story 6. Renumbered due to merge of performance optimization and rate limiting.
 
 **Goal**: Query API intelligence using natural language questions
 
@@ -386,36 +390,36 @@ This is a distributed web application with microservices architecture:
 
 ### Backend - Query Service
 
-- [X] T157 [P] [US6] Create Query repository in backend/app/db/repositories/query_repository.py
-- [X] T158 [US6] Implement Query Service in backend/app/services/query_service.py with NLP processing
-- [X] T159 [US6] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
-- [X] T160 [US6] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
-- [X] T161 [US6] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
-- [X] T162 [US6] Implement response generation with LLM in backend/app/services/query_service.py
+- [X] T157 [P] [US5] Create Query repository in backend/app/db/repositories/query_repository.py
+- [X] T158 [US5] Implement Query Service in backend/app/services/query_service.py with NLP processing
+- [X] T159 [US5] Create Query Agent in backend/app/agents/query_agent.py using LangChain/LangGraph
+- [X] T160 [US5] Implement query understanding workflow in backend/app/agents/query_agent.py with intent detection
+- [X] T161 [US5] Implement OpenSearch query DSL generation in backend/app/services/query_service.py
+- [X] T162 [US5] Implement response generation with LLM in backend/app/services/query_service.py
 
 ### Backend - REST API Endpoints
 
-- [X] T163 [P] [US6] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
+- [X] T163 [P] [US5] Implement Query endpoint in backend/app/api/v1/query.py per backend-api.yaml (POST /query)
 
 ### Frontend - Query Interface
 
-- [X] T164 [US6] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
-- [X] T165 [P] [US6] Create query input component in frontend/src/components/query/QueryInput.tsx
-- [X] T166 [P] [US6] Create query response component in frontend/src/components/query/QueryResponse.tsx
-- [X] T167 [P] [US6] Create query history component in frontend/src/components/query/QueryHistory.tsx
-- [X] T168 [P] [US6] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
+- [X] T164 [US5] Create Query page in frontend/src/pages/Query.tsx with chat-like interface
+- [X] T165 [P] [US5] Create query input component in frontend/src/components/query/QueryInput.tsx
+- [X] T166 [P] [US5] Create query response component in frontend/src/components/query/QueryResponse.tsx
+- [X] T167 [P] [US5] Create query history component in frontend/src/components/query/QueryHistory.tsx
+- [X] T168 [P] [US5] Implement conversation context management in frontend/src/hooks/useQuerySession.ts
 
 ### Integration & Validation
 
-- [X] T169 [US6] Create integration test for query processing in tests/integration/test_query_processing.py
-- [X] T170 [US6] Create end-to-end test for complete query workflow in tests/e2e/test_query_workflow.py
-- [X] T171 [US6] Validate User Story 6 independently with various query types
+- [X] T169 [US5] Create integration test for query processing in tests/integration/test_query_processing.py
+- [X] T170 [US5] Create end-to-end test for complete query workflow in tests/e2e/test_query_workflow.py
+- [X] T171 [US5] Validate User Story 5 independently with various query types
 
 **Checkpoint**: All user stories complete - Full system functional
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 8: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories
 
@@ -468,7 +472,7 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-## Phase 10: AI-Enhanced Analysis (LLM Integration) 🤖
+## Phase 9: AI-Enhanced Analysis (LLM Integration) 🤖
 
 **Goal**: Enable LLM-powered intelligent analysis for predictions and optimizations
 
@@ -539,7 +543,7 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-## Phase 11: Query Service Agent Integration 🔗
+## Phase 10: Query Service Agent Integration 🔗
 
 **Goal**: Enhance QueryService with PredictionAgent and OptimizationAgent for AI-driven query responses
 
@@ -615,9 +619,8 @@ This is a distributed web application with microservices architecture:
 - **User Story 1 (P1)**: Can start after Foundational - No dependencies on other stories
 - **User Story 2 (P1)**: Can start after Foundational - Depends on US1 for metrics data
 - **User Story 3 (P2)**: Can start after Foundational - Depends on US1 for API inventory
-- **User Story 4 (P2)**: Can start after Foundational - Depends on US1 for metrics data
-- **User Story 5 (P3)**: Can start after Foundational - Depends on US1 for API inventory
-- **User Story 6 (P3)**: Can start after Foundational - Can query data from all previous stories
+- **User Story 4 (P2)**: Can start after Foundational - Depends on US1 for metrics data (MERGED: includes rate limiting)
+- **User Story 5 (P3)**: Can start after Foundational - Can query data from all previous stories (RENUMBERED from US6)
 
 ### Within Each User Story
 
@@ -675,9 +678,9 @@ With multiple developers:
    - Developer C: User Story 5 (Rate Limiting)
 3. After US1 completes:
    - Developer D: User Story 2 (Predictions) - needs US1 metrics
-   - Developer E: User Story 4 (Optimization) - needs US1 metrics
+   - Developer E: User Story 4 (Unified Performance Optimization) - needs US1 metrics
 4. After all P1/P2 stories:
-   - Developer F: User Story 6 (Natural Language) - needs all data
+   - Developer F: User Story 5 (Natural Language) - needs all data
 5. Stories complete and integrate independently
 
 ---
@@ -689,12 +692,13 @@ With multiple developers:
 - **Phase 3 (US1 - Discovery & Monitoring)**: 36 tasks
 - **Phase 4 (US2 - Predictions)**: 16 tasks
 - **Phase 5 (US3 - Security)**: 18 tasks
-- **Phase 6 (US4 - Optimization)**: 14 tasks
-- **Phase 7 (US5 - Rate Limiting)**: 14 tasks
-- **Phase 8 (US6 - Natural Language)**: 15 tasks
-- **Phase 9 (Polish)**: 29 tasks
+- **Phase 6 (US4 - Unified Performance Optimization)**: 42 tasks (merged US4 + US5 + new adapter tasks)
+- **Phase 7 (US5 - Natural Language)**: 15 tasks (renumbered from US6)
+- **Phase 8 (Polish)**: 29 tasks
+- **Phase 9 (AI-Enhanced Analysis)**: 38 tasks
+- **Phase 10 (Query Service Agent Integration)**: 27 tasks
 
-**Total**: 195 tasks
+**Total**: 221 tasks (increased due to gateway adapter enhancements)
 
 **Parallel Opportunities**: 89 tasks marked [P] can run in parallel with other tasks
 
@@ -717,10 +721,19 @@ With multiple developers:
 ---
 
 **Generated**: 2026-03-09
-**Updated**: 2026-03-11 (Added Phase 10: AI-Enhanced Analysis)
-**Total Tasks**: 233
+**Updated**: 2026-03-29 (Merged Performance Optimization & Rate Limiting, Enhanced Gateway Adapters)
+**Total Tasks**: 221
 **MVP Tasks**: 105 (Setup + Foundational + US1 + US2)
 **AI-Enhanced MVP**: 143 (MVP + AI Integration)
+**Full System with Unified Optimization**: 221 tasks
 **Estimated MVP Duration**: 4-6 weeks with 2-3 developers
 **Estimated AI-Enhanced MVP**: 6-8 weeks with 2-3 developers
 **Full System Duration**: 10-14 weeks with 3-5 developers
+
+**Key Changes (2026-03-29)**:
+- Merged Phase 6 (US4) and Phase 7 (US5) into unified Performance Optimization feature
+- Added 14 new tasks for gateway adapter policy application methods
+- Added 5 new tasks for OPTIMIZATION_AI_ENABLED configuration
+- Removed cost savings tracking per requirements
+- Unified frontend UI - single view for all optimization types
+- Enhanced gateway adapters with caching, compression, and rate limiting policy methods

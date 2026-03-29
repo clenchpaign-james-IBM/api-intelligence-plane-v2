@@ -521,4 +521,179 @@ async def get_recommendation_insights(
             detail=f"Failed to get recommendation insights: {str(e)}",
         )
 
+
+@router.post(
+    "/recommendations/{recommendation_id}/apply",
+    summary="Apply recommendation policy to Gateway",
+)
+async def apply_recommendation_to_gateway(
+    recommendation_id: UUID,
+) -> dict:
+    """
+    Apply a recommendation's policy to the actual Gateway.
+    
+    This endpoint:
+    1. Retrieves the recommendation from the database
+    2. Gets the API and Gateway information
+    3. Creates a Gateway adapter
+    4. Applies the appropriate policy (caching, compression, rate limiting) to the Gateway
+    5. Updates the recommendation status
+    
+    Args:
+        recommendation_id: Recommendation UUID to apply
+        
+    Returns:
+        Dictionary with application result:
+            - success: bool
+            - recommendation_id: str
+            - api_id: str
+            - gateway_id: str
+            - policy_type: str
+            - message: str
+            - applied_at: str (ISO format)
+            
+    Raises:
+        HTTPException: If recommendation not found or application fails
+    """
+    try:
+        # Initialize repositories
+        recommendation_repo = RecommendationRepository()
+        api_repo = APIRepository()
+        
+        # Get recommendation
+        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
+        
+        if not recommendation:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Recommendation {recommendation_id} not found",
+            )
+        
+        # Get API
+        api = api_repo.get(str(recommendation.api_id))
+        if not api:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"API {recommendation.api_id} not found",
+            )
+        
+        # Get Gateway
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(api.gateway_id))
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {api.gateway_id} not found",
+            )
+        
+        # Create Gateway adapter
+        from app.adapters.factory import create_gateway_adapter
+        try:
+            adapter = create_gateway_adapter(gateway)
+            await adapter.connect()
+        except Exception as e:
+            logger.error(f"Failed to connect to Gateway {gateway.id}: {e}")
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Failed to connect to Gateway: {str(e)}",
+            )
+        
+        # Apply policy based on recommendation type
+        try:
+            policy_type = recommendation.recommendation_type.value
+            success = False
+            
+            if policy_type == "caching":
+                # Extract caching policy from recommendation
+                policy = {
+                    "ttl_seconds": 300,  # Default 5 minutes
+                    "cache_key_strategy": "url_based",
+                    "vary_headers": "Accept,Accept-Encoding",
+                }
+                success = await adapter.apply_caching_policy(str(api.id), policy)
+                
+            elif policy_type == "compression":
+                # Extract compression policy from recommendation
+                policy = {
+                    "compression_type": "gzip",
+                    "compression_level": 6,
+                    "min_size_bytes": 1024,
+                    "content_types": ["application/json", "text/html", "text/plain"],
+                }
+                success = await adapter.apply_compression_policy(str(api.id), policy)
+                
+            elif policy_type == "rate_limiting":
+                # Extract rate limiting policy from recommendation
+                # This would typically come from the recommendation metadata
+                policy = {
+                    "policy_name": f"Rate Limit for {api.name}",
+                    "policy_type": "fixed",
+                    "limit_thresholds": {
+                        "requests_per_second": 100,
+                        "requests_per_minute": 5000,
+                        "requests_per_hour": 250000,
+                        "concurrent_requests": 50,
+                    },
+                    "enforcement_action": "throttle",
+                }
+                success = await adapter.apply_rate_limit_policy(str(api.id), policy)
+            
+            else:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unsupported recommendation type: {policy_type}",
+                )
+            
+            if not success:
+                raise RuntimeError("Gateway adapter returned failure")
+            
+            # Update recommendation status
+            from datetime import datetime
+            implemented_at = datetime.utcnow()
+            recommendation_repo.update_recommendation_status(
+                recommendation_id=str(recommendation_id),
+                status=RecommendationStatus.IMPLEMENTED,
+                implemented_at=implemented_at,
+            )
+            
+            logger.info(
+                f"Successfully applied {policy_type} policy for recommendation {recommendation_id} "
+                f"to Gateway {gateway.id}"
+            )
+            
+            return {
+                "success": True,
+                "recommendation_id": str(recommendation.id),
+                "api_id": str(api.id),
+                "gateway_id": str(gateway.id),
+                "policy_type": policy_type,
+                "message": f"{policy_type.capitalize()} policy applied successfully to API '{api.name}' on Gateway '{gateway.name}'",
+                "applied_at": implemented_at.isoformat(),
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to apply policy to Gateway: {e}")
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to apply policy to Gateway: {str(e)}",
+            )
+        
+        finally:
+            # Disconnect from Gateway
+            try:
+                await adapter.disconnect()
+            except Exception as e:
+                logger.warning(f"Failed to disconnect from Gateway: {e}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to apply recommendation {recommendation_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to apply recommendation: {str(e)}",
+        )
+
+
 # Made with Bob

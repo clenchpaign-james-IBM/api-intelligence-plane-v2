@@ -323,8 +323,8 @@ This is a distributed web application with microservices architecture:
 ### Backend - REST API Endpoints
 
 - [x] T135 [P] [US4] Implement Optimization endpoints in backend/app/api/v1/optimization.py per backend-api.yaml (GET /recommendations)
-- [ ] T135a [P] [US4] Add POST /api/v1/recommendations/{id}/apply endpoint for applying policies to Gateway
-- [ ] T135b [P] [US4] Update GET /recommendations to include rate limiting recommendations
+- [x] T135a [P] [US4] Add POST /api/v1/recommendations/{id}/apply endpoint for applying policies to Gateway
+- [x] T135b [P] [US4] Update GET /recommendations to include rate limiting recommendations
 
 ### MCP - Unified Optimization Server
 

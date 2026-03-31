@@ -216,6 +216,123 @@ class BaseGatewayAdapter(ABC):
         pass
 
     @abstractmethod
+    async def apply_authentication_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply authentication policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Authentication policy configuration containing:
+                - auth_type: Type of authentication (oauth2, jwt, api_key, basic)
+                - provider: Authentication provider details
+                - scopes: Required scopes (for OAuth2)
+                - validation_rules: Token validation rules
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_authorization_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply authorization policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Authorization policy configuration containing:
+                - policy_type: Type of authorization (rbac, abac, acl)
+                - roles: Role definitions
+                - permissions: Permission mappings
+                - rules: Authorization rules
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_tls_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply TLS/SSL policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: TLS policy configuration containing:
+                - enforce_https: Force HTTPS only
+                - min_tls_version: Minimum TLS version (1.2, 1.3)
+                - cipher_suites: Allowed cipher suites
+                - hsts_enabled: Enable HSTS header
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_cors_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply CORS policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: CORS policy configuration containing:
+                - allowed_origins: List of allowed origins
+                - allowed_methods: List of allowed HTTP methods
+                - allowed_headers: List of allowed headers
+                - expose_headers: Headers to expose
+                - max_age: Preflight cache duration
+                - allow_credentials: Allow credentials
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_validation_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply input validation policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Validation policy configuration containing:
+                - schema_validation: Enable schema validation
+                - content_type_validation: Validate content types
+                - size_limits: Request/response size limits
+                - sanitization_rules: Input sanitization rules
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_security_headers_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply security headers policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Security headers configuration containing:
+                - hsts: Strict-Transport-Security header
+                - x_frame_options: X-Frame-Options header
+                - x_content_type_options: X-Content-Type-Options header
+                - csp: Content-Security-Policy header
+                - x_xss_protection: X-XSS-Protection header
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
     async def get_gateway_health(self) -> dict[str, Any]:
         """Get Gateway health status and metrics.
 

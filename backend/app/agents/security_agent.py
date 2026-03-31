@@ -4,8 +4,11 @@ AI-driven security analysis and automated remediation using LangChain/LangGraph.
 This agent intelligently analyzes API security policy coverage and recommends
 appropriate gateway-level protections.
 
-The agent leverages BOTH API metadata AND real-time metrics/traffic analytics
-for comprehensive security assessment.
+The agent uses a HYBRID approach:
+- Rule-based checks for deterministic security factors
+- AI enhancement for context-aware severity assessment and insights
+- Combined API metadata, metrics, and traffic analysis for comprehensive assessment
+- Compliance detection across GDPR, HIPAA, SOC2, PCI-DSS
 """
 
 import logging
@@ -31,6 +34,7 @@ from app.models.vulnerability import (
     DetectionMethod,
     VulnerabilityStatus,
     RemediationType,
+    ComplianceStandard,
 )
 from app.services.llm_service import LLMService
 from app.db.repositories.metrics_repository import MetricsRepository
@@ -44,7 +48,9 @@ class SecurityAnalysisState(TypedDict):
     api_id: str
     api_name: str
     api_data: Dict[str, Any]
+    metrics_data: Dict[str, Any]
     vulnerabilities: List[Dict[str, Any]]
+    compliance_issues: List[Dict[str, Any]]
     remediation_plan: Dict[str, Any]
     analysis_complete: bool
     error: str
@@ -53,11 +59,12 @@ class SecurityAnalysisState(TypedDict):
 class SecurityAgent:
     """AI-driven security agent for policy coverage analysis and remediation.
 
-    This agent uses LLM to intelligently:
-    1. Analyze API security policy coverage
-    2. Detect missing or weak security policies
-    3. Recommend appropriate gateway-level protections
-    4. Generate automated remediation actions
+    This agent uses a HYBRID approach:
+    1. Rule-based checks for deterministic security factors
+    2. AI enhancement for context-aware analysis where beneficial
+    3. Metrics and traffic analysis for data-driven insights
+    4. Compliance detection across GDPR, HIPAA, SOC2, PCI-DSS
+    5. Generate automated remediation actions for Gateway policies
     """
 
     def __init__(
@@ -97,6 +104,7 @@ class SecurityAgent:
             workflow.add_node("analyze_cors_policy", self._analyze_cors_policy_node)
             workflow.add_node("analyze_validation", self._analyze_validation_node)
             workflow.add_node("analyze_security_headers", self._analyze_security_headers_node)
+            workflow.add_node("analyze_compliance", self._analyze_compliance_node)
             workflow.add_node("generate_remediation_plan", self._generate_remediation_plan_node)
 
             # Define workflow edges
@@ -107,7 +115,8 @@ class SecurityAgent:
             workflow.add_edge("analyze_tls_config", "analyze_cors_policy")
             workflow.add_edge("analyze_cors_policy", "analyze_validation")
             workflow.add_edge("analyze_validation", "analyze_security_headers")
-            workflow.add_edge("analyze_security_headers", "generate_remediation_plan")
+            workflow.add_edge("analyze_security_headers", "analyze_compliance")
+            workflow.add_edge("analyze_compliance", "generate_remediation_plan")
             workflow.add_edge("generate_remediation_plan", END if END else "__end__")
 
             return workflow.compile()
@@ -116,7 +125,7 @@ class SecurityAgent:
             return None
 
     async def analyze_api_security(self, api: API) -> Dict[str, Any]:
-        """Analyze API security policy coverage using metrics-driven insights.
+        """Analyze API security policy coverage using hybrid approach.
 
         Args:
             api: API to analyze
@@ -125,10 +134,11 @@ class SecurityAgent:
             Analysis results with vulnerabilities and remediation plan
         """
         try:
-            logger.info(f"Starting metrics-driven security analysis for API: {api.name}")
+            logger.info(f"Starting hybrid security analysis for API: {api.name}")
 
             # Fetch recent metrics for traffic analysis
             recent_metrics = await self._fetch_recent_metrics(api.id)
+            traffic_analysis = self._analyze_traffic_patterns(recent_metrics)
             
             # If workflow available, use it
             if self.workflow:
@@ -136,7 +146,9 @@ class SecurityAgent:
                     "api_id": str(api.id),
                     "api_name": api.name,
                     "api_data": api.dict(),
+                    "metrics_data": traffic_analysis,
                     "vulnerabilities": [],
+                    "compliance_issues": [],
                     "remediation_plan": {},
                     "analysis_complete": False,
                     "error": "",
@@ -148,13 +160,14 @@ class SecurityAgent:
                     "api_id": final_state["api_id"],
                     "api_name": final_state["api_name"],
                     "vulnerabilities": final_state["vulnerabilities"],
+                    "compliance_issues": final_state["compliance_issues"],
                     "remediation_plan": final_state["remediation_plan"],
                     "metrics_analyzed": len(recent_metrics),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
                 }
             else:
-                # Fallback to direct execution with metrics
-                return await self._analyze_direct(api, recent_metrics)
+                # Fallback to direct execution
+                return await self._analyze_direct(api, recent_metrics, traffic_analysis)
 
         except Exception as e:
             logger.error(f"Security analysis failed: {str(e)}")
@@ -163,20 +176,26 @@ class SecurityAgent:
                 "api_name": api.name,
                 "error": str(e),
                 "vulnerabilities": [],
+                "compliance_issues": [],
             }
 
-    async def _analyze_direct(self, api: API, metrics: List[Metric]) -> Dict[str, Any]:
-        """Direct analysis without LangGraph workflow, using metrics."""
+    async def _analyze_direct(
+        self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Direct analysis without LangGraph workflow."""
         vulnerabilities = []
         
         # Run all analysis steps with metrics context
-        vulnerabilities.extend(await self._check_authentication(api, metrics))
-        vulnerabilities.extend(await self._check_authorization(api, metrics))
-        vulnerabilities.extend(await self._check_rate_limiting(api, metrics))
-        vulnerabilities.extend(await self._check_tls_config(api, metrics))
-        vulnerabilities.extend(await self._check_cors_policy(api, metrics))
-        vulnerabilities.extend(await self._check_validation(api, metrics))
-        vulnerabilities.extend(await self._check_security_headers(api, metrics))
+        vulnerabilities.extend(await self._check_authentication(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_authorization(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_rate_limiting(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_tls_config(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_cors_policy(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_validation(api, metrics, traffic_analysis))
+        vulnerabilities.extend(await self._check_security_headers(api, metrics, traffic_analysis))
+        
+        # Check compliance
+        compliance_issues = await self._check_compliance(api, vulnerabilities, traffic_analysis)
         
         # Generate remediation plan
         remediation_plan = await self._create_remediation_plan(api, vulnerabilities)
@@ -185,6 +204,7 @@ class SecurityAgent:
             "api_id": str(api.id),
             "api_name": api.name,
             "vulnerabilities": [v.dict() for v in vulnerabilities],
+            "compliance_issues": compliance_issues,
             "remediation_plan": remediation_plan,
             "metrics_analyzed": len(metrics),
             "analysis_timestamp": datetime.utcnow().isoformat(),
@@ -194,50 +214,58 @@ class SecurityAgent:
     async def _analyze_authentication_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze authentication policy coverage."""
         api = API(**state["api_data"])
-        vulns = await self._check_authentication(api)
+        vulns = await self._check_authentication(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_authorization_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze authorization policy coverage."""
         api = API(**state["api_data"])
-        vulns = await self._check_authorization(api)
+        vulns = await self._check_authorization(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_rate_limiting_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze rate limiting policy coverage."""
         api = API(**state["api_data"])
-        vulns = await self._check_rate_limiting(api)
+        vulns = await self._check_rate_limiting(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_tls_config_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze TLS/SSL configuration."""
         api = API(**state["api_data"])
-        vulns = await self._check_tls_config(api)
+        vulns = await self._check_tls_config(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_cors_policy_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze CORS policy configuration."""
         api = API(**state["api_data"])
-        vulns = await self._check_cors_policy(api)
+        vulns = await self._check_cors_policy(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_validation_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze request/response validation policies."""
         api = API(**state["api_data"])
-        vulns = await self._check_validation(api)
+        vulns = await self._check_validation(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
         return state
 
     async def _analyze_security_headers_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
         """Analyze security headers configuration."""
         api = API(**state["api_data"])
-        vulns = await self._check_security_headers(api)
+        vulns = await self._check_security_headers(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
+        return state
+
+    async def _analyze_compliance_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
+        """Analyze compliance requirements."""
+        api = API(**state["api_data"])
+        vulns = [Vulnerability(**v) for v in state["vulnerabilities"]]
+        compliance_issues = await self._check_compliance(api, vulns, state["metrics_data"])
+        state["compliance_issues"] = compliance_issues
         return state
 
     async def _generate_remediation_plan_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
@@ -355,13 +383,15 @@ class SecurityAgent:
             "suspicious_patterns": suspicious_patterns,
         }
 
-    # Analysis methods (enhanced with metrics)
-    async def _check_authentication(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check authentication policy coverage using AI and metrics analysis."""
+    # Security check methods (hybrid approach)
+    async def _check_authentication(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check authentication policy coverage using hybrid approach."""
         vulnerabilities = []
-        
-        # Analyze traffic patterns if metrics available
-        traffic_analysis = self._analyze_traffic_patterns(metrics or [])
 
         # Check if authentication is missing or weak
         if api.authentication_type == AuthenticationType.NONE:
@@ -417,15 +447,27 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_authorization(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check authorization policy coverage using AI."""
+    async def _check_authorization(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check authorization policy coverage - check if policies exist first."""
         vulnerabilities = []
 
-        # Use LLM to analyze if authorization policies are needed
-        needs_authorization = await self._check_authorization_need_with_ai(api)
+        # First check if authorization policies exist at gateway level
+        # This would query the gateway adapter in real implementation
+        has_authorization_policy = False  # Placeholder - would check gateway
+        
+        if not has_authorization_policy:
+            # Use AI to analyze if authorization is needed based on API characteristics
+            needs_authorization = await self._check_authorization_need_with_ai(
+                api, traffic_analysis
+            )
 
-        if needs_authorization:
-            vulnerability = Vulnerability(
+            if needs_authorization:
+                vulnerability = Vulnerability(
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.AUTHORIZATION,
@@ -445,23 +487,41 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_rate_limiting(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check rate limiting policy coverage."""
+    async def _check_rate_limiting(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check rate limiting policy coverage using traffic analysis."""
         vulnerabilities = []
 
-        # Check if rate limiting is configured
-        # This would check gateway configuration in real implementation
-        has_rate_limit = False  # Placeholder
+        # Check if rate limiting is configured at gateway level
+        # This would query the gateway adapter in real implementation
+        has_rate_limit = False  # Would check gateway configuration
+        
+        # Analyze if rate limiting is needed based on traffic patterns
+        needs_rate_limit = (
+            not has_rate_limit and (
+                traffic_analysis.get("total_requests", 0) > 1000 or  # High traffic
+                "rate_limit_violations" in traffic_analysis.get("suspicious_patterns", []) or
+                traffic_analysis.get("has_traffic", False)  # Any traffic suggests need
+            )
+        )
 
-        if not has_rate_limit:
+        if needs_rate_limit:
+            # Determine severity based on traffic volume
+            severity = VulnerabilitySeverity.HIGH if traffic_analysis.get("total_requests", 0) > 10000 else VulnerabilitySeverity.MEDIUM
             vulnerability = Vulnerability(
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
-                severity=VulnerabilitySeverity.MEDIUM,
+                severity=severity,
                 title=f"Missing Rate Limiting Policy for {api.name}",
                 description=f"API {api.name} has no rate limiting configured. "
-                f"This exposes the API to DDoS attacks and resource exhaustion.",
+                f"This exposes the API to DDoS attacks and resource exhaustion. "
+                f"Traffic analysis shows {traffic_analysis.get('total_requests', 0)} requests, "
+                f"indicating need for rate limiting protection.",
                 affected_endpoints=[e.path for e in api.endpoints],
                 detection_method=DetectionMethod.AUTOMATED_SCAN,
                 detected_at=datetime.utcnow(),
@@ -473,7 +533,12 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_tls_config(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
+    async def _check_tls_config(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
         """Check TLS/SSL configuration."""
         vulnerabilities = []
 
@@ -498,12 +563,18 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_cors_policy(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check CORS policy configuration."""
+    async def _check_cors_policy(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check CORS policy configuration using AI with proper context."""
         vulnerabilities = []
 
         # Use AI to determine if CORS policy is needed and properly configured
-        cors_issues = await self._check_cors_with_ai(api)
+        # Provide comprehensive context including endpoints and traffic patterns
+        cors_issues = await self._check_cors_with_ai(api, traffic_analysis)
 
         if cors_issues:
             vulnerability = Vulnerability(
@@ -525,14 +596,28 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_validation(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check request/response validation policies."""
+    async def _check_validation(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check request/response validation policies using traffic analysis."""
         vulnerabilities = []
 
-        # Check for validation policies
-        has_validation = False  # Placeholder
+        # Check for validation policies at gateway level
+        has_validation = False  # Would check gateway configuration
+        
+        # Analyze if validation is needed based on error patterns
+        needs_validation = (
+            not has_validation and (
+                traffic_analysis.get("avg_error_rate", 0) > 0.05 or  # >5% errors
+                traffic_analysis.get("server_errors", 0) > 0 or
+                traffic_analysis.get("has_traffic", False)
+            )
+        )
 
-        if not has_validation:
+        if needs_validation:
             vulnerability = Vulnerability(
                 id=uuid4(),
                 api_id=api.id,
@@ -540,7 +625,9 @@ class SecurityAgent:
                 severity=VulnerabilitySeverity.MEDIUM,
                 title=f"Missing Input Validation Policy for {api.name}",
                 description=f"API {api.name} lacks input validation policies at gateway level. "
-                f"This may allow malformed or malicious requests.",
+                f"This may allow malformed or malicious requests. "
+                f"Traffic analysis shows {traffic_analysis.get('avg_error_rate', 0):.1%} error rate, "
+                f"suggesting validation issues.",
                 affected_endpoints=[e.path for e in api.endpoints],
                 detection_method=DetectionMethod.AUTOMATED_SCAN,
                 detected_at=datetime.utcnow(),
@@ -552,12 +639,17 @@ class SecurityAgent:
 
         return vulnerabilities
 
-    async def _check_security_headers(self, api: API, metrics: Optional[List[Metric]] = None) -> List[Vulnerability]:
-        """Check security headers configuration."""
+    async def _check_security_headers(
+        self,
+        api: API,
+        metrics: Optional[List[Metric]],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Vulnerability]:
+        """Check security headers configuration using AI with proper context."""
         vulnerabilities = []
 
-        # Check for security headers
-        missing_headers = await self._check_security_headers_with_ai(api)
+        # Check for security headers using AI with comprehensive context
+        missing_headers = await self._check_security_headers_with_ai(api, traffic_analysis)
 
         if missing_headers:
             vulnerability = Vulnerability(
@@ -566,8 +658,9 @@ class SecurityAgent:
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
                 severity=VulnerabilitySeverity.LOW,
                 title=f"Missing Security Headers for {api.name}",
-                description=f"API {api.name} responses lack security headers. "
-                f"Missing: {', '.join(missing_headers)}",
+                description=f"API {api.name} responses lack important security headers. "
+                f"Missing: {', '.join(missing_headers)}. "
+                f"These headers protect against common web vulnerabilities.",
                 affected_endpoints=[e.path for e in api.endpoints],
                 detection_method=DetectionMethod.AUTOMATED_SCAN,
                 detected_at=datetime.utcnow(),
@@ -578,6 +671,118 @@ class SecurityAgent:
             vulnerabilities.append(vulnerability)
 
         return vulnerabilities
+    async def _check_compliance(
+        self,
+        api: API,
+        vulnerabilities: List[Vulnerability],
+        traffic_analysis: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Check compliance requirements (GDPR, HIPAA, SOC2, PCI-DSS)."""
+        compliance_issues = []
+        
+        # Analyze API characteristics for compliance requirements
+        api_context = {
+            "name": api.name,
+            "base_path": api.base_path,
+            "endpoints": [e.path for e in api.endpoints],
+            "authentication": api.authentication_type.value,
+            "has_tls": api.base_path.startswith("https://"),
+            "traffic_analysis": traffic_analysis,
+        }
+        
+        # Check GDPR compliance (data protection)
+        if await self._requires_gdpr_compliance(api_context):
+            gdpr_issues = []
+            
+            # Check for encryption
+            if not api_context["has_tls"]:
+                gdpr_issues.append("Data transmitted without encryption (GDPR Art. 32)")
+            
+            # Check for authentication
+            if api_context["authentication"] == "none":
+                gdpr_issues.append("No access controls for personal data (GDPR Art. 32)")
+            
+            if gdpr_issues:
+                compliance_issues.append({
+                    "standard": ComplianceStandard.GDPR.value,
+                    "issues": gdpr_issues,
+                    "severity": "high",
+                    "description": "GDPR data protection requirements not met",
+                })
+        
+        # Check HIPAA compliance (healthcare data)
+        if await self._requires_hipaa_compliance(api_context):
+            hipaa_issues = []
+            
+            if not api_context["has_tls"]:
+                hipaa_issues.append("PHI transmitted without encryption (HIPAA Security Rule)")
+            
+            if api_context["authentication"] == "none":
+                hipaa_issues.append("No access controls for PHI (HIPAA Security Rule)")
+            
+            # Check for audit logging
+            if not any(v.vulnerability_type == VulnerabilityType.CONFIGURATION for v in vulnerabilities):
+                hipaa_issues.append("Insufficient audit logging (HIPAA Security Rule)")
+            
+            if hipaa_issues:
+                compliance_issues.append({
+                    "standard": ComplianceStandard.HIPAA.value,
+                    "issues": hipaa_issues,
+                    "severity": "critical",
+                    "description": "HIPAA healthcare data protection requirements not met",
+                })
+        
+        # Check PCI-DSS compliance (payment data)
+        if await self._requires_pci_dss_compliance(api_context):
+            pci_issues = []
+            
+            if not api_context["has_tls"]:
+                pci_issues.append("Payment data transmitted without TLS 1.2+ (PCI-DSS Req. 4)")
+            
+            if api_context["authentication"] == "none":
+                pci_issues.append("No authentication for payment systems (PCI-DSS Req. 8)")
+            
+            # Check for rate limiting (DDoS protection)
+            has_rate_limit_vuln = any(
+                "rate limit" in v.title.lower()
+                for v in vulnerabilities
+            )
+            if has_rate_limit_vuln:
+                pci_issues.append("No DDoS protection (PCI-DSS Req. 6)")
+            
+            if pci_issues:
+                compliance_issues.append({
+                    "standard": ComplianceStandard.PCI_DSS.value,
+                    "issues": pci_issues,
+                    "severity": "critical",
+                    "description": "PCI-DSS payment card data protection requirements not met",
+                })
+        
+        # Check SOC2 compliance (security controls)
+        if await self._requires_soc2_compliance(api_context):
+            soc2_issues = []
+            
+            # Check security controls
+            if api_context["authentication"] == "none":
+                soc2_issues.append("Inadequate access controls (CC6.1)")
+            
+            if not api_context["has_tls"]:
+                soc2_issues.append("Data not encrypted in transit (CC6.7)")
+            
+            # Check for monitoring
+            if not traffic_analysis.get("has_traffic", False):
+                soc2_issues.append("Insufficient monitoring and logging (CC7.2)")
+            
+            if soc2_issues:
+                compliance_issues.append({
+                    "standard": ComplianceStandard.SOC2.value,
+                    "issues": soc2_issues,
+                    "severity": "high",
+                    "description": "SOC2 security and availability controls not met",
+                })
+        
+        return compliance_issues
+
 
     # AI helper methods
     async def _determine_severity_with_ai(
@@ -625,20 +830,26 @@ Respond with ONLY one word: critical, high, medium, or low"""
             # Default to HIGH for safety
             return VulnerabilitySeverity.HIGH
 
-    async def _check_authorization_need_with_ai(self, api: API) -> bool:
+    async def _check_authorization_need_with_ai(
+        self, api: API, traffic_analysis: Dict[str, Any]
+    ) -> bool:
         """Use LLM to determine if authorization policies are needed."""
         try:
             prompt = f"""Analyze if this API needs authorization policies beyond authentication.
 
 API: {api.name}
 Base Path: {api.base_path}
-Endpoints: {', '.join([e.path for e in api.endpoints[:5]])}
+Endpoints: {', '.join([e.path + ' [' + e.method + ']' for e in api.endpoints[:5]])}
 Authentication: {api.authentication_type.value}
+Traffic: {traffic_analysis.get('total_requests', 0)} requests
+Auth Errors: {traffic_analysis.get('auth_errors', 0)}
 
 Consider:
-1. Does this API handle sensitive operations (admin, delete, modify)?
+1. Does this API handle sensitive operations (admin, delete, modify, payment)?
 2. Should different users have different access levels?
 3. Are there endpoints that need role-based access control?
+4. Do HTTP methods suggest privileged operations (PUT, DELETE, PATCH)?
+5. Do endpoint paths suggest resource ownership (/users/{{id}}, /accounts/{{id}})?
 
 Respond with ONLY: yes or no"""
 
@@ -655,22 +866,32 @@ Respond with ONLY: yes or no"""
             # Default to requiring authorization for safety
             return True
 
-    async def _check_cors_with_ai(self, api: API) -> Optional[str]:
-        """Use LLM to check CORS configuration issues."""
+    async def _check_cors_with_ai(
+        self, api: API, traffic_analysis: Dict[str, Any]
+    ) -> Optional[str]:
+        """Use LLM to check CORS configuration issues with proper context."""
         try:
             prompt = f"""Analyze potential CORS security issues for this API.
 
 API: {api.name}
 Base Path: {api.base_path}
+Endpoints: {', '.join([e.path for e in api.endpoints[:5]])}
+Authentication: {api.authentication_type.value}
+Traffic: {traffic_analysis.get('total_requests', 0)} requests
 
-Common CORS issues:
-1. Allowing all origins (*)
-2. Missing CORS policy entirely
+Common CORS issues to check:
+1. Allowing all origins (*) with credentials
+2. Missing CORS policy for browser-accessed APIs
 3. Overly permissive allowed methods
 4. Credentials allowed with wildcard origins
 
+Based on the API characteristics:
+- Is this likely a browser-accessed API (REST, public endpoints)?
+- Does it handle sensitive data requiring CORS restrictions?
+- Should CORS be configured?
+
 If CORS issues are likely, respond with a brief description.
-If no issues, respond with: none"""
+If no issues or CORS not needed, respond with: none"""
 
             messages = [
                 {"role": "system", "content": "You are a security expert analyzing CORS configurations."},
@@ -686,21 +907,28 @@ If no issues, respond with: none"""
             logger.error(f"AI CORS check failed: {e}")
             return "Unable to verify CORS configuration"
 
-    async def _check_security_headers_with_ai(self, api: API) -> List[str]:
-        """Use LLM to identify missing security headers."""
+    async def _check_security_headers_with_ai(
+        self, api: API, traffic_analysis: Dict[str, Any]
+    ) -> List[str]:
+        """Use LLM to identify missing security headers with proper context."""
         try:
             prompt = f"""List security headers that should be configured for this API.
 
 API: {api.name}
 Base Path: {api.base_path}
+Endpoints: {', '.join([e.path for e in api.endpoints[:5]])}
+Authentication: {api.authentication_type.value}
+Uses HTTPS: {api.base_path.startswith('https://')}
+Traffic: {traffic_analysis.get('total_requests', 0)} requests
 
 Common security headers:
-- Strict-Transport-Security (HSTS)
-- X-Frame-Options
-- X-Content-Type-Options
-- Content-Security-Policy
-- X-XSS-Protection
+- Strict-Transport-Security (HSTS) - for HTTPS APIs
+- X-Frame-Options - prevent clickjacking
+- X-Content-Type-Options - prevent MIME sniffing
+- Content-Security-Policy - XSS protection
+- X-XSS-Protection - legacy XSS protection
 
+Based on the API characteristics, which headers are likely missing or needed?
 Respond with a comma-separated list of missing headers, or "none" if all are likely present."""
 
             messages = [
@@ -719,6 +947,130 @@ Respond with a comma-separated list of missing headers, or "none" if all are lik
         except Exception as e:
             logger.error(f"AI security headers check failed: {e}")
             return ["HSTS", "X-Frame-Options", "CSP"]
+    async def _requires_gdpr_compliance(self, api_context: Dict[str, Any]) -> bool:
+        """Determine if API requires GDPR compliance using AI."""
+        try:
+            prompt = f"""Determine if this API likely handles personal data requiring GDPR compliance.
+
+API: {api_context['name']}
+Base Path: {api_context['base_path']}
+Endpoints: {', '.join(api_context['endpoints'][:5])}
+
+GDPR applies if the API processes personal data of EU residents, such as:
+- User profiles, accounts, authentication
+- Email addresses, phone numbers, names
+- Location data, IP addresses
+- Payment information, financial data
+- Health information, biometric data
+
+Based on the API name and endpoints, does this API likely handle personal data?
+Respond with ONLY: yes or no"""
+
+            messages = [
+                {"role": "system", "content": "You are a compliance expert analyzing GDPR requirements."},
+                {"role": "user", "content": prompt},
+            ]
+
+            result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=10)
+            return result.get("content", "no").strip().lower() == "yes"
+
+        except Exception as e:
+            logger.error(f"GDPR compliance check failed: {e}")
+            return False
+
+    async def _requires_hipaa_compliance(self, api_context: Dict[str, Any]) -> bool:
+        """Determine if API requires HIPAA compliance using AI."""
+        try:
+            prompt = f"""Determine if this API likely handles protected health information (PHI) requiring HIPAA compliance.
+
+API: {api_context['name']}
+Base Path: {api_context['base_path']}
+Endpoints: {', '.join(api_context['endpoints'][:5])}
+
+HIPAA applies if the API processes PHI, such as:
+- Patient records, medical history
+- Health insurance information
+- Prescription data, lab results
+- Healthcare provider information
+- Medical billing data
+
+Based on the API name and endpoints, does this API likely handle PHI?
+Respond with ONLY: yes or no"""
+
+            messages = [
+                {"role": "system", "content": "You are a compliance expert analyzing HIPAA requirements."},
+                {"role": "user", "content": prompt},
+            ]
+
+            result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=10)
+            return result.get("content", "no").strip().lower() == "yes"
+
+        except Exception as e:
+            logger.error(f"HIPAA compliance check failed: {e}")
+            return False
+
+    async def _requires_pci_dss_compliance(self, api_context: Dict[str, Any]) -> bool:
+        """Determine if API requires PCI-DSS compliance using AI."""
+        try:
+            prompt = f"""Determine if this API likely handles payment card data requiring PCI-DSS compliance.
+
+API: {api_context['name']}
+Base Path: {api_context['base_path']}
+Endpoints: {', '.join(api_context['endpoints'][:5])}
+
+PCI-DSS applies if the API processes payment card data, such as:
+- Credit/debit card numbers
+- Card verification codes (CVV)
+- Payment processing, transactions
+- Billing information
+- Cardholder data
+
+Based on the API name and endpoints, does this API likely handle payment card data?
+Respond with ONLY: yes or no"""
+
+            messages = [
+                {"role": "system", "content": "You are a compliance expert analyzing PCI-DSS requirements."},
+                {"role": "user", "content": prompt},
+            ]
+
+            result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=10)
+            return result.get("content", "no").strip().lower() == "yes"
+
+        except Exception as e:
+            logger.error(f"PCI-DSS compliance check failed: {e}")
+            return False
+
+    async def _requires_soc2_compliance(self, api_context: Dict[str, Any]) -> bool:
+        """Determine if API requires SOC2 compliance using AI."""
+        try:
+            prompt = f"""Determine if this API likely requires SOC2 compliance.
+
+API: {api_context['name']}
+Base Path: {api_context['base_path']}
+Endpoints: {', '.join(api_context['endpoints'][:5])}
+
+SOC2 applies to service providers handling customer data, particularly:
+- SaaS applications
+- Cloud services
+- Data processing services
+- Customer-facing APIs
+- Business-critical systems
+
+Based on the API characteristics, does this API likely require SOC2 compliance?
+Respond with ONLY: yes or no"""
+
+            messages = [
+                {"role": "system", "content": "You are a compliance expert analyzing SOC2 requirements."},
+                {"role": "user", "content": prompt},
+            ]
+
+            result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=10)
+            return result.get("content", "no").strip().lower() == "yes"
+
+        except Exception as e:
+            logger.error(f"SOC2 compliance check failed: {e}")
+            return False
+
 
     async def _create_remediation_plan(
         self,

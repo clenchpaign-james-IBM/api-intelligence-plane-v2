@@ -164,7 +164,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
       </div>
 
       {/* Vulnerabilities by Type */}
-      <div>
+      <div className="mb-8">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Vulnerabilities by Type
           {onFilterByType && (
@@ -194,6 +194,40 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Compliance Issues */}
+      {posture.compliance_issues && posture.compliance_issues.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Compliance Issues
+          </h3>
+          <div className="space-y-3">
+            {posture.compliance_issues.map((issue, index) => (
+              <div
+                key={index}
+                className="p-4 bg-amber-50 rounded-lg border border-amber-200"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {issue.standard}
+                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getComplianceSeverityColor(issue.severity)}`}>
+                        {issue.severity.toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-2">{issue.description}</p>
+                    <div className="text-xs text-gray-600">
+                      Affects <span className="font-semibold">{issue.affected_apis}</span> API{issue.affected_apis !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -206,6 +240,17 @@ function getSeverityBarColor(severity: VulnerabilitySeverity): string {
     medium: 'bg-yellow-500',
     low: 'bg-blue-500',
     info: 'bg-gray-400',
+  };
+  return colors[severity] || colors.info;
+}
+
+function getComplianceSeverityColor(severity: VulnerabilitySeverity): string {
+  const colors: Record<VulnerabilitySeverity, string> = {
+    critical: 'bg-red-100 text-red-800',
+    high: 'bg-orange-100 text-orange-800',
+    medium: 'bg-yellow-100 text-yellow-800',
+    low: 'bg-blue-100 text-blue-800',
+    info: 'bg-gray-100 text-gray-800',
   };
   return colors[severity] || colors.info;
 }

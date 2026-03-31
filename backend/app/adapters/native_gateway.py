@@ -530,4 +530,150 @@ class NativeGatewayAdapter(BaseGatewayAdapter):
             endpoint_metrics=data.get("endpointMetrics"),
         )
 
+    async def apply_authentication_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply authentication policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Authentication policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/authentication",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied authentication policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply authentication policy: {e}")
+            return False
+
+    async def apply_authorization_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply authorization policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Authorization policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/authorization",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied authorization policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply authorization policy: {e}")
+            return False
+
+    async def apply_tls_policy(self, api_id: str, policy: dict[str, Any]) -> bool:
+        """Apply TLS/HTTPS policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: TLS policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/tls",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied TLS policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply TLS policy: {e}")
+            return False
+
+    async def apply_cors_policy(self, api_id: str, policy: dict[str, Any]) -> bool:
+        """Apply CORS policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: CORS policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/cors",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied CORS policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply CORS policy: {e}")
+            return False
+
+    async def apply_validation_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply input validation policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Validation policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/validation",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied validation policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply validation policy: {e}")
+            return False
+
+    async def apply_security_headers_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply security headers policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Security headers policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+        try:
+            response = await self._client.post(
+                f"/policies/security-headers",
+                json={"apiId": api_id, "policy": policy},
+            )
+            response.raise_for_status()
+            logger.info(f"Applied security headers policy to API {api_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply security headers policy: {e}")
+            return False
+
 # Made with Bob

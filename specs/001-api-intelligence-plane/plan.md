@@ -23,7 +23,9 @@ API Intelligence Plane is an AI-driven API management application that transform
 
 **Prediction Architecture**: Hybrid approach combining rule-based predictions (fast, deterministic baseline) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is automatically triggered based on prediction confidence thresholds (default: ≥80%) and system configuration (PREDICTION_AI_ENABLED, PREDICTION_AI_THRESHOLD).
 
-**Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, predictions)
+**Security Architecture**: Hybrid approach combining rule-based security checks with AI-enhanced analysis. Uses multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection. Supports compliance detection for GDPR, HIPAA, SOC2, and PCI-DSS. Real remediation via Gateway adapter with 6 security policy types: authentication, authorization, TLS, CORS, validation, and security headers.
+
+**Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, predictions, compliance violations)
 **Testing**: pytest (Backend), Jest/React Testing Library (Frontend), JUnit (Demo Gateway), Integration tests across all components, End-to-end tests using Demo API Gateway
 **Target Platform**: Linux/macOS servers (Docker containers), Web browsers (Chrome, Firefox, Safari, Edge)
 **Project Type**: Distributed web application with microservices architecture (Backend API + Frontend SPA + MCP Servers + Demo Gateway)
@@ -168,18 +170,18 @@ api-intelligence-plane-v2/
 │   │   │   ├── discovery_service.py
 │   │   │   ├── metrics_service.py
 │   │   │   ├── prediction_service.py  # Hybrid: rule-based + AI enhancement
-│   │   │   ├── security_service.py
+│   │   │   ├── security_service.py  # Hybrid security scanning with multi-source analysis
 │   │   │   ├── optimization_service.py
 │   │   │   ├── query_service.py
 │   │   │   └── llm_service.py  # LiteLLM integration with fallback
 │   │   ├── agents/            # LangChain/LangGraph agents
 │   │   │   ├── prediction_agent.py
-│   │   │   ├── security_agent.py
+│   │   │   ├── security_agent.py  # All security checks + compliance detection (GDPR, HIPAA, SOC2, PCI-DSS)
 │   │   │   ├── optimization_agent.py
 │   │   │   └── query_agent.py
 │   │   ├── adapters/          # Gateway adapters (Strategy pattern)
-│   │   │   ├── base.py  # Enhanced with policy application methods
-│   │   │   ├── native_gateway.py  # Implements caching, compression, rate limit policies
+│   │   │   ├── base.py  # Enhanced with 6 security + 3 optimization policy methods
+│   │   │   ├── native_gateway.py  # Implements all policy application methods
 │   │   │   ├── kong_gateway.py
 │   │   │   └── apigee_gateway.py
 │   │   ├── db/                # OpenSearch client and operations

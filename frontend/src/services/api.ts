@@ -204,6 +204,8 @@ export const api = {
       return api.post('/api/v1/recommendations/generate', params);
     },
     stats: (params?: any) => api.get('/api/v1/recommendations/stats', params),
+    // Apply recommendation policy to Gateway
+    apply: (id: string) => api.post(`/api/v1/recommendations/${id}/apply`),
     // AI-enhanced endpoints
     generateAiEnhanced: (apiId: string, minImpact?: number) => {
       const params: any = { api_id: apiId };

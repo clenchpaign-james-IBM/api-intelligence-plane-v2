@@ -335,17 +335,17 @@ This is a distributed web application with microservices architecture:
 ### Frontend - Unified Optimization View
 
 - [x] T137 [US4] Create Optimization page in frontend/src/pages/Optimization.tsx with unified recommendations list
-- [ ] T137a [US4] Remove tab navigation from frontend/src/pages/Optimization.tsx (merge rate limiting into recommendations)
-- [ ] T137b [US4] Update recommendation type filter to include rate_limiting option
-- [ ] T137c [US4] Add "Apply to Gateway" button for all recommendation types
-- [ ] T137d [US4] Remove cost savings display from frontend/src/pages/Optimization.tsx
+- [x] T137a [US4] Remove tab navigation from frontend/src/pages/Optimization.tsx (merge rate limiting into recommendations)
+- [x] T137b [US4] Update recommendation type filter to include rate_limiting option
+- [x] T137c [US4] Add "Apply to Gateway" button for all recommendation types
+- [x] T137d [US4] Remove cost savings display from frontend/src/pages/Optimization.tsx
 - [x] T138 [P] [US4] Create recommendation card component in frontend/src/components/optimization/RecommendationCard.tsx
-- [ ] T138a [P] [US4] Update RecommendationCard to handle rate limiting recommendations
-- [ ] T138b [P] [US4] Add policy application UI to RecommendationCard
+- [x] T138a [P] [US4] Update RecommendationCard to handle rate limiting recommendations
+- [x] T138b [P] [US4] Add policy application UI to RecommendationCard
 - [x] T139 [P] [US4] Create impact estimation chart in frontend/src/components/optimization/ImpactChart.tsx
 - [x] T140 [P] [US4] Create implementation tracker in frontend/src/components/optimization/ImplementationTracker.tsx
-- [X] T140a [P] [US4] Keep RateLimitPolicy component for detailed view in frontend/src/components/optimization/RateLimitPolicy.tsx
-- [X] T140b [P] [US4] Keep RateLimitChart component for effectiveness visualization in frontend/src/components/optimization/RateLimitChart.tsx
+- [x] T140a [P] [US4] Keep RateLimitPolicy component for detailed view in frontend/src/components/optimization/RateLimitPolicy.tsx
+- [x] T140b [P] [US4] Keep RateLimitChart component for effectiveness visualization in frontend/src/components/optimization/RateLimitChart.tsx
 
 ### Test Data & Fixtures
 
@@ -355,8 +355,8 @@ This is a distributed web application with microservices architecture:
 ### Integration & Validation
 
 - [x] T141 [US4] Create integration test for unified optimization recommendations in tests/integration/test_optimization.py
-- [ ] T141a [US4] Add test cases for rate limiting recommendations in tests/integration/test_optimization.py
-- [ ] T141b [US4] Add test cases for policy application in tests/integration/test_optimization.py
+- [x] T141a [US4] Add test cases for rate limiting recommendations in tests/integration/test_optimization.py
+- [x] T141b [US4] Add test cases for policy application in tests/integration/test_optimization.py
 - [x] T142 [US4] Validate User Story 4 independently with various load patterns and traffic simulation
 
 ### Gateway Adapter Enhancement (CRITICAL)

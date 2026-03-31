@@ -148,126 +148,55 @@ class MockOptimizationGenerator:
         return recommendation
     
     def _get_type_specific_data(self, rec_type: RecommendationType) -> dict:
-        """Get type-specific recommendation data."""
+        """Get type-specific recommendation data - Gateway-level only."""
         
-        # Multiple variations for each recommendation type
-        caching_variations = [
-            {
-                "title": "Enable Response Caching Policy",
-                "description": "Configure gateway-level caching policy to reduce response times for read-heavy endpoints. Current P95 response time is high and no caching policy is enabled.",
-                "steps": [
-                    "Configure gateway caching policy for this API",
-                    "Set cache TTL based on data freshness requirements (e.g., 5-60 minutes)",
-                    "Define cache key strategy (URL, headers, query parameters)",
-                    "Configure cache invalidation rules",
-                    "Monitor cache hit rates and adjust policy as needed",
-                ],
-            },
-            {
-                "title": "Configure Cache-Control Headers",
-                "description": "Implement proper Cache-Control headers at the gateway level to enable browser and CDN caching. Current responses lack caching directives.",
-                "steps": [
-                    "Add Cache-Control headers to gateway responses",
-                    "Set appropriate max-age values for different endpoints",
-                    "Configure ETag generation for conditional requests",
-                    "Implement Vary headers for content negotiation",
-                    "Test caching behavior across different clients",
-                ],
-            },
-            {
-                "title": "Optimize Cache TTL Strategy",
-                "description": "Fine-tune cache TTL values at the gateway to balance freshness and performance. Current cache policy uses suboptimal TTL values.",
-                "steps": [
-                    "Analyze data volatility patterns per endpoint",
-                    "Adjust cache TTL values in gateway policy",
-                    "Implement stale-while-revalidate strategy",
-                    "Configure cache warming for critical endpoints",
-                    "Monitor cache effectiveness metrics",
-                ],
-            },
-        ]
+        # Simple, gateway-level recommendations only (no variations)
+        # These are actionable policies that can be applied directly to the Gateway
         
-        compression_variations = [
-            {
-                "title": "Enable Response Compression Policy",
-                "description": "Configure gateway compression to reduce bandwidth usage and improve transfer speeds. Current responses are uncompressed.",
-                "steps": [
-                    "Enable gzip/brotli compression in gateway policy",
-                    "Set minimum response size threshold (e.g., 1KB)",
-                    "Configure compression level (balance speed vs ratio)",
-                    "Test compression with various content types",
-                    "Monitor bandwidth savings and CPU impact",
-                ],
-            },
-            {
-                "title": "Optimize Compression Settings",
-                "description": "Fine-tune gateway compression settings for optimal performance. Current compression policy uses default settings.",
-                "steps": [
-                    "Adjust compression level based on content type",
-                    "Configure selective compression for specific endpoints",
-                    "Enable Brotli for modern clients",
-                    "Set appropriate compression thresholds",
-                    "Measure compression ratio improvements",
-                ],
-            },
-            {
-                "title": "Enable Selective Content Compression",
-                "description": "Configure gateway to compress only appropriate content types. Current policy compresses all responses indiscriminately.",
-                "steps": [
-                    "Define compressible content types (JSON, XML, HTML, CSS, JS)",
-                    "Exclude already-compressed formats (images, video)",
-                    "Configure compression based on Accept-Encoding headers",
-                    "Implement compression bypass for small responses",
-                    "Monitor compression effectiveness per content type",
-                ],
-            },
-        ]
-        
-        rate_limiting_variations = [
-            {
-                "title": "Implement Rate Limiting Policy",
-                "description": "Configure gateway rate limiting to protect against traffic spikes and abuse. Current API has no rate limiting.",
-                "steps": [
-                    "Define rate limit thresholds per endpoint",
-                    "Configure rate limiting policy in gateway",
-                    "Set up rate limit response headers (X-RateLimit-*)",
-                    "Implement different limits for authenticated vs anonymous users",
-                    "Monitor rate limit violations and adjust as needed",
-                ],
-            },
-            {
-                "title": "Configure Adaptive Rate Limiting",
-                "description": "Implement dynamic rate limiting that adjusts based on system load. Current static limits don't account for capacity changes.",
-                "steps": [
-                    "Configure adaptive rate limiting in gateway",
-                    "Set baseline and maximum rate limits",
-                    "Define load-based adjustment triggers",
-                    "Implement gradual limit reduction under high load",
-                    "Monitor system capacity and rate limit effectiveness",
-                ],
-            },
-            {
-                "title": "Optimize Rate Limit Granularity",
-                "description": "Fine-tune rate limiting rules at the gateway for better protection. Current limits are too coarse-grained.",
-                "steps": [
-                    "Implement per-endpoint rate limits",
-                    "Configure different limits for read vs write operations",
-                    "Set up tiered limits based on user roles",
-                    "Add burst allowance for legitimate traffic spikes",
-                    "Review and adjust limits based on usage patterns",
-                ],
-            },
-        ]
-        
-        # Select random variation based on type
         if rec_type == RecommendationType.CACHING:
-            variation = random.choice(caching_variations)
+            variation = {
+                "title": "Enable Response Caching",
+                "description": "Enable gateway-level response caching to reduce backend load and improve response times. Analysis shows this API would benefit from caching with appropriate TTL settings.",
+                "steps": [
+                    "Apply caching policy to Gateway for this API",
+                    "Configure cache TTL (recommended: 5-60 minutes based on data volatility)",
+                    "Set cache key strategy (URL + query parameters)",
+                    "Monitor cache hit rate and adjust as needed",
+                ],
+            }
         elif rec_type == RecommendationType.COMPRESSION:
-            variation = random.choice(compression_variations)
+            variation = {
+                "title": "Enable Response Compression",
+                "description": "Enable gateway-level compression (gzip/brotli) to reduce bandwidth usage and improve transfer speeds for this API's responses.",
+                "steps": [
+                    "Apply compression policy to Gateway for this API",
+                    "Configure compression type (gzip for compatibility, brotli for modern clients)",
+                    "Set minimum response size threshold (1KB)",
+                    "Monitor bandwidth savings",
+                ],
+            }
         elif rec_type == RecommendationType.RATE_LIMITING:
-            variation = random.choice(rate_limiting_variations)
+            variation = {
+                "title": "Apply Rate Limiting",
+                "description": "Configure gateway-level rate limiting to protect this API from traffic spikes and potential abuse. Current traffic patterns suggest implementing protective limits.",
+                "steps": [
+                    "Apply rate limiting policy to Gateway for this API",
+                    "Set rate limit threshold (recommended based on current traffic + 20% buffer)",
+                    "Configure rate limit headers (X-RateLimit-*)",
+                    "Monitor violations and adjust thresholds as needed",
+                ],
+            }
         else:
-            variation = caching_variations[0]
+            # Fallback to caching
+            variation = {
+                "title": "Enable Response Caching",
+                "description": "Enable gateway-level response caching to reduce backend load and improve response times.",
+                "steps": [
+                    "Apply caching policy to Gateway for this API",
+                    "Configure cache TTL",
+                    "Monitor cache effectiveness",
+                ],
+            }
         
         # Build common data structure
         return {

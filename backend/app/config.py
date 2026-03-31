@@ -117,6 +117,14 @@ class Settings(BaseSettings):
     PREDICTION_AI_THRESHOLD: float = Field(
         default=0.8, description="Confidence threshold for triggering AI enhancement"
     )
+    
+    # Optimization AI Settings
+    OPTIMIZATION_AI_ENABLED: bool = Field(
+        default=True, description="Enable AI-enhanced optimization recommendations"
+    )
+    OPTIMIZATION_AI_THRESHOLD: float = Field(
+        default=0.8, description="Confidence threshold for triggering AI enhancement in optimizations"
+    )
     AZURE_OPENAI_ENDPOINT: Optional[str] = Field(
         default=None, description="Azure OpenAI endpoint"
     )

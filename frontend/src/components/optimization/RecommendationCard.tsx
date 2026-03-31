@@ -1,4 +1,4 @@
-import { DollarSign, Sparkles } from 'lucide-react';
+import { Sparkles, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -7,6 +7,7 @@ import type { Recommendation, RecommendationPriority, RecommendationStatus, Reco
 interface RecommendationCardProps {
   recommendation: Recommendation;
   onClick?: () => void;
+  onApply?: (id: string) => void;
   detailed?: boolean;
 }
 
@@ -20,7 +21,7 @@ interface RecommendationCardProps {
  * - Implementation effort and cost savings
  * - Optional detailed view with implementation steps
  */
-const RecommendationCard = ({ recommendation, onClick, detailed = false }: RecommendationCardProps) => {
+const RecommendationCard = ({ recommendation, onClick, onApply, detailed = false }: RecommendationCardProps) => {
   const [showAiInsights, setShowAiInsights] = useState(false);
 
   // Fetch AI insights when detailed view is shown
@@ -131,21 +132,11 @@ const RecommendationCard = ({ recommendation, onClick, detailed = false }: Recom
         </div>
 
         {/* Additional Info */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-1">Implementation Effort</p>
-            <p className="text-lg font-semibold text-gray-900 capitalize">
-              {recommendation.implementation_effort}
-            </p>
-          </div>
-          {recommendation.cost_savings && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-1">Monthly Savings</p>
-              <p className="text-lg font-semibold text-green-600">
-                ${recommendation.cost_savings.toFixed(2)}
-              </p>
-            </div>
-          )}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-sm text-gray-600 mb-1">Implementation Effort</p>
+          <p className="text-lg font-semibold text-gray-900 capitalize">
+            {recommendation.implementation_effort}
+          </p>
         </div>
 
         {/* AI Insights Section */}
@@ -205,6 +196,22 @@ const RecommendationCard = ({ recommendation, onClick, detailed = false }: Recom
             </div>
           )}
         </div>
+
+        {/* Apply to Gateway Button */}
+        {onApply && recommendation.status === 'pending' && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <button
+              onClick={() => onApply(recommendation.id)}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <CheckCircle className="w-5 h-5" />
+              Apply to Gateway
+            </button>
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              This will create or update the policy in the API Gateway
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -258,19 +265,25 @@ const RecommendationCard = ({ recommendation, onClick, detailed = false }: Recom
         </div>
       </div>
 
-      {/* Effort & Savings */}
-      <div className="flex items-center justify-between text-sm">
+      {/* Effort & Apply Button */}
+      <div className="flex items-center justify-between text-sm gap-2">
         <div className="flex items-center gap-2">
           <span className="text-gray-600">Effort:</span>
           <span className="font-medium text-gray-900 capitalize">
             {recommendation.implementation_effort}
           </span>
         </div>
-        {recommendation.cost_savings && (
-          <div className="flex items-center gap-1 text-blue-600 font-medium">
-            <DollarSign className="w-4 h-4" />
-            {recommendation.cost_savings.toFixed(0)}/mo
-          </div>
+        {onApply && recommendation.status === 'pending' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onApply(recommendation.id);
+            }}
+            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors flex items-center gap-1"
+          >
+            <CheckCircle className="w-3 h-3" />
+            Apply
+          </button>
         )}
       </div>
     </div>

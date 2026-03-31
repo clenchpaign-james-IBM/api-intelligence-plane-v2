@@ -154,6 +154,68 @@ class BaseGatewayAdapter(ABC):
         pass
 
     @abstractmethod
+    async def apply_caching_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply a caching policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Caching policy configuration containing:
+                - ttl_seconds: Cache time-to-live in seconds
+                - cache_key_strategy: Strategy for generating cache keys
+                - invalidation_rules: Rules for cache invalidation
+                - vary_headers: Headers to include in cache key
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def remove_caching_policy(self, api_id: str) -> bool:
+        """Remove caching policy from an API.
+
+        Args:
+            api_id: API identifier
+
+        Returns:
+            bool: True if policy removed successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def apply_compression_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply a compression policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Compression policy configuration containing:
+                - compression_type: Type of compression (gzip, brotli, deflate)
+                - compression_level: Compression level (1-9)
+                - min_size_bytes: Minimum response size to compress
+                - content_types: List of content types to compress
+
+        Returns:
+            bool: True if policy applied successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def remove_compression_policy(self, api_id: str) -> bool:
+        """Remove compression policy from an API.
+
+        Args:
+            api_id: API identifier
+
+        Returns:
+            bool: True if policy removed successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
     async def get_gateway_health(self) -> dict[str, Any]:
         """Get Gateway health status and metrics.
 

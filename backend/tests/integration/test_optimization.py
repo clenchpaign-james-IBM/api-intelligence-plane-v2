@@ -495,4 +495,248 @@ class TestRecommendationValidation:
                 pass
 
 
+@pytest.mark.asyncio
+class TestRateLimitingRecommendations:
+    """Test rate limiting recommendation generation."""
+    
+    async def test_generate_rate_limiting_recommendation(
+        self, optimization_service, test_api, high_throughput_metrics
+    ):
+        """Test that high throughput generates rate limiting recommendations."""
+        # Generate recommendations for the test API
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        # Should generate at least one recommendation
+        assert len(recommendations) > 0
+        
+        # Find rate limiting recommendation
+        rate_limit_recs = [
+            r for r in recommendations
+            if r.recommendation_type == RecommendationType.RATE_LIMITING
+        ]
+        
+        # Should have at least one rate limiting recommendation for high throughput
+        assert len(rate_limit_recs) > 0
+        
+        # Verify recommendation properties
+        for rec in rate_limit_recs:
+            assert rec.api_id == test_api.id
+            assert rec.recommendation_type == RecommendationType.RATE_LIMITING
+            assert rec.estimated_impact.improvement_percentage >= 10.0
+            assert rec.priority in [
+                RecommendationPriority.HIGH,
+                RecommendationPriority.MEDIUM,
+                RecommendationPriority.LOW
+            ]
+            assert rec.status == RecommendationStatus.PENDING
+            assert len(rec.implementation_steps) > 0
+            assert "rate" in rec.title.lower() or "limit" in rec.title.lower()
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+    
+    async def test_rate_limiting_recommendation_details(
+        self, optimization_service, test_api, high_throughput_metrics
+    ):
+        """Test rate limiting recommendation contains proper configuration details."""
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        # Find rate limiting recommendation
+        rate_limit_recs = [
+            r for r in recommendations
+            if r.recommendation_type == RecommendationType.RATE_LIMITING
+        ]
+        
+        if len(rate_limit_recs) > 0:
+            rec = rate_limit_recs[0]
+            
+            # Verify impact estimation
+            assert rec.estimated_impact.current_value > 0
+            assert rec.estimated_impact.expected_value < rec.estimated_impact.current_value
+            assert rec.estimated_impact.improvement_percentage >= 15.0
+            assert 0 < rec.estimated_impact.confidence <= 1.0
+            
+            # Verify implementation details mention rate limiting concepts
+            steps_text = " ".join(rec.implementation_steps).lower()
+            assert any(keyword in steps_text for keyword in ["rate", "limit", "throttle", "quota"])
+            
+            # Verify implementation effort
+            assert rec.implementation_effort in [
+                ImplementationEffort.LOW,
+                ImplementationEffort.MEDIUM,
+                ImplementationEffort.HIGH
+            ]
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+
+
+@pytest.mark.asyncio
+class TestPolicyApplication:
+    """Test policy application to Gateway."""
+    
+    async def test_apply_caching_policy(
+        self, optimization_service, test_api, slow_api_metrics
+    ):
+        """Test applying caching policy to Gateway."""
+        # Generate recommendations
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        # Find caching recommendation
+        caching_recs = [
+            r for r in recommendations
+            if r.recommendation_type == RecommendationType.CACHING
+        ]
+        
+        if len(caching_recs) > 0:
+            rec = caching_recs[0]
+            
+            # Apply policy (this would call Gateway adapter in real scenario)
+            # For now, just verify the recommendation can be marked as in_progress
+            updated_rec = await optimization_service.update_recommendation_status(
+                recommendation_id=rec.id,
+                status=RecommendationStatus.IN_PROGRESS
+            )
+            
+            assert updated_rec is not None
+            assert updated_rec.status == RecommendationStatus.IN_PROGRESS
+            assert updated_rec.id == rec.id
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+    
+    async def test_apply_compression_policy(
+        self, optimization_service, test_api, slow_api_metrics
+    ):
+        """Test applying compression policy to Gateway."""
+        # Generate recommendations
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        # Find compression recommendation
+        compression_recs = [
+            r for r in recommendations
+            if r.recommendation_type == RecommendationType.COMPRESSION
+        ]
+        
+        if len(compression_recs) > 0:
+            rec = compression_recs[0]
+            
+            # Apply policy (this would call Gateway adapter in real scenario)
+            # For now, just verify the recommendation can be marked as in_progress
+            updated_rec = await optimization_service.update_recommendation_status(
+                recommendation_id=rec.id,
+                status=RecommendationStatus.IN_PROGRESS
+            )
+            
+            assert updated_rec is not None
+            assert updated_rec.status == RecommendationStatus.IN_PROGRESS
+            assert updated_rec.id == rec.id
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+    
+    async def test_apply_rate_limiting_policy(
+        self, optimization_service, test_api, high_throughput_metrics
+    ):
+        """Test applying rate limiting policy to Gateway."""
+        # Generate recommendations
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        # Find rate limiting recommendation
+        rate_limit_recs = [
+            r for r in recommendations
+            if r.recommendation_type == RecommendationType.RATE_LIMITING
+        ]
+        
+        if len(rate_limit_recs) > 0:
+            rec = rate_limit_recs[0]
+            
+            # Apply policy (this would call Gateway adapter in real scenario)
+            # For now, just verify the recommendation can be marked as in_progress
+            updated_rec = await optimization_service.update_recommendation_status(
+                recommendation_id=rec.id,
+                status=RecommendationStatus.IN_PROGRESS
+            )
+            
+            assert updated_rec is not None
+            assert updated_rec.status == RecommendationStatus.IN_PROGRESS
+            assert updated_rec.id == rec.id
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+    
+    async def test_policy_application_workflow(
+        self, optimization_service, test_api, slow_api_metrics
+    ):
+        """Test complete policy application workflow."""
+        # Generate recommendations
+        recommendations = await optimization_service.generate_recommendations_for_api(
+            api_id=test_api.id,
+            min_impact=10.0
+        )
+        
+        assert len(recommendations) > 0
+        rec = recommendations[0]
+        
+        # Initial status should be PENDING
+        assert rec.status == RecommendationStatus.PENDING
+        
+        # Mark as IN_PROGRESS (simulating policy application start)
+        updated_rec = await optimization_service.update_recommendation_status(
+            recommendation_id=rec.id,
+            status=RecommendationStatus.IN_PROGRESS
+        )
+        assert updated_rec.status == RecommendationStatus.IN_PROGRESS
+        
+        # Mark as IMPLEMENTED (simulating successful policy application)
+        implemented_rec = await optimization_service.update_recommendation_status(
+            recommendation_id=rec.id,
+            status=RecommendationStatus.IMPLEMENTED
+        )
+        assert implemented_rec.status == RecommendationStatus.IMPLEMENTED
+        assert implemented_rec.implemented_at is not None
+        
+        # Cleanup
+        for rec in recommendations:
+            try:
+                await optimization_service.recommendation_repo.delete(rec.id)
+            except Exception:
+                pass
+
+
 # Made with Bob

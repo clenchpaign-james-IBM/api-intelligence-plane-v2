@@ -268,6 +268,100 @@ class NativeGatewayAdapter(BaseGatewayAdapter):
             logger.error(f"Failed to remove rate limit policy: {e}")
             return False
 
+    async def apply_caching_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply a caching policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Caching policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+
+        try:
+            response = await self._client.post(
+                f"/api/v1/apis/{api_id}/caching", json=policy
+            )
+            response.raise_for_status()
+            logger.info(f"Applied caching policy to API {api_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to apply caching policy: {e}")
+            return False
+
+    async def remove_caching_policy(self, api_id: str) -> bool:
+        """Remove caching policy from an API.
+
+        Args:
+            api_id: API identifier
+
+        Returns:
+            bool: True if policy removed successfully
+        """
+        self._ensure_connected()
+
+        try:
+            response = await self._client.delete(f"/api/v1/apis/{api_id}/caching")
+            response.raise_for_status()
+            logger.info(f"Removed caching policy from API {api_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to remove caching policy: {e}")
+            return False
+
+    async def apply_compression_policy(
+        self, api_id: str, policy: dict[str, Any]
+    ) -> bool:
+        """Apply a compression policy to an API.
+
+        Args:
+            api_id: API identifier
+            policy: Compression policy configuration
+
+        Returns:
+            bool: True if policy applied successfully
+        """
+        self._ensure_connected()
+
+        try:
+            response = await self._client.post(
+                f"/api/v1/apis/{api_id}/compression", json=policy
+            )
+            response.raise_for_status()
+            logger.info(f"Applied compression policy to API {api_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to apply compression policy: {e}")
+            return False
+
+    async def remove_compression_policy(self, api_id: str) -> bool:
+        """Remove compression policy from an API.
+
+        Args:
+            api_id: API identifier
+
+        Returns:
+            bool: True if policy removed successfully
+        """
+        self._ensure_connected()
+
+        try:
+            response = await self._client.delete(f"/api/v1/apis/{api_id}/compression")
+            response.raise_for_status()
+            logger.info(f"Removed compression policy from API {api_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to remove compression policy: {e}")
+            return False
+
     async def get_gateway_health(self) -> dict[str, Any]:
         """Get Native Gateway health status and metrics.
 

@@ -1,13 +1,15 @@
 # Implementation Plan: API Intelligence Plane
 
-**Branch**: `001-api-intelligence-plane` | **Date**: 2026-03-09 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-api-intelligence-plane` | **Date**: 2026-03-09 | **Updated**: 2026-03-29 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-api-intelligence-plane/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
 ## Summary
 
-API Intelligence Plane is an AI-driven API management application that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to existing API Gateways, providing AI-driven visibility, decision-making, and automation for APIs. Core capabilities include autonomous API discovery (including shadow APIs), predictive health management (24-48 hours advance failure prediction), continuous security scanning with automated remediation, real-time performance optimization, intelligent rate limiting, and natural language query interface. The system is vendor-neutral, supporting API Gateways from multiple vendors.
+API Intelligence Plane is an AI-driven API management application that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to existing API Gateways, providing AI-driven visibility, decision-making, and automation for APIs. Core capabilities include autonomous API discovery (including shadow APIs), predictive health management (24-48 hours advance failure prediction), continuous security scanning with automated remediation, **unified performance optimization (caching, compression, and rate limiting)**, and natural language query interface. The system is vendor-neutral, supporting API Gateways from multiple vendors.
+
+**Key Architecture Update (2026-03-29)**: Performance optimization and rate limiting have been merged into a single unified feature (User Story 4), as both are gateway-level performance optimization techniques. All optimization types (caching, compression, rate limiting) are now presented in a unified interface with consistent interaction patterns.
 
 ## Technical Context
 
@@ -176,8 +178,8 @@ api-intelligence-plane-v2/
 │   │   │   ├── optimization_agent.py
 │   │   │   └── query_agent.py
 │   │   ├── adapters/          # Gateway adapters (Strategy pattern)
-│   │   │   ├── base.py
-│   │   │   ├── native_gateway.py
+│   │   │   ├── base.py  # Enhanced with policy application methods
+│   │   │   ├── native_gateway.py  # Implements caching, compression, rate limit policies
 │   │   │   ├── kong_gateway.py
 │   │   │   └── apigee_gateway.py
 │   │   ├── db/                # OpenSearch client and operations
@@ -237,7 +239,7 @@ api-intelligence-plane-v2/
 │   ├── discovery_server.py   # API discovery tools
 │   ├── metrics_server.py     # Metrics collection tools
 │   ├── security_server.py    # Security scanning tools
-│   ├── optimization_server.py # Optimization tools
+│   ├── optimization_server.py # Unified optimization tools (caching, compression, rate limiting)
 │   ├── common/
 │   │   ├── mcp_base.py      # Base MCP server class
 │   │   └── opensearch.py    # Shared OpenSearch client

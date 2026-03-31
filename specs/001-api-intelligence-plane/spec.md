@@ -2,6 +2,7 @@
 
 **Feature Branch**: `001-api-intelligence-plane`  
 **Created**: 2026-03-09  
+**Updated**: 2026-03-29 (Merged Performance Optimization & Rate Limiting)
 **Status**: Draft  
 **Input**: User description: "Build 'API Intelligence Plane', an AI-driven API management application, that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to your existing API Gateways that provides AI-driven visibility, decision-making and automation for APIs. The Core Capabilities includes Autonomous API discovery (including shadow APIs), Predictive Health Management (Predict API failures 24-48 hours in advance), Continuous security scanning and automated remediation, Real-time performance optimization recommendations, Real-time rate limiting and Natural language query interface. The system also works for Gateways from different vendors."
 
@@ -68,41 +69,43 @@ As a security engineer, I need continuous security scanning of all APIs with aut
 
 ---
 
-### User Story 4 - Real-time Performance Optimization (Priority: P2)
+### User Story 4 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
 
-As a platform engineer, I need real-time recommendations for optimizing API performance based on actual usage patterns, so that I can improve response times and reduce infrastructure costs.
+**MERGED**: This user story combines real-time performance optimization recommendations with intelligent rate limiting, as both are gateway-level performance optimization techniques.
 
-**Why this priority**: Performance optimization delivers measurable business value (cost reduction, better user experience) but requires the monitoring foundation from P1 stories.
+As a platform engineer, I need real-time recommendations for optimizing API performance (including caching, compression, and rate limiting) based on actual usage patterns, with the ability to apply these optimizations directly to the API Gateway, so that I can improve response times, prevent abuse, and ensure optimal resource utilization.
 
-**Independent Test**: Can be tested by monitoring APIs under various load conditions, verifying that optimization recommendations are generated based on observed patterns (caching opportunities, query optimization, resource allocation), and measuring performance improvements after applying recommendations. Delivers value through reduced latency and costs.
+**Why this priority**: Performance optimization delivers measurable business value (improved user experience, abuse prevention, better resource utilization) but requires the monitoring foundation from P1 stories.
 
-**Acceptance Scenarios**:
+**Architecture**: 
+- **API-Centric**: All optimizations are generated and applied per-API
+- **Gateway-Level Scope**: Limited to proxy-level optimizations (caching, compression, rate limiting) that can be validated with gateway-observable metrics
+- **Hybrid Approach**: Rule-based analysis with optional AI-enhanced recommendations
+- **Real-time Application**: Recommendations can be applied directly to the Gateway via enhanced adapter interface
+- **AI Control**: AI-driven mode enabled via OPTIMIZATION_AI_ENABLED environment variable
 
-1. **Given** an API shows inefficient patterns, **When** the optimization engine analyzes usage, **Then** specific recommendations are provided with estimated impact
-2. **Given** caching opportunities are identified, **When** recommendations are applied, **Then** cache hit rates and response time improvements are measured and reported
-3. **Given** multiple optimization options exist, **When** presenting recommendations, **Then** they are prioritized by expected impact and implementation effort
-4. **Given** optimizations are applied, **When** monitoring continues, **Then** the system validates improvements and adjusts recommendations based on results
+**Optimization Types** (Gateway-Level Only):
+1. **Caching**: Response caching policies with TTL and invalidation strategies
+2. **Compression**: Payload compression (gzip/brotli) for bandwidth optimization
+3. **Rate Limiting**: Dynamic rate limiting that adapts to usage patterns and business priorities
 
----
-
-### User Story 5 - Intelligent Rate Limiting (Priority: P3)
-
-As an API product manager, I need dynamic rate limiting that adapts to actual usage patterns and business priorities, so that legitimate users get optimal service while preventing abuse.
-
-**Why this priority**: Rate limiting is important but less critical than discovery, prediction, and security. It enhances the platform but isn't required for core value delivery.
-
-**Independent Test**: Can be tested by simulating various traffic patterns (normal usage, burst traffic, potential abuse), verifying that rate limits adjust dynamically based on patterns and priorities, and confirming that legitimate users are not impacted while abuse is prevented. Delivers value through better resource utilization and user experience.
+**Independent Test**: Can be tested by monitoring APIs under various load conditions, verifying that optimization recommendations are generated based on observed patterns, applying recommendations to the Gateway, and measuring performance improvements. Delivers value through reduced latency, prevented abuse, and optimized resource usage.
 
 **Acceptance Scenarios**:
 
-1. **Given** normal traffic patterns are established, **When** burst traffic occurs from legitimate users, **Then** rate limits temporarily adjust to accommodate the spike
-2. **Given** abuse patterns are detected, **When** rate limiting activates, **Then** the abusive traffic is throttled while legitimate users maintain access
-3. **Given** different API consumers have different priorities, **When** applying rate limits, **Then** higher priority consumers receive preferential treatment during contention
-4. **Given** rate limits are applied, **When** monitoring continues, **Then** the system learns from patterns and refines limiting strategies
+1. **Given** an API shows inefficient patterns, **When** the optimization engine analyzes usage, **Then** specific recommendations are provided with estimated impact (caching, compression, or rate limiting)
+2. **Given** caching opportunities are identified, **When** recommendations are applied to the Gateway, **Then** cache hit rates and response time improvements are measured and reported
+3. **Given** compression opportunities are identified, **When** recommendations are applied to the Gateway, **Then** bandwidth reduction and response time improvements are measured
+4. **Given** normal traffic patterns are established, **When** burst traffic occurs from legitimate users, **Then** rate limits temporarily adjust to accommodate the spike
+5. **Given** abuse patterns are detected, **When** rate limiting activates, **Then** the abusive traffic is throttled while legitimate users maintain access
+6. **Given** different API consumers have different priorities, **When** applying rate limits, **Then** higher priority consumers receive preferential treatment during contention
+7. **Given** multiple optimization options exist, **When** presenting recommendations, **Then** they are prioritized by expected impact and implementation effort in a unified view
+8. **Given** optimizations are applied, **When** monitoring continues, **Then** the system validates improvements and adjusts recommendations based on results
+9. **Given** AI enhancement is enabled, **When** generating recommendations, **Then** the system provides detailed implementation guidance and success metrics
 
 ---
 
-### User Story 6 - Natural Language Query Interface (Priority: P3)
+### User Story 5 - Natural Language Query Interface (Priority: P3)
 
 As any user of the system, I need to query API intelligence using natural language questions, so that I can quickly get insights without learning complex query syntax or navigating multiple dashboards.
 
@@ -131,6 +134,8 @@ As any user of the system, I need to query API intelligence using natural langua
 - How does the system handle APIs that change their behavior or endpoints without notification?
 - What happens when natural language queries are ambiguous or request impossible operations?
 - How does the system handle high-frequency API changes in dynamic environments?
+- What happens when applying optimization policies to the Gateway fails?
+- How does the system handle Gateway vendors that don't support certain optimization types?
 
 ## Requirements *(mandatory)*
 
@@ -164,38 +169,44 @@ As any user of the system, I need to query API intelligence using natural langua
 - **FR-018**: System MUST rescan affected APIs within 1 hour when new vulnerabilities are published
 - **FR-019**: System MUST maintain an audit log of all security scans and remediation actions
 
-#### Performance Optimization
-- **FR-020**: System MUST analyze API usage patterns to identify optimization opportunities
-- **FR-021**: System MUST generate specific optimization recommendations with estimated impact
-- **FR-022**: System MUST prioritize recommendations by expected impact and implementation effort
+#### Performance Optimization & Rate Limiting (MERGED)
+- **FR-020**: System MUST analyze API usage patterns to identify gateway-level optimization opportunities (caching, compression, rate limiting)
+- **FR-021**: System MUST generate specific optimization recommendations with estimated impact for each API
+- **FR-022**: System MUST prioritize recommendations by expected impact and implementation effort in a unified view
 - **FR-023**: System MUST measure and report performance improvements after optimizations are applied
 - **FR-024**: System MUST identify caching opportunities and estimate potential cache hit rates
 - **FR-025**: System MUST validate optimization effectiveness and adjust recommendations based on results
-
-#### Rate Limiting
-- **FR-026**: System MUST implement dynamic rate limiting that adapts to actual usage patterns
-- **FR-027**: System MUST detect and throttle abusive traffic patterns while maintaining legitimate user access
-- **FR-028**: System MUST support priority-based rate limiting for different API consumer tiers
-- **FR-029**: System MUST temporarily adjust rate limits to accommodate legitimate traffic bursts
-- **FR-030**: System MUST learn from traffic patterns and refine rate limiting strategies over time
+- **FR-026**: System MUST support applying caching policies directly to the API Gateway via adapter interface
+- **FR-027**: System MUST support applying compression policies directly to the API Gateway via adapter interface
+- **FR-028**: System MUST support applying rate limiting policies directly to the API Gateway via adapter interface
+- **FR-029**: System MUST implement dynamic rate limiting that adapts to actual usage patterns
+- **FR-030**: System MUST detect and throttle abusive traffic patterns while maintaining legitimate user access
+- **FR-031**: System MUST support priority-based rate limiting for different API consumer tiers
+- **FR-032**: System MUST temporarily adjust rate limits to accommodate legitimate traffic bursts
+- **FR-033**: System MUST learn from traffic patterns and refine rate limiting strategies over time
+- **FR-034**: System MUST use hybrid approach (rule-based + AI-enhanced) for optimization recommendations
+- **FR-035**: System MUST enable AI-driven optimization mode via OPTIMIZATION_AI_ENABLED environment variable
+- **FR-036**: System MUST gracefully fallback to rule-based recommendations when AI enhancement fails
+- **FR-037**: System MUST present all optimization types (caching, compression, rate limiting) in a unified interface
 
 #### Natural Language Interface
-- **FR-031**: System MUST accept natural language queries about API health, performance, security, and predictions
-- **FR-032**: System MUST provide accurate, contextual answers with relevant data and visualizations
-- **FR-033**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
-- **FR-034**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
+- **FR-038**: System MUST accept natural language queries about API health, performance, security, and predictions
+- **FR-039**: System MUST provide accurate, contextual answers with relevant data and visualizations
+- **FR-040**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
+- **FR-041**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
 
 #### Multi-Vendor Support
-- **FR-035**: System MUST support API Gateways from multiple vendors through standardized integration interfaces
-- **FR-036**: System MUST normalize data from different Gateway vendors into a unified format
-- **FR-037**: System MUST handle vendor-specific capabilities and limitations gracefully
-- **FR-038**: System MUST maintain consistent functionality across different Gateway vendors
+- **FR-042**: System MUST support API Gateways from multiple vendors through standardized integration interfaces
+- **FR-043**: System MUST normalize data from different Gateway vendors into a unified format
+- **FR-044**: System MUST handle vendor-specific capabilities and limitations gracefully
+- **FR-045**: System MUST maintain consistent functionality across different Gateway vendors
+- **FR-046**: System MUST provide vendor-agnostic policy application interface for optimization recommendations
 
 #### Data & Persistence
-- **FR-039**: System MUST persist API inventory, health metrics, predictions, security findings, and optimization recommendations
-- **FR-040**: System MUST retain historical data for trend analysis and model training for at least 90 days
-- **FR-041**: System MUST support data export for compliance and external analysis
-- **FR-042**: System MUST ensure data integrity and consistency across all operations
+- **FR-047**: System MUST persist API inventory, health metrics, predictions, security findings, and optimization recommendations
+- **FR-048**: System MUST retain historical data for trend analysis and model training for at least 90 days
+- **FR-049**: System MUST support data export for compliance and external analysis
+- **FR-050**: System MUST ensure data integrity and consistency across all operations
 
 ### Key Entities
 
@@ -203,8 +214,7 @@ As any user of the system, I need to query API intelligence using natural langua
 - **Gateway**: Represents a connected API Gateway with vendor information, connection details, capabilities, and associated APIs
 - **Prediction**: Represents a failure prediction with target API, predicted failure time, confidence score, contributing factors, and recommended actions
 - **Vulnerability**: Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions
-- **Optimization Recommendation**: Represents a performance optimization opportunity with target API, recommendation type, estimated impact, implementation effort, and validation results
-- **Rate Limit Policy**: Represents a rate limiting configuration with target API, limit thresholds, priority rules, and adaptation parameters
+- **Optimization Recommendation**: Represents a performance optimization opportunity (caching, compression, or rate limiting) with target API, recommendation type, estimated impact, implementation effort, and validation results
 - **Query**: Represents a natural language query with original text, interpreted intent, results, and user feedback
 
 ## Success Criteria *(mandatory)*
@@ -214,13 +224,15 @@ As any user of the system, I need to query API intelligence using natural langua
 - **SC-001**: System discovers 100% of registered APIs and at least 90% of shadow APIs within 24 hours of initial connection
 - **SC-002**: Failure predictions achieve at least 80% accuracy with 24-48 hour advance notice
 - **SC-003**: Critical security vulnerabilities are detected within 1 hour of discovery and remediated within 4 hours (automated) or 24 hours (manual)
-- **SC-004**: Performance optimization recommendations result in measurable improvements (at least 20% reduction in response time or 15% reduction in infrastructure costs) for 70% of implemented recommendations
+- **SC-004**: Performance optimization recommendations result in measurable improvements (at least 20% reduction in response time or 15% reduction in error rates) for 70% of implemented recommendations
 - **SC-005**: Rate limiting prevents 95% of abusive traffic while maintaining 99.9% availability for legitimate users
 - **SC-006**: Natural language queries return accurate results within 3 seconds for 90% of queries
 - **SC-007**: System supports at least 3 different API Gateway vendors with consistent functionality
 - **SC-008**: Operations teams report 50% reduction in time spent on reactive API troubleshooting
 - **SC-009**: API-related incidents decrease by 60% within 3 months of deployment
 - **SC-010**: System processes and analyzes data from at least 1000 APIs with less than 5 second latency for real-time queries
+- **SC-011**: Optimization policies are successfully applied to Gateway within 5 seconds of user action
+- **SC-012**: All optimization types (caching, compression, rate limiting) are presented in a unified interface with consistent interaction patterns
 
 ## Assumptions
 
@@ -228,16 +240,17 @@ As any user of the system, I need to query API intelligence using natural langua
 2. **Network Connectivity**: The API Intelligence Plane can establish network connections to all API Gateways being monitored
 3. **Data Volume**: Individual APIs handle between 100 to 100,000 requests per minute, with total system capacity for millions of requests per minute across all APIs
 4. **Historical Data**: At least 7 days of historical API metrics are available for initial model training, with ongoing data collection for continuous improvement
-5. **Remediation Authority**: The system has appropriate permissions to apply automated remediation actions when enabled
-6. **Gateway Capabilities**: API Gateways provide standard logging, metrics, and configuration APIs for integration
+5. **Remediation Authority**: The system has appropriate permissions to apply automated remediation actions and optimization policies when enabled
+6. **Gateway Capabilities**: API Gateways provide standard logging, metrics, and configuration APIs for integration, including policy management endpoints
 7. **User Expertise**: Users have basic understanding of API concepts and operations, though technical expertise is not required for natural language interface
 8. **Deployment Model**: The system can be deployed as a cloud service, on-premises installation, or hybrid configuration based on organizational requirements
 9. **Vendor Cooperation**: API Gateway vendors provide stable APIs and documentation for integration, with advance notice of breaking changes
 10. **Compliance**: Organizations have appropriate data handling and privacy policies in place for API traffic analysis
+11. **Policy Application**: Gateway vendors support programmatic policy application for caching, compression, and rate limiting
 
 ## Dependencies
 
-1. **API Gateway Integrations**: Requires integration libraries or SDKs for each supported Gateway vendor
+1. **API Gateway Integrations**: Requires integration libraries or SDKs for each supported Gateway vendor with policy management capabilities
 2. **Machine Learning Infrastructure**: Requires computational resources for training and running prediction models
 3. **Time Series Database**: Requires high-performance time series database for storing and querying API metrics
 4. **Natural Language Processing**: Requires NLP capabilities for query understanding and response generation
@@ -256,3 +269,5 @@ As any user of the system, I need to query API intelligence using natural langua
 6. **Billing and Monetization**: This system does not handle API billing, usage-based pricing, or revenue management
 7. **API Documentation Generation**: This system catalogs APIs but does not generate or host API documentation
 8. **Load Testing**: This system monitors production traffic but does not provide load testing or synthetic monitoring capabilities
+9. **Backend Service Optimization**: This system focuses on gateway-level optimizations only; backend service optimizations (query optimization, connection pooling, resource allocation) are out of scope
+10. **Cost Savings Calculation**: The system does not calculate or track cost savings from optimization recommendations

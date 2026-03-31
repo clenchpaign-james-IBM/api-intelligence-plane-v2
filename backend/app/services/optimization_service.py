@@ -54,6 +54,7 @@ class OptimizationService:
         metrics_repository: MetricsRepository,
         api_repository: APIRepository,
         llm_service: Optional[Any] = None,
+        rate_limit_service: Optional[Any] = None,
     ):
         """
         Initialize the Optimization Service.
@@ -63,18 +64,44 @@ class OptimizationService:
             metrics_repository: Repository for metrics operations
             api_repository: Repository for API operations
             llm_service: Optional LLM service for AI-enhanced recommendations
+            rate_limit_service: Optional rate limiting service for integrated analysis
         """
         self.recommendation_repo = recommendation_repository
         self.metrics_repo = metrics_repository
         self.api_repo = api_repository
         self.llm_service = llm_service
+        self.rate_limit_service = rate_limit_service
         self._optimization_agent = None
+
+    def _should_use_ai_enhancement(self, confidence: float = 0.0) -> bool:
+        """
+        Determine if AI enhancement should be used based on configuration and confidence.
+        
+        Args:
+            confidence: Confidence score of rule-based analysis (0.0-1.0)
+            
+        Returns:
+            True if AI enhancement should be used, False otherwise
+        """
+        from app.config import settings
+        
+        # Check if AI enhancement is enabled
+        if not settings.OPTIMIZATION_AI_ENABLED:
+            return False
+        
+        # Check if LLM service is available
+        if not self.llm_service:
+            return False
+        
+        # Use AI if confidence is below threshold
+        return confidence < settings.OPTIMIZATION_AI_THRESHOLD
 
     def generate_recommendations_for_api(
         self,
         api_id: UUID,
         focus_areas: Optional[List[RecommendationType]] = None,
         min_impact: float = 10.0,
+        use_ai_enhancement: bool = False,
     ) -> List[OptimizationRecommendation]:
         """
         Generate optimization recommendations for a specific API.
@@ -83,6 +110,7 @@ class OptimizationService:
             api_id: API UUID
             focus_areas: Specific optimization types to focus on
             min_impact: Minimum expected improvement percentage
+            use_ai_enhancement: Force AI enhancement regardless of confidence
 
         Returns:
             List of generated recommendations
@@ -126,6 +154,12 @@ class OptimizationService:
             compression_rec = self._analyze_compression_opportunity(api_id, metrics)
             if compression_rec and compression_rec.estimated_impact.improvement_percentage >= min_impact:
                 recommendations.append(compression_rec)
+
+        # Check for rate limiting opportunities (integrated from rate_limit_service)
+        if not focus_areas or RecommendationType.RATE_LIMITING in focus_areas:
+            rate_limit_rec = self._analyze_rate_limiting_opportunity(api_id, metrics)
+            if rate_limit_rec and rate_limit_rec.estimated_impact.improvement_percentage >= min_impact:
+                recommendations.append(rate_limit_rec)
 
         # Store recommendations
         for recommendation in recommendations:
@@ -361,9 +395,6 @@ class OptimizationService:
         improvement_percentage = 50.0
         expected_p95 = avg_p95 * (1 - improvement_percentage / 100)
 
-        # Calculate cost savings
-        cost_savings = (avg_p95 - expected_p95) * self.COST_PER_MS_IMPROVEMENT
-
         return OptimizationRecommendation(
             id=uuid4(),
             api_id=api_id,
@@ -390,7 +421,6 @@ class OptimizationService:
                 "Configure cache invalidation rules",
                 "Monitor cache hit rates and adjust policy as needed",
             ],
-            cost_savings=cost_savings,
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 
@@ -441,7 +471,79 @@ class OptimizationService:
                 "Add compression headers to responses",
                 "Monitor compression ratios and performance",
             ],
-            cost_savings=(avg_p50 - expected_p50) * self.COST_PER_MS_IMPROVEMENT * 0.5,
+            expires_at=datetime.utcnow() + timedelta(days=30),
+        )
+
+    def _analyze_rate_limiting_opportunity(
+        self, api_id: UUID, metrics: List[Metric]
+    ) -> Optional[OptimizationRecommendation]:
+        """
+        Analyze if rate limiting would benefit this API.
+        Integrated from rate_limit_service for unified optimization recommendations.
+        """
+        if not metrics:
+            return None
+
+        # Calculate traffic statistics
+        throughputs = [m.throughput for m in metrics if m.throughput]
+        error_rates = [m.error_rate for m in metrics if m.error_rate is not None]
+        
+        if not throughputs:
+            return None
+
+        avg_throughput = statistics.mean(throughputs)
+        max_throughput = max(throughputs)
+        p95_throughput = statistics.quantiles(throughputs, n=20)[18] if len(throughputs) > 1 else max_throughput
+        
+        # Check if error rate is high (indicating potential overload)
+        avg_error_rate = statistics.mean(error_rates) if error_rates else 0.0
+        
+        # Rate limiting is beneficial if:
+        # 1. High traffic variability (spikes)
+        # 2. High error rates during peak traffic
+        # 3. Throughput exceeds reasonable thresholds
+        
+        throughput_std = statistics.stdev(throughputs) if len(throughputs) > 1 else 0
+        coefficient_of_variation = throughput_std / avg_throughput if avg_throughput > 0 else 0
+        
+        # Only recommend if there's high variability or high error rates
+        if coefficient_of_variation < 0.3 and avg_error_rate < 0.02:
+            return None
+
+        # Estimate improvement (rate limiting typically reduces error rate by 30-50%)
+        improvement_percentage = 40.0
+        expected_error_rate = avg_error_rate * (1 - improvement_percentage / 100)
+        
+        # Suggest rate limit threshold (P95 + 20% buffer)
+        suggested_rps = int(p95_throughput * 1.2)
+
+        return OptimizationRecommendation(
+            id=uuid4(),
+            api_id=api_id,
+            recommendation_type=RecommendationType.RATE_LIMITING,
+            title="Implement Intelligent Rate Limiting",
+            description=(
+                f"Current traffic shows high variability (CV: {coefficient_of_variation:.2f}) "
+                f"with error rate of {avg_error_rate:.2%}. Implementing rate limiting at "
+                f"{suggested_rps} requests/second can reduce errors by approximately "
+                f"{improvement_percentage:.0f}% and improve system stability."
+            ),
+            priority=RecommendationPriority.HIGH if avg_error_rate > 0.05 else RecommendationPriority.MEDIUM,
+            estimated_impact=EstimatedImpact(
+                metric="error_rate",
+                current_value=avg_error_rate,
+                expected_value=expected_error_rate,
+                improvement_percentage=improvement_percentage,
+                confidence=0.80,
+            ),
+            implementation_effort=ImplementationEffort.MEDIUM,
+            implementation_steps=[
+                f"Configure rate limit policy at {suggested_rps} requests/second",
+                "Set burst allowance for traffic spikes (5x base rate)",
+                "Configure throttling action (delay vs reject)",
+                "Implement consumer tier-based limits if needed",
+                "Monitor effectiveness and adjust thresholds",
+            ],
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 

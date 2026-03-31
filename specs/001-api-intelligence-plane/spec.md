@@ -54,18 +54,26 @@ As a DevOps engineer, I need to receive advance warnings of potential API failur
 
 ### User Story 3 - Automated Security Scanning and Remediation (Priority: P2)
 
-As a security engineer, I need continuous security scanning of all APIs with automated remediation of common vulnerabilities, so that my API infrastructure remains secure without constant manual intervention.
+As a security engineer, I need continuous security scanning of all APIs with automated remediation of common vulnerabilities and compliance detection, so that my API infrastructure remains secure and compliant without constant manual intervention.
 
 **Why this priority**: Security is critical but builds on the foundation of API discovery. Automated remediation reduces security response time from hours/days to seconds/minutes.
 
-**Independent Test**: Can be tested by deploying APIs with known security issues (exposed credentials, missing authentication, vulnerable dependencies), verifying detection within scanning cycles, and confirming automated remediation actions are applied. Delivers value by reducing security exposure time.
+**Architecture**:
+- **Hybrid Approach**: Single mode combining rule-based checks with intelligent AI enhancement
+- **Multi-Source Analysis**: Uses API metadata, real-time metrics, and traffic patterns for accurate detection
+- **Real Remediation**: Direct policy application to Gateway via adapter interface
+- **Compliance Detection**: AI-driven analysis for GDPR, HIPAA, SOC2, PCI-DSS requirements
+
+**Independent Test**: Can be tested by deploying APIs with known security issues (exposed credentials, missing authentication, vulnerable dependencies), verifying detection within scanning cycles, and confirming automated remediation actions are applied to the Gateway. Delivers value by reducing security exposure time and ensuring compliance.
 
 **Acceptance Scenarios**:
 
-1. **Given** an API is discovered, **When** security scanning runs, **Then** vulnerabilities are identified and categorized by severity (critical, high, medium, low)
-2. **Given** a remediable vulnerability is detected, **When** automated remediation is enabled, **Then** the system applies the fix and verifies the vulnerability is resolved
+1. **Given** an API is discovered, **When** security scanning runs, **Then** vulnerabilities are identified and categorized by severity (critical, high, medium, low) using hybrid analysis
+2. **Given** a remediable vulnerability is detected, **When** automated remediation is enabled, **Then** the system applies security policies directly to the Gateway and verifies the vulnerability is resolved through re-scanning
 3. **Given** a vulnerability requires manual intervention, **When** detected, **Then** the system creates a detailed remediation ticket with context and recommended actions
 4. **Given** security scans run continuously, **When** new vulnerabilities are published, **Then** the system rescans affected APIs within 1 hour
+5. **Given** APIs handle sensitive data, **When** compliance scanning runs, **Then** the system detects GDPR, HIPAA, SOC2, and PCI-DSS compliance violations using multi-source analysis
+6. **Given** security policies are applied, **When** verification runs, **Then** the system confirms fixes through real re-scanning and updates vulnerability status
 
 ---
 
@@ -161,13 +169,18 @@ As any user of the system, I need to query API intelligence using natural langua
 - **FR-012c**: System MUST gracefully fallback to rule-based predictions when AI enhancement fails or is unavailable
 
 #### Security Scanning & Remediation
-- **FR-013**: System MUST continuously scan all discovered APIs for security vulnerabilities
+- **FR-013**: System MUST continuously scan all discovered APIs for security vulnerabilities using hybrid approach (rule-based + AI-enhanced)
 - **FR-014**: System MUST categorize vulnerabilities by severity (critical, high, medium, low) based on industry standards
-- **FR-015**: System MUST automatically remediate common vulnerabilities when automated remediation is enabled
-- **FR-016**: System MUST verify that automated remediation actions successfully resolve vulnerabilities
+- **FR-015**: System MUST automatically remediate common vulnerabilities by applying security policies directly to the Gateway when automated remediation is enabled
+- **FR-016**: System MUST verify that automated remediation actions successfully resolve vulnerabilities through real re-scanning
 - **FR-017**: System MUST create detailed remediation tickets for vulnerabilities requiring manual intervention
 - **FR-018**: System MUST rescan affected APIs within 1 hour when new vulnerabilities are published
 - **FR-019**: System MUST maintain an audit log of all security scans and remediation actions
+- **FR-019a**: System MUST use multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection
+- **FR-019b**: System MUST detect compliance violations for GDPR, HIPAA, SOC2, and PCI-DSS standards using AI-driven analysis
+- **FR-019c**: System MUST support applying 6 types of security policies to Gateway: authentication, authorization, TLS, CORS, validation, and security headers
+- **FR-019d**: System MUST track remediation actions with status, timestamps, Gateway policy IDs, and error messages
+- **FR-019e**: System MUST provide remediation actions that can be directly applied to Gateway APIs, policies, and configurations
 
 #### Performance Optimization & Rate Limiting (MERGED)
 - **FR-020**: System MUST analyze API usage patterns to identify gateway-level optimization opportunities (caching, compression, rate limiting)

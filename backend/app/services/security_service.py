@@ -11,11 +11,13 @@ from uuid import UUID
 from app.agents.security_agent import SecurityAgent
 from app.config import Settings
 from app.db.repositories.api_repository import APIRepository
+from app.db.repositories.gateway_repository import GatewayRepository
 from app.db.repositories.vulnerability_repository import VulnerabilityRepository
 from app.models.api import API
 from app.models.vulnerability import (
     Vulnerability,
     VulnerabilityStatus,
+    VulnerabilityType,
     RemediationType,
     RemediationAction,
     VerificationStatus,
@@ -29,11 +31,11 @@ class SecurityService:
     """Service for security scanning and vulnerability management.
     
     This service provides:
-    1. AI-driven security policy coverage analysis
+    1. Hybrid security policy coverage analysis (rule-based + AI)
     2. Vulnerability detection and tracking
-    3. Automated remediation workflows
-    4. Remediation verification
-    5. Security posture reporting
+    3. Automated remediation workflows via Gateway adapters
+    4. Real remediation verification
+    5. Security posture reporting with compliance
     """
 
     def __init__(
@@ -44,6 +46,8 @@ class SecurityService:
         llm_service: Optional[LLMService] = None,
         security_agent: Optional[SecurityAgent] = None,
         metrics_repository: Optional[Any] = None,
+        gateway_repository: Optional[GatewayRepository] = None,
+        gateway_adapter: Optional[Any] = None,
     ):
         """Initialize security service.
 
@@ -54,6 +58,8 @@ class SecurityService:
             llm_service: LLM service instance
             security_agent: Security agent instance
             metrics_repository: Metrics repository instance
+            gateway_repository: Gateway repository instance
+            gateway_adapter: Gateway adapter instance for policy application
         """
         self.settings = settings
         self.api_repository = api_repository or APIRepository()
@@ -62,40 +68,40 @@ class SecurityService:
         
         # Import here to avoid circular dependency
         from app.db.repositories.metrics_repository import MetricsRepository
+        
         self.metrics_repository = metrics_repository or MetricsRepository()
+        self.gateway_repository = gateway_repository or GatewayRepository()
         
         self.security_agent = security_agent or SecurityAgent(
             self.llm_service,
             self.metrics_repository
         )
+        
+        # Gateway adapter for applying policies
+        self.gateway_adapter = gateway_adapter
 
     async def scan_api_security(
         self,
         api_id: UUID,
-        use_ai_enhancement: bool = True,
     ) -> Dict[str, Any]:
-        """Scan API for security policy coverage issues.
+        """Scan API for security policy coverage issues using hybrid approach.
 
         Args:
             api_id: API to scan
-            use_ai_enhancement: Whether to use AI-enhanced analysis
 
         Returns:
-            Scan results with vulnerabilities and remediation plan
+            Scan results with vulnerabilities, compliance issues, and remediation plan
         """
         try:
-            logger.info(f"Starting security scan for API: {api_id}")
+            logger.info(f"Starting hybrid security scan for API: {api_id}")
 
             # Get API details
             api = self.api_repository.get(str(api_id))
             if not api:
                 raise ValueError(f"API not found: {api_id}")
 
-            # Perform security analysis
-            if use_ai_enhancement:
-                analysis_result = await self.security_agent.analyze_api_security(api)
-            else:
-                analysis_result = await self._rule_based_scan(api)
+            # Perform hybrid security analysis (always uses both rule-based and AI)
+            analysis_result = await self.security_agent.analyze_api_security(api)
 
             # Store vulnerabilities
             stored_vulnerabilities = []
@@ -124,22 +130,18 @@ class SecurityService:
                     stored_vulnerabilities
                 ),
                 "vulnerabilities": [v.dict() for v in stored_vulnerabilities],
+                "compliance_issues": analysis_result.get("compliance_issues", []),
                 "remediation_plan": analysis_result.get("remediation_plan", {}),
-                "ai_enhanced": use_ai_enhancement,
+                "metrics_analyzed": analysis_result.get("metrics_analyzed", 0),
             }
 
         except Exception as e:
             logger.error(f"Security scan failed for API {api_id}: {str(e)}")
             raise
 
-    async def scan_all_apis(
-        self,
-        use_ai_enhancement: bool = True,
-    ) -> Dict[str, Any]:
+    async def scan_all_apis(self) -> Dict[str, Any]:
         """Scan all active APIs for security issues.
 
-        Args:
-            use_ai_enhancement: Whether to use AI-enhanced analysis
 
         Returns:
             Aggregated scan results
@@ -161,10 +163,7 @@ class SecurityService:
 
             for api in apis:
                 try:
-                    result = await self.scan_api_security(
-                        api.id,
-                        use_ai_enhancement=use_ai_enhancement,
-                    )
+                    result = await self.scan_api_security(api.id)
                     scan_results.append(result)
                     total_vulnerabilities += result["vulnerabilities_found"]
                 except Exception as e:
@@ -397,117 +396,254 @@ class SecurityService:
 
     # Private helper methods
 
-    async def _rule_based_scan(self, api: API) -> Dict[str, Any]:
-        """Perform rule-based security scan without AI enhancement."""
-        # Simplified rule-based scanning
-        vulnerabilities = []
-        
-        # Basic checks
-        from uuid import uuid4
-
-        if api.authentication_type.value == "none":
-            vulnerabilities.append(
-                Vulnerability(
-                    id=uuid4(),
-                    api_id=api.id,
-                    vulnerability_type=VulnerabilityType.AUTHENTICATION,
-                    severity=VulnerabilitySeverity.HIGH,
-                    title=f"Missing Authentication for {api.name}",
-                    description="API lacks authentication policy",
-                    affected_endpoints=[e.path for e in api.endpoints],
-                    detection_method=DetectionMethod.AUTOMATED_SCAN,
-                    detected_at=datetime.utcnow(),
-                    status=VulnerabilityStatus.OPEN,
-                    remediation_type=RemediationType.AUTOMATED,
-                )
-            )
-
-        return {
-            "api_id": str(api.id),
-            "api_name": api.name,
-            "vulnerabilities": vulnerabilities,
-            "remediation_plan": {},
-        }
-
     async def _apply_automated_remediation(
         self,
         api: API,
         vulnerability: Vulnerability,
         strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Apply automated remediation for a vulnerability."""
-        # This would integrate with gateway APIs to apply policies
-        # For now, return simulated remediation
-        
+        """Apply automated remediation for a vulnerability via Gateway adapter."""
         actions = []
         
-        if vulnerability.vulnerability_type == VulnerabilityType.AUTHENTICATION:
-            actions.append(
-                RemediationAction(
-                    action="Apply OAuth2 authentication policy at gateway",
-                    type="configuration",
-                    status="completed",
-                    performed_at=datetime.utcnow(),
-                    performed_by="security_agent",
+        # Get gateway adapter for this API
+        if not self.gateway_adapter:
+            # Get gateway for this API
+            gateway = self.gateway_repository.get(str(api.gateway_id))
+            if not gateway:
+                raise ValueError(f"Gateway not found for API: {api.id}")
+            
+            # Get adapter from factory
+            from app.adapters.factory import GatewayAdapterFactory
+            self.gateway_adapter = GatewayAdapterFactory.create_adapter(gateway)
+            await self.gateway_adapter.connect()
+        
+        try:
+            # Apply remediation based on vulnerability type
+            if vulnerability.vulnerability_type == VulnerabilityType.AUTHENTICATION:
+                policy = {
+                    "auth_type": "oauth2",
+                    "provider": "default",
+                    "scopes": ["read", "write"],
+                    "validation_rules": {"require_valid_token": True}
+                }
+                success = await self.gateway_adapter.apply_authentication_policy(
+                    str(api.id), policy
                 )
-            )
-        elif vulnerability.vulnerability_type == VulnerabilityType.AUTHORIZATION:
-            actions.append(
-                RemediationAction(
-                    action="Apply RBAC authorization policy at gateway",
-                    type="configuration",
-                    status="completed",
-                    performed_at=datetime.utcnow(),
-                    performed_by="security_agent",
-                )
-            )
-        elif vulnerability.vulnerability_type == VulnerabilityType.CONFIGURATION:
-            if "rate limit" in vulnerability.title.lower():
                 actions.append(
                     RemediationAction(
-                        action="Apply rate limiting policy (100 req/min)",
-                        type="configuration",
-                        status="completed",
+                        action="Applied OAuth2 authentication policy at gateway",
+                        type="gateway_policy",
+                        status="completed" if success else "failed",
                         performed_at=datetime.utcnow(),
                         performed_by="security_agent",
+                        gateway_policy_id=f"auth-{api.id}" if success else None,
+                        error_message=None if success else "Failed to apply policy",
                     )
                 )
-            elif "tls" in vulnerability.title.lower() or "https" in vulnerability.title.lower():
+                
+            elif vulnerability.vulnerability_type == VulnerabilityType.AUTHORIZATION:
+                policy = {
+                    "policy_type": "rbac",
+                    "roles": ["user", "admin"],
+                    "permissions": {"user": ["read"], "admin": ["read", "write", "delete"]},
+                    "rules": []
+                }
+                success = await self.gateway_adapter.apply_authorization_policy(
+                    str(api.id), policy
+                )
                 actions.append(
                     RemediationAction(
-                        action="Enforce HTTPS-only at gateway",
-                        type="configuration",
-                        status="completed",
+                        action="Applied RBAC authorization policy at gateway",
+                        type="gateway_policy",
+                        status="completed" if success else "failed",
                         performed_at=datetime.utcnow(),
                         performed_by="security_agent",
+                        gateway_policy_id=f"authz-{api.id}" if success else None,
+                        error_message=None if success else "Failed to apply policy",
                     )
                 )
+                
+            elif vulnerability.vulnerability_type == VulnerabilityType.CONFIGURATION:
+                if "rate limit" in vulnerability.title.lower():
+                    policy = {
+                        "requests_per_minute": 100,
+                        "burst_size": 20,
+                        "key_strategy": "ip_address"
+                    }
+                    success = await self.gateway_adapter.apply_rate_limit_policy(
+                        str(api.id), policy
+                    )
+                    actions.append(
+                        RemediationAction(
+                            action="Applied rate limiting policy (100 req/min)",
+                            type="gateway_policy",
+                            status="completed" if success else "failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="security_agent",
+                            gateway_policy_id=f"ratelimit-{api.id}" if success else None,
+                            error_message=None if success else "Failed to apply policy",
+                        )
+                    )
+                    
+                elif "tls" in vulnerability.title.lower() or "https" in vulnerability.title.lower():
+                    policy = {
+                        "enforce_https": True,
+                        "min_tls_version": "1.2",
+                        "cipher_suites": ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384"],
+                        "hsts_enabled": True
+                    }
+                    success = await self.gateway_adapter.apply_tls_policy(
+                        str(api.id), policy
+                    )
+                    actions.append(
+                        RemediationAction(
+                            action="Enforced HTTPS-only with TLS 1.2+ at gateway",
+                            type="gateway_policy",
+                            status="completed" if success else "failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="security_agent",
+                            gateway_policy_id=f"tls-{api.id}" if success else None,
+                            error_message=None if success else "Failed to apply policy",
+                        )
+                    )
+                    
+                elif "cors" in vulnerability.title.lower():
+                    policy = {
+                        "allowed_origins": [api.base_path],
+                        "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+                        "allowed_headers": ["Content-Type", "Authorization"],
+                        "expose_headers": [],
+                        "max_age": 3600,
+                        "allow_credentials": True
+                    }
+                    success = await self.gateway_adapter.apply_cors_policy(
+                        str(api.id), policy
+                    )
+                    actions.append(
+                        RemediationAction(
+                            action="Applied secure CORS policy at gateway",
+                            type="gateway_policy",
+                            status="completed" if success else "failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="security_agent",
+                            gateway_policy_id=f"cors-{api.id}" if success else None,
+                            error_message=None if success else "Failed to apply policy",
+                        )
+                    )
+                    
+                elif "validation" in vulnerability.title.lower():
+                    policy = {
+                        "schema_validation": True,
+                        "content_type_validation": True,
+                        "size_limits": {"request": 10485760, "response": 10485760},
+                        "sanitization_rules": ["strip_html", "escape_sql"]
+                    }
+                    success = await self.gateway_adapter.apply_validation_policy(
+                        str(api.id), policy
+                    )
+                    actions.append(
+                        RemediationAction(
+                            action="Applied input validation policy at gateway",
+                            type="gateway_policy",
+                            status="completed" if success else "failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="security_agent",
+                            gateway_policy_id=f"validation-{api.id}" if success else None,
+                            error_message=None if success else "Failed to apply policy",
+                        )
+                    )
+                    
+                elif "security header" in vulnerability.title.lower():
+                    policy = {
+                        "hsts": "max-age=31536000; includeSubDomains",
+                        "x_frame_options": "DENY",
+                        "x_content_type_options": "nosniff",
+                        "csp": "default-src 'self'",
+                        "x_xss_protection": "1; mode=block"
+                    }
+                    success = await self.gateway_adapter.apply_security_headers_policy(
+                        str(api.id), policy
+                    )
+                    actions.append(
+                        RemediationAction(
+                            action="Applied security headers policy at gateway",
+                            type="gateway_policy",
+                            status="completed" if success else "failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="security_agent",
+                            gateway_policy_id=f"headers-{api.id}" if success else None,
+                            error_message=None if success else "Failed to apply policy",
+                        )
+                    )
 
-        return {
-            "actions": actions,
-            "applied_at": datetime.utcnow().isoformat(),
-            "strategy_used": strategy or "default",
-        }
+            return {
+                "actions": actions,
+                "applied_at": datetime.utcnow().isoformat(),
+                "strategy_used": strategy or "default",
+            }
+            
+        except Exception as e:
+            logger.error(f"Remediation failed: {e}")
+            actions.append(
+                RemediationAction(
+                    action=f"Failed to apply remediation: {str(e)}",
+                    type="gateway_policy",
+                    status="failed",
+                    performed_at=datetime.utcnow(),
+                    performed_by="security_agent",
+                    gateway_policy_id=None,
+                    error_message=str(e),
+                )
+            )
+            return {
+                "actions": actions,
+                "applied_at": datetime.utcnow().isoformat(),
+                "strategy_used": strategy or "default",
+                "error": str(e),
+            }
 
     async def _verify_vulnerability_fixed(
         self,
         api: API,
         vulnerability: Vulnerability,
     ) -> Dict[str, Any]:
-        """Verify that a vulnerability has been fixed."""
-        # This would re-check the specific vulnerability
-        # For now, return simulated verification
-        
-        # Simulate verification based on vulnerability type
-        is_fixed = True  # In real implementation, would actually verify
-        
-        return {
-            "vulnerability_id": str(vulnerability.id),
-            "is_fixed": is_fixed,
-            "verified_at": datetime.utcnow().isoformat(),
-            "verification_method": "automated_rescan",
-            "details": "Policy successfully applied and verified at gateway level",
-        }
+        """Verify that a vulnerability has been fixed by re-scanning."""
+        try:
+            # Re-run security analysis for this specific API
+            analysis_result = await self.security_agent.analyze_api_security(api)
+            
+            # Check if the same vulnerability still exists
+            is_fixed = True
+            for vuln_data in analysis_result.get("vulnerabilities", []):
+                if isinstance(vuln_data, dict):
+                    vuln = Vulnerability(**vuln_data)
+                else:
+                    vuln = vuln_data
+                    
+                # Check if same type and title (indicating same issue)
+                if (vuln.vulnerability_type == vulnerability.vulnerability_type and
+                    vuln.title == vulnerability.title):
+                    is_fixed = False
+                    break
+            
+            return {
+                "vulnerability_id": str(vulnerability.id),
+                "is_fixed": is_fixed,
+                "verified_at": datetime.utcnow().isoformat(),
+                "verification_method": "automated_rescan",
+                "details": "Policy verified through re-scanning" if is_fixed else "Vulnerability still detected",
+            }
+            
+        except Exception as e:
+            logger.error(f"Verification failed: {e}")
+            return {
+                "vulnerability_id": str(vulnerability.id),
+                "is_fixed": False,
+                "verified_at": datetime.utcnow().isoformat(),
+                "verification_method": "automated_rescan",
+                "details": f"Verification failed: {str(e)}",
+                "error": str(e),
+            }
 
     def _calculate_severity_breakdown(
         self,

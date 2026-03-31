@@ -282,6 +282,7 @@ export interface PredictionStatsResponse {
 export interface Vulnerability {
   id: string;
   api_id: string;
+  vulnerability_type: VulnerabilityType;
   severity: VulnerabilitySeverity;
   category: VulnerabilityCategory;
   title: string;
@@ -290,17 +291,33 @@ export interface Vulnerability {
   cvss_score?: number;
   affected_endpoints: string[];
   remediation: string;
+  remediation_type?: RemediationType;
+  remediation_actions?: RemediationAction[];
   status: VulnerabilityStatus;
   detected_at: string;
   resolved_at?: string;
+  compliance_violations?: ComplianceStandard[];
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
 
+export type VulnerabilityType = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'compliance' | 'data_protection' | 'other';
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type VulnerabilityCategory = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'other';
 export type VulnerabilityStatus = 'open' | 'in_progress' | 'remediated' | 'verified' | 'false_positive' | 'accepted_risk';
+export type RemediationType = 'automated' | 'manual' | 'assisted';
+export type ComplianceStandard = 'GDPR' | 'HIPAA' | 'PCI_DSS' | 'SOC2' | 'ISO_27001';
+
+export interface RemediationAction {
+  action: string;
+  type: string;
+  status: 'pending' | 'completed' | 'failed';
+  performed_at?: string;
+  performed_by?: string;
+  gateway_policy_id?: string;
+  error_message?: string;
+}
 
 // Security Posture
 export interface SecurityPosture {
@@ -312,6 +329,14 @@ export interface SecurityPosture {
   risk_score: number;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   avg_remediation_time_ms?: number;
+  compliance_issues?: ComplianceIssue[];
+}
+
+export interface ComplianceIssue {
+  standard: ComplianceStandard;
+  affected_apis: number;
+  severity: VulnerabilitySeverity;
+  description: string;
 }
 
 // Scan Response
@@ -325,6 +350,7 @@ export interface ScanResponse {
   vulnerabilities: Vulnerability[];
   remediation_plan: Record<string, any>;
   ai_enhanced: boolean;
+  compliance_issues?: ComplianceStandard[];
 }
 
 // Remediation Response

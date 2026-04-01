@@ -51,6 +51,103 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
               </ReactMarkdown>
             </div>
 
+            {/* AI Agent Insights - Security */}
+            {response.results?.data?.some((item: any) => item.agent_insights?.type === 'security') && (
+              <div className="border-t pt-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-purple-900">🔒 AI Security Analysis</span>
+                </div>
+                {response.results.data
+                  .filter((item: any) => item.agent_insights?.type === 'security')
+                  .slice(0, 2)
+                  .map((item: any, idx: number) => (
+                    <div key={idx} className="bg-purple-50 rounded-lg p-3 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-purple-900">{item.name}</span>
+                        <div className="flex items-center gap-2">
+                          {item.agent_insights.critical_count > 0 && (
+                            <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded-full font-medium">
+                              {item.agent_insights.critical_count} Critical
+                            </span>
+                          )}
+                          <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+                            {item.agent_insights.total_vulnerabilities} Issues
+                          </span>
+                        </div>
+                      </div>
+                      {item.agent_insights.remediation_plan && (
+                        <p className="text-xs text-purple-700 line-clamp-2">
+                          {item.agent_insights.remediation_plan.substring(0, 150)}...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* AI Agent Insights - Predictions */}
+            {response.results?.data?.some((item: any) => item.agent_insights?.type === 'prediction') && (
+              <div className="border-t pt-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-blue-900">🔮 AI Prediction Insights</span>
+                </div>
+                {response.results.data
+                  .filter((item: any) => item.agent_insights?.type === 'prediction')
+                  .slice(0, 2)
+                  .map((item: any, idx: number) => (
+                    <div key={idx} className="bg-blue-50 rounded-lg p-3 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                          {item.agent_insights.predictions?.length || 0} Predictions
+                        </span>
+                      </div>
+                      {item.agent_insights.analysis && (
+                        <p className="text-xs text-blue-700 line-clamp-2">
+                          {item.agent_insights.analysis.substring(0, 150)}...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* AI Agent Insights - Optimization */}
+            {response.results?.data?.some((item: any) => item.agent_insights?.type === 'optimization') && (
+              <div className="border-t pt-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  <span className="text-sm font-semibold text-green-900">⚡ AI Performance Insights</span>
+                </div>
+                {response.results.data
+                  .filter((item: any) => item.agent_insights?.type === 'optimization')
+                  .slice(0, 2)
+                  .map((item: any, idx: number) => (
+                    <div key={idx} className="bg-green-50 rounded-lg p-3 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-green-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                          {item.agent_insights.recommendations?.length || 0} Recommendations
+                        </span>
+                      </div>
+                      {item.agent_insights.performance_analysis && (
+                        <p className="text-xs text-green-700 line-clamp-2">
+                          {item.agent_insights.performance_analysis.substring(0, 150)}...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
             {/* Metadata */}
             <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-3">
               <div className="flex items-center gap-1">

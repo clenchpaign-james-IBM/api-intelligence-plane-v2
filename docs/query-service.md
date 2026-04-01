@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Query Service provides a natural language interface for querying API intelligence data. It integrates with AI agents (PredictionAgent and OptimizationAgent) to provide enhanced insights for prediction and performance queries.
+The Query Service provides a natural language interface for querying API intelligence data. It integrates with AI agents (PredictionAgent, OptimizationAgent, and SecurityAgent) to provide enhanced insights for prediction, performance, and security queries.
 
 ## Architecture
 
@@ -11,7 +11,8 @@ The Query Service provides a natural language interface for querying API intelli
 1. **QueryService**: Core service for processing natural language queries
 2. **PredictionAgent**: AI agent for enhanced prediction analysis
 3. **OptimizationAgent**: AI agent for enhanced performance optimization
-4. **LLMService**: Language model service for NLP tasks
+4. **SecurityAgent**: AI agent for enhanced security analysis
+5. **LLMService**: Language model service for NLP tasks
 5. **Repositories**: Data access layer for APIs, metrics, predictions, and recommendations
 
 ### Query Processing Flow
@@ -31,14 +32,16 @@ The Query Service can optionally integrate with AI agents to provide deeper insi
 
 - **Prediction Queries**: Enhanced with PredictionAgent analysis
 - **Performance Queries**: Enhanced with OptimizationAgent recommendations
+- **Security Queries**: Enhanced with SecurityAgent vulnerability analysis
 
 ### How It Works
 
 1. **Query Classification**: Queries are classified into types (STATUS, TREND, PREDICTION, SECURITY, PERFORMANCE, COMPARISON, GENERAL)
 
-2. **Agent Selection**: 
+2. **Agent Selection**:
    - PREDICTION queries → PredictionAgent
    - PERFORMANCE queries → OptimizationAgent
+   - SECURITY queries → SecurityAgent
 
 3. **Result Enhancement**: Top 3 results are enhanced with agent insights
 

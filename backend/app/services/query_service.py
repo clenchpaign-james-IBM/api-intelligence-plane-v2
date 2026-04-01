@@ -71,6 +71,7 @@ class QueryService:
         llm_service: LLMService,
         prediction_agent: Optional[Any] = None,
         optimization_agent: Optional[Any] = None,
+        security_agent: Optional[Any] = None,
     ):
         """
         Initialize the Query Service.
@@ -84,6 +85,7 @@ class QueryService:
             llm_service: LLM service for natural language processing
             prediction_agent: Optional PredictionAgent for AI-enhanced prediction queries
             optimization_agent: Optional OptimizationAgent for AI-enhanced performance queries
+            security_agent: Optional SecurityAgent for AI-enhanced security queries
         """
         self.query_repo = query_repository
         self.api_repo = api_repository
@@ -93,6 +95,7 @@ class QueryService:
         self.llm_service = llm_service
         self.prediction_agent = prediction_agent
         self.optimization_agent = optimization_agent
+        self.security_agent = security_agent
         
         # Cache for agent analysis results (5-minute TTL)
         self._agent_cache: Dict[str, Tuple[Any, float]] = {}
@@ -547,6 +550,77 @@ Respond in JSON format:
         enhanced_results.extend(results[3:])
         return enhanced_results
     
+    async def _enhance_with_security_agent(
+        self,
+        results: List[Any],
+        intent: InterpretedIntent,
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhance query results with SecurityAgent insights.
+        
+        Args:
+            results: Query results to enhance
+            intent: Interpreted intent
+            
+        Returns:
+            Enhanced results with agent insights
+        """
+        if not self.security_agent:
+            logger.debug("SecurityAgent not available, skipping enhancement")
+            return results
+        
+        enhanced_results = []
+        
+        # Limit to top 3 results to avoid latency
+        for result in results[:3]:
+            try:
+                # Check cache first
+                cache_key = f"sec_{result.get('id', '')}"
+                cached_result = self._get_from_cache(cache_key)
+                if cached_result:
+                    enhanced_results.append(cached_result)
+                    continue
+                
+                # Get API details
+                api_id = result.get("id")
+                api_name = result.get("name", "Unknown")
+                
+                # Fetch API object for security analysis
+                api = self.api_repo.get(str(api_id))
+                if not api:
+                    logger.warning(f"API {api_id} not found for security analysis")
+                    enhanced_results.append(result)
+                    continue
+                
+                # Perform security analysis
+                agent_result = await self.security_agent.analyze_api_security(api)
+                
+                # Merge agent insights with original result
+                enhanced = {**result}
+                enhanced["agent_insights"] = {
+                    "type": "security",
+                    "vulnerabilities": agent_result.get("vulnerabilities", []),
+                    "compliance_issues": agent_result.get("compliance_issues", []),
+                    "remediation_plan": agent_result.get("remediation_plan", ""),
+                    "total_vulnerabilities": len(agent_result.get("vulnerabilities", [])),
+                    "critical_count": sum(
+                        1 for v in agent_result.get("vulnerabilities", [])
+                        if v.get("severity") == "critical"
+                    ),
+                }
+                
+                # Cache the result
+                self._add_to_cache(cache_key, enhanced)
+                enhanced_results.append(enhanced)
+                
+            except Exception as e:
+                logger.warning(f"Failed to enhance result with SecurityAgent: {e}")
+                enhanced_results.append(result)
+        
+        # Add remaining results without enhancement
+        enhanced_results.extend(results[3:])
+        return enhanced_results
+    
     def _get_from_cache(self, key: str) -> Optional[Any]:
         """Get result from cache if not expired."""
         if key in self._agent_cache:
@@ -614,6 +688,9 @@ Respond in JSON format:
             elif query_type == QueryType.PERFORMANCE and self.optimization_agent and data:
                 logger.info("Enhancing results with OptimizationAgent")
                 data = await self._enhance_with_optimization_agent(data, intent)
+            elif query_type == QueryType.SECURITY and self.security_agent and data:
+                logger.info("Enhancing results with SecurityAgent")
+                data = await self._enhance_with_security_agent(data, intent)
             
             execution_time = int((time.time() - start_time) * 1000)
             

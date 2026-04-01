@@ -76,10 +76,12 @@ llm_service = LLMService(settings)
 # Initialize agents if enabled
 prediction_agent = None
 optimization_agent = None
+security_agent = None
 
 try:
     from app.agents.prediction_agent import PredictionAgent
     from app.agents.optimization_agent import OptimizationAgent
+    from app.agents.security_agent import SecurityAgent
     from app.services.prediction_service import PredictionService
     from app.services.optimization_service import OptimizationService
     
@@ -109,7 +111,12 @@ try:
         optimization_service=optimization_service,
     )
     
-    logger.info("AI agents initialized successfully for query service")
+    security_agent = SecurityAgent(
+        llm_service=llm_service,
+        metrics_repository=metrics_repo,
+    )
+    
+    logger.info("AI agents initialized successfully for query service (Prediction, Optimization, Security)")
 except Exception as e:
     logger.warning(f"Failed to initialize AI agents: {e}. Query service will work without agent enhancement.")
 
@@ -122,6 +129,7 @@ query_service = QueryService(
     llm_service=llm_service,
     prediction_agent=prediction_agent,
     optimization_agent=optimization_agent,
+    security_agent=security_agent,
 )
 
 
@@ -153,10 +161,12 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         # Temporarily disable agents if requested
         original_prediction_agent = query_service.prediction_agent
         original_optimization_agent = query_service.optimization_agent
+        original_security_agent = query_service.security_agent
         
         # if not request.use_ai_agents:
         #     query_service.prediction_agent = None
         #     query_service.optimization_agent = None
+        #     query_service.security_agent = None
         #     logger.info("AI agents disabled for this query")
         
         try:
@@ -181,6 +191,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             # Restore agents
             query_service.prediction_agent = original_prediction_agent
             query_service.optimization_agent = original_optimization_agent
+            query_service.security_agent = original_security_agent
         
     except Exception as e:
         logger.error(f"Failed to execute query: {e}")

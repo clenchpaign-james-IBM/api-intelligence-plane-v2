@@ -66,7 +66,7 @@ const Dashboard = () => {
       <div className="p-6">
         <Error
           message="Failed to load dashboard data"
-          details={(apisError || gatewaysError) as Error}
+          onRetry={() => window.location.reload()}
         />
       </div>
     );
@@ -85,80 +85,88 @@ const Dashboard = () => {
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total APIs */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total APIs</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.total_apis}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {stats.active_apis} active
-              </p>
+        <Link to="/apis" className="block">
+          <Card padding="md" className="hover:shadow-lg transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total APIs</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">{stats.total_apis}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {stats.active_apis} active
+                </p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <Server className="w-8 h-8 text-blue-600" />
+              </div>
             </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Server className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Average Health Score */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg Health Score</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {stats.avg_health_score.toFixed(1)}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                out of 100
-              </p>
+        <Link to="/apis?health=low" className="block">
+          <Card padding="md" className="hover:shadow-lg transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Health Score</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">
+                  {stats.avg_health_score.toFixed(1)}
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  out of 100
+                </p>
+              </div>
+              <div className={`p-3 rounded-lg ${
+                stats.avg_health_score >= 80 ? 'bg-green-100' :
+                stats.avg_health_score >= 50 ? 'bg-yellow-100' : 'bg-red-100'
+              }`}>
+                <Activity className={`w-8 h-8 ${
+                  stats.avg_health_score >= 80 ? 'text-green-600' :
+                  stats.avg_health_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                }`} />
+              </div>
             </div>
-            <div className={`p-3 rounded-lg ${
-              stats.avg_health_score >= 80 ? 'bg-green-100' :
-              stats.avg_health_score >= 50 ? 'bg-yellow-100' : 'bg-red-100'
-            }`}>
-              <Activity className={`w-8 h-8 ${
-                stats.avg_health_score >= 80 ? 'text-green-600' :
-                stats.avg_health_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-              }`} />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Shadow APIs */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Shadow APIs</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.shadow_apis}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {stats.shadow_apis > 0 ? 'Needs attention' : 'All documented'}
-              </p>
+        <Link to="/apis?shadow=true" className="block">
+          <Card padding="md" className="hover:shadow-lg transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Shadow APIs</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">{stats.shadow_apis}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {stats.shadow_apis > 0 ? 'Needs attention' : 'All documented'}
+                </p>
+              </div>
+              <div className={`p-3 rounded-lg ${
+                stats.shadow_apis > 0 ? 'bg-orange-100' : 'bg-green-100'
+              }`}>
+                <AlertTriangle className={`w-8 h-8 ${
+                  stats.shadow_apis > 0 ? 'text-orange-600' : 'text-green-600'
+                }`} />
+              </div>
             </div>
-            <div className={`p-3 rounded-lg ${
-              stats.shadow_apis > 0 ? 'bg-orange-100' : 'bg-green-100'
-            }`}>
-              <AlertTriangle className={`w-8 h-8 ${
-                stats.shadow_apis > 0 ? 'text-orange-600' : 'text-green-600'
-              }`} />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Active Gateways */}
-        <Card padding="md" className="hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Gateways</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{stats.active_gateways}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                of {stats.total_gateways} total
-              </p>
+        <Link to="/gateways" className="block">
+          <Card padding="md" className="hover:shadow-lg transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Gateways</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">{stats.active_gateways}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  of {stats.total_gateways} total
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Zap className="w-8 h-8 text-purple-600" />
+              </div>
             </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Zap className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
       </div>
 
       {/* API Health Overview */}
@@ -170,9 +178,10 @@ const Dashboard = () => {
               ?.sort((a: API, b: API) => b.health_score - a.health_score)
               .slice(0, 5)
               .map((api: API) => (
-                <div
+                <Link
                   key={api.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  to={`/apis/${api.id}`}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                 >
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{api.name}</p>
@@ -190,7 +199,7 @@ const Dashboard = () => {
                       api.health_score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                   </div>
-                </div>
+                </Link>
               ))}
             {(!apis?.items || apis.items.length === 0) && (
               <p className="text-center text-gray-500 py-4">No APIs found</p>
@@ -206,9 +215,10 @@ const Dashboard = () => {
               .sort((a: API, b: API) => a.health_score - b.health_score)
               .slice(0, 5)
               .map((api: API) => (
-                <div
+                <Link
                   key={api.id}
-                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                  to={`/apis/${api.id}`}
+                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
                 >
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{api.name}</p>
@@ -223,7 +233,7 @@ const Dashboard = () => {
                     </div>
                     <AlertTriangle className="w-5 h-5 text-red-500" />
                   </div>
-                </div>
+                </Link>
               ))}
             {(!apis?.items || apis.items.filter((a: API) => a.health_score < 70).length === 0) && (
               <p className="text-center text-green-600 py-4">
@@ -238,28 +248,30 @@ const Dashboard = () => {
       <Card title="Gateway Status" subtitle="Connected API gateways">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {gateways?.items?.map((gateway: Gateway) => (
-            <div
+            <Link
               key={gateway.id}
-              className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+              to={`/gateways/${gateway.id}`}
+              className="block p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
             >
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-medium text-gray-900">{gateway.name}</h4>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  gateway.status === 'active' ? 'bg-green-100 text-green-800' :
-                  gateway.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                  gateway.status === 'connected' ? 'bg-green-100 text-green-800' :
+                  gateway.status === 'disconnected' ? 'bg-gray-100 text-gray-800' :
+                  gateway.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-red-100 text-red-800'
                 }`}>
                   {gateway.status}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mb-2">{gateway.type}</p>
-              <p className="text-xs text-gray-500 truncate">{gateway.base_url}</p>
-              {gateway.last_sync_at && (
+              <p className="text-sm text-gray-600 mb-2">{gateway.vendor}</p>
+              <p className="text-xs text-gray-500 truncate">{gateway.connection_url}</p>
+              {gateway.last_connected_at && (
                 <p className="text-xs text-gray-400 mt-2">
-                  Last sync: {new Date(gateway.last_sync_at).toLocaleString()}
+                  Last connected: {new Date(gateway.last_connected_at).toLocaleString()}
                 </p>
               )}
-            </div>
+            </Link>
           ))}
           {(!gateways?.items || gateways.items.length === 0) && (
             <div className="col-span-full text-center text-gray-500 py-8">

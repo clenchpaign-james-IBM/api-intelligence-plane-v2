@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus, ArrowLeft } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
@@ -18,6 +19,8 @@ import type { Gateway } from '../types';
  */
 const Gateways = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
   const [selectedGateway, setSelectedGateway] = useState<Gateway | null>(null);
   const [syncingGateway, setSyncingGateway] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -28,6 +31,16 @@ const Gateways = () => {
     queryFn: () => api.gateways.list(),
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Set selected gateway from URL parameter
+  useEffect(() => {
+    if (gatewayId && data?.items) {
+      const gateway = data.items.find((g: Gateway) => g.id === gatewayId);
+      if (gateway) {
+        setSelectedGateway(gateway);
+      }
+    }
+  }, [gatewayId, data]);
 
   // Sync gateway mutation
   const syncMutation = useMutation({
@@ -51,9 +64,13 @@ const Gateways = () => {
 
   // Handle view details
   const handleViewDetails = (gateway: Gateway) => {
-    setSelectedGateway(gateway);
-    // TODO: Implement gateway details modal or navigate to details page
-    alert(`Gateway Details:\n\nName: ${gateway.name}\nVendor: ${gateway.vendor}\nStatus: ${gateway.status}\nURL: ${gateway.connection_url}`);
+    navigate(`/gateways/${gateway.id}`);
+  };
+
+  // Handle back to list
+  const handleBack = () => {
+    setSelectedGateway(null);
+    navigate('/gateways');
   };
 
   // Get status icon
@@ -105,13 +122,133 @@ const Gateways = () => {
       <div className="p-6">
         <Error
           message="Failed to load gateways"
-          details={error as Error}
+          onRetry={() => window.location.reload()}
         />
       </div>
     );
   }
 
   const gateways = data?.items || [];
+
+  // If a gateway is selected, show detail view
+  if (selectedGateway) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Back Button */}
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to Gateways
+        </button>
+
+        {/* Gateway Details */}
+        <Card title={selectedGateway.name} subtitle={`${selectedGateway.vendor} Gateway`}>
+          <div className="space-y-6">
+            {/* Status and Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Status</p>
+                <div className="mt-1 flex items-center gap-2">
+                  {getStatusIcon(selectedGateway.status)}
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(selectedGateway.status)}`}>
+                    {selectedGateway.status}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Vendor</p>
+                <p className="mt-1">
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${getVendorColor(selectedGateway.vendor)}`}>
+                    {selectedGateway.vendor}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Connection URL</p>
+                <p className="mt-1 text-sm text-gray-900">{selectedGateway.connection_url}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">API Count</p>
+                <p className="mt-1 text-sm text-gray-900">{selectedGateway.api_count}</p>
+              </div>
+              {selectedGateway.version && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Version</p>
+                  <p className="mt-1 text-sm text-gray-900">{selectedGateway.version}</p>
+                </div>
+              )}
+              {selectedGateway.last_connected_at && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Last Connected</p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {new Date(selectedGateway.last_connected_at).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Capabilities */}
+            {selectedGateway.capabilities && selectedGateway.capabilities.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-2">Capabilities</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedGateway.capabilities.map((cap, idx) => (
+                    <span key={idx} className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Features */}
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-2">Features</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex items-center gap-2">
+                  {selectedGateway.metrics_enabled ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-900">Metrics</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedGateway.security_scanning_enabled ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-900">Security Scanning</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedGateway.rate_limiting_enabled ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-900">Rate Limiting</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                onClick={() => handleSync(selectedGateway.id)}
+                disabled={syncingGateway === selectedGateway.id}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {syncingGateway === selectedGateway.id ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

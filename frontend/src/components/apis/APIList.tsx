@@ -13,24 +13,38 @@ interface APIListProps {
   apis: API[];
   onSelectAPI?: (api: API) => void;
   loading?: boolean;
+  initialShadowFilter?: boolean | 'all';
+  initialHealthFilter?: string;
 }
 
-const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
+const APIList = ({
+  apis,
+  onSelectAPI,
+  loading = false,
+  initialShadowFilter = 'all',
+  initialHealthFilter = 'all'
+}: APIListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [shadowFilter, setShadowFilter] = useState<boolean | 'all'>('all');
+  const [shadowFilter, setShadowFilter] = useState<boolean | 'all'>(initialShadowFilter);
+  const [healthFilter, setHealthFilter] = useState<string>(initialHealthFilter);
 
   // Filter APIs based on search and filters
   const filteredAPIs = apis.filter((api) => {
-    const matchesSearch = 
+    const matchesSearch =
       api.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       api.base_path.toLowerCase().includes(searchTerm.toLowerCase()) ||
       api.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === 'all' || api.status === statusFilter;
     const matchesShadow = shadowFilter === 'all' || api.is_shadow === shadowFilter;
+    
+    const matchesHealth = healthFilter === 'all' ||
+      (healthFilter === 'low' && api.health_score < 70) ||
+      (healthFilter === 'medium' && api.health_score >= 70 && api.health_score < 80) ||
+      (healthFilter === 'high' && api.health_score >= 80);
 
-    return matchesSearch && matchesStatus && matchesShadow;
+    return matchesSearch && matchesStatus && matchesShadow && matchesHealth;
   });
 
   // Get health score color
@@ -100,6 +114,18 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
           <option value="all">All APIs</option>
           <option value="false">Documented</option>
           <option value="true">Shadow APIs</option>
+        </select>
+
+        {/* Health Filter */}
+        <select
+          value={healthFilter}
+          onChange={(e) => setHealthFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">All Health</option>
+          <option value="high">High (≥80)</option>
+          <option value="medium">Medium (70-79)</option>
+          <option value="low">Low (less than 70)</option>
         </select>
       </div>
 

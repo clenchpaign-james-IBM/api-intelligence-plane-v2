@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import APIList from '../components/apis/APIList';
 import APIDetail from '../components/apis/APIDetail';
@@ -18,6 +19,7 @@ import type { API } from '../types';
  */
 const APIs = () => {
   const [selectedAPI, setSelectedAPI] = useState<API | null>(null);
+  const [searchParams] = useSearchParams();
 
   // Fetch APIs
   const { data, isLoading, error } = useQuery({
@@ -25,6 +27,10 @@ const APIs = () => {
     queryFn: () => api.apis.list(),
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Get initial filter from URL params
+  const initialShadowFilter = searchParams.get('shadow');
+  const initialHealthFilter = searchParams.get('health');
 
   // Handle API selection
   const handleSelectAPI = (api: API) => {
@@ -51,7 +57,7 @@ const APIs = () => {
       <div className="p-6">
         <Error
           message="Failed to load APIs"
-          details={error as Error}
+          onRetry={() => window.location.reload()}
         />
       </div>
     );
@@ -87,6 +93,8 @@ const APIs = () => {
           apis={apis}
           onSelectAPI={handleSelectAPI}
           loading={isLoading}
+          initialShadowFilter={initialShadowFilter === 'true' ? true : initialShadowFilter === 'false' ? false : 'all'}
+          initialHealthFilter={initialHealthFilter || 'all'}
         />
       ) : (
         <APIDetail

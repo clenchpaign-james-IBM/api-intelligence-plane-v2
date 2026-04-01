@@ -191,7 +191,7 @@ const Gateways = () => {
       </div>
 
       {/* Gateway List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-4">
         {gateways.length === 0 ? (
           <div className="col-span-full">
             <Card padding="lg">
@@ -213,31 +213,31 @@ const Gateways = () => {
         ) : (
           gateways.map((gateway: Gateway) => (
             <Card key={gateway.id} padding="md">
-              <div className="space-y-4">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(gateway.status)}
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{gateway.name}</h3>
-                      <p className="text-sm text-gray-600">{gateway.connection_url}</p>
-                    </div>
+              <div className="flex items-center gap-4">
+                {/* Status Icon & Basic Info */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {getStatusIcon(gateway.status)}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{gateway.name}</h3>
+                    <p className="text-sm text-gray-600">{gateway.connection_url}</p>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(gateway.status)}`}>
-                      {gateway.status}
-                    </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${getVendorColor(gateway.vendor)}`}>
-                      {gateway.vendor}
-                    </span>
-                  </div>
+                </div>
+
+                {/* Status & Vendor Badges */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(gateway.status)}`}>
+                    {gateway.status}
+                  </span>
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${getVendorColor(gateway.vendor)}`}>
+                    {gateway.vendor}
+                  </span>
                 </div>
 
                 {/* Capabilities */}
                 {gateway.capabilities && gateway.capabilities.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Capabilities</p>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700 flex-shrink-0">Capabilities:</p>
+                    <div className="flex flex-wrap gap-1">
                       {gateway.capabilities.map((capability) => (
                         <span
                           key={capability}
@@ -251,7 +251,7 @@ const Gateways = () => {
                 )}
 
                 {/* Metadata */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex gap-4 text-sm flex-shrink-0">
                   <div>
                     <p className="text-gray-600">Created</p>
                     <p className="font-medium text-gray-900">
@@ -269,7 +269,7 @@ const Gateways = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-4 border-t border-gray-200 justify-end">
+                <div className="flex gap-2 flex-shrink-0">
                   <button
                     onClick={() => handleSync(gateway.id)}
                     disabled={syncingGateway === gateway.id}

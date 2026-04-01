@@ -108,6 +108,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/apis" element={<APIs />} />
               <Route path="/gateways" element={<Gateways />} />
+              <Route path="/gateways/:gatewayId" element={<Gateways />} />
               <Route path="/metrics" element={<Metrics />} />
               <Route path="/predictions" element={<Predictions />} />
               <Route path="/optimization" element={<Optimization />} />

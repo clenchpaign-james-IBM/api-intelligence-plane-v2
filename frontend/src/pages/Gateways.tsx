@@ -6,6 +6,7 @@ import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
 import AddGatewayForm from '../components/gateways/AddGatewayForm';
+import GatewayCard from '../components/gateways/GatewayCard';
 import { api } from '../services/api';
 import type { Gateway } from '../types';
 
@@ -67,10 +68,10 @@ const Gateways = () => {
     navigate(`/gateways/${gateway.id}`);
   };
 
-  // Handle back to list
+  // Handle back - uses browser history to return to previous page
   const handleBack = () => {
     setSelectedGateway(null);
-    navigate('/gateways');
+    navigate(-1); // Go back to previous page (Dashboard or Gateways list)
   };
 
   // Get status icon
@@ -140,112 +141,15 @@ const Gateways = () => {
           className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Gateways
+          Back
         </button>
 
-        {/* Gateway Details */}
-        <Card title={selectedGateway.name} subtitle={`${selectedGateway.vendor} Gateway`}>
-          <div className="space-y-6">
-            {/* Status and Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Status</p>
-                <div className="mt-1 flex items-center gap-2">
-                  {getStatusIcon(selectedGateway.status)}
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(selectedGateway.status)}`}>
-                    {selectedGateway.status}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Vendor</p>
-                <p className="mt-1">
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${getVendorColor(selectedGateway.vendor)}`}>
-                    {selectedGateway.vendor}
-                  </span>
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Connection URL</p>
-                <p className="mt-1 text-sm text-gray-900">{selectedGateway.connection_url}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">API Count</p>
-                <p className="mt-1 text-sm text-gray-900">{selectedGateway.api_count}</p>
-              </div>
-              {selectedGateway.version && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Version</p>
-                  <p className="mt-1 text-sm text-gray-900">{selectedGateway.version}</p>
-                </div>
-              )}
-              {selectedGateway.last_connected_at && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Last Connected</p>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {new Date(selectedGateway.last_connected_at).toLocaleString()}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Capabilities */}
-            {selectedGateway.capabilities && selectedGateway.capabilities.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Capabilities</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedGateway.capabilities.map((cap, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Features */}
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-2">Features</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex items-center gap-2">
-                  {selectedGateway.metrics_enabled ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-900">Metrics</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedGateway.security_scanning_enabled ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-900">Security Scanning</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedGateway.rate_limiting_enabled ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-900">Rate Limiting</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t">
-              <button
-                onClick={() => handleSync(selectedGateway.id)}
-                disabled={syncingGateway === selectedGateway.id}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {syncingGateway === selectedGateway.id ? 'Syncing...' : 'Sync Now'}
-              </button>
-            </div>
-          </div>
-        </Card>
+        {/* Gateway Details using GatewayCard component */}
+        <GatewayCard
+          gateway={selectedGateway}
+          onSync={handleSync}
+          isSyncing={syncingGateway === selectedGateway.id}
+        />
       </div>
     );
   }

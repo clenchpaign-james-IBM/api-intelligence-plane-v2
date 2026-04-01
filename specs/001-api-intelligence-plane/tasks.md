@@ -181,6 +181,8 @@ This is a distributed web application with microservices architecture:
 - [X] T088 [P] [US1] Add "Add Gateway" button to Gateways page in frontend/src/pages/Gateways.tsx
 - [X] T089 [US1] Implement gateway sync endpoint in backend/app/api/v1/gateways.py (POST /gateways/{id}/sync)
 - [X] T090 [US1] Add gateway sync button handlers in frontend/src/pages/Gateways.tsx
+- [X] T090a [P] [US1] Create GatewayCard component in frontend/src/components/gateways/GatewayCard.tsx with detailed gateway information display
+- [X] T090b [US1] Integrate GatewayCard component into Gateways page detail view in frontend/src/pages/Gateways.tsx
 
 ### Integration & Validation
 

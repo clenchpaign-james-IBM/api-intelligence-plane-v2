@@ -1,10 +1,17 @@
 """Security MCP Server for API Intelligence Plane.
 
 This MCP server provides tools for security scanning, vulnerability management,
-and automated remediation. It acts as a thin wrapper around the backend REST API,
-exposing tools that AI agents can use to interact with security functionality.
+compliance detection, and automated remediation. It acts as a thin wrapper around
+the backend REST API, exposing tools that AI agents can use to interact with
+security functionality.
 
-Port: 8004
+All security analysis uses a HYBRID approach:
+- Rule-based checks for deterministic security factors
+- AI-enhanced analysis for context-aware severity assessment
+- Multi-source data analysis (API metadata, metrics, traffic patterns)
+- Compliance detection (GDPR, HIPAA, SOC2, PCI-DSS)
+
+Port: 8003
 Transport: Streamable HTTP
 """
 
@@ -30,12 +37,16 @@ class SecurityMCPServer(BaseMCPServer):
     """MCP Server for Security operations.
     
     Provides tools for:
-    - Scanning APIs for security vulnerabilities
-    - Remediating vulnerabilities automatically
-    - Getting security posture metrics
+    - Scanning APIs for security vulnerabilities using hybrid analysis (rule-based + AI)
+    - Detecting compliance violations (GDPR, HIPAA, SOC2, PCI-DSS)
+    - Remediating vulnerabilities automatically via Gateway policies
+    - Verifying remediation effectiveness
+    - Getting security posture metrics and risk scores
     
     This server acts as a thin wrapper around the backend REST API,
-    delegating all business logic to the backend services.
+    delegating all business logic to the backend services. All security
+    analysis uses a hybrid approach combining deterministic rule-based
+    checks with AI-enhanced context-aware assessment.
     """
 
     def __init__(self):
@@ -65,8 +76,8 @@ class SecurityMCPServer(BaseMCPServer):
                 dict: Health status including backend connectivity
             """
             try:
-                # Test backend connectivity
-                response = await self.backend_client.get("/api/v1/security/posture")
+                # Test backend connectivity using security posture endpoint
+                response = await self.backend_client._request("GET", "/security/posture")
                 backend_status = "connected"
             except Exception as e:
                 logger.error(f"Backend health check failed: {e}")
@@ -90,28 +101,37 @@ class SecurityMCPServer(BaseMCPServer):
             """
             info = self.get_server_info()
             info.update({
-                "port": 8004,
+                "port": 8003,
                 "transport": "streamable-http",
                 "architecture": "thin_wrapper",
                 "backend_url": self.backend_client.base_url,
                 "capabilities": [
-                    "security_scanning",
+                    "hybrid_security_scanning",
                     "vulnerability_management",
                     "automated_remediation",
+                    "compliance_detection",
                     "security_posture",
+                    "metrics_analysis",
                 ],
+                "analysis_approach": "hybrid",
+                "compliance_standards": ["GDPR", "HIPAA", "SOC2", "PCI-DSS"],
             })
             return info
         
         # T119: scan_api_security tool
-        @self.tool(description="Scan an API for security vulnerabilities and policy coverage issues")
+        @self.tool(description="Scan an API for security vulnerabilities and policy coverage issues using hybrid analysis")
         async def scan_api_security(
             api_id: str,
-            use_ai_enhancement: bool = True,
         ) -> dict[str, Any]:
             """Scan an API for security vulnerabilities.
             
-            Performs comprehensive security analysis including:
+            Performs comprehensive security analysis using HYBRID approach:
+            - Rule-based checks for deterministic security factors
+            - AI-enhanced analysis for context-aware severity assessment
+            - Multi-source data analysis (API metadata, metrics, traffic patterns)
+            - Compliance detection (GDPR, HIPAA, SOC2, PCI-DSS)
+            
+            Security checks include:
             - Authentication policy coverage
             - Authorization policy coverage
             - Rate limiting configuration
@@ -120,12 +140,8 @@ class SecurityMCPServer(BaseMCPServer):
             - Input validation checks
             - Security header analysis
             
-            Uses AI-enhanced analysis to provide context-aware severity assessment
-            based on both API metadata and traffic metrics.
-            
             Args:
                 api_id: UUID of the API to scan
-                use_ai_enhancement: Whether to use AI-enhanced analysis (default: True)
             
             Returns:
                 dict: Scan results including:
@@ -136,25 +152,27 @@ class SecurityMCPServer(BaseMCPServer):
                     - vulnerabilities_found: Number of vulnerabilities
                     - severity_breakdown: Vulnerabilities by severity
                     - vulnerabilities: List of vulnerability details
+                    - compliance_issues: List of compliance violations
                     - remediation_plan: Automated remediation plan
-                    - ai_enhanced: Whether AI enhancement was used
+                    - metrics_analyzed: Number of metrics analyzed for context
             
             Example:
                 >>> result = await scan_api_security(
-                ...     api_id="550e8400-e29b-41d4-a716-446655440000",
-                ...     use_ai_enhancement=True
+                ...     api_id="550e8400-e29b-41d4-a716-446655440000"
                 ... )
                 >>> print(f"Found {result['vulnerabilities_found']} vulnerabilities")
+                >>> print(f"Compliance issues: {len(result['compliance_issues'])}")
             """
             try:
-                logger.info(f"Scanning API {api_id} for security vulnerabilities")
+                logger.info(f"Scanning API {api_id} for security vulnerabilities (hybrid analysis)")
                 
-                # Call backend API
-                response = await self.backend_client.post(
-                    "/api/v1/security/scan",
+                # Call backend API (always uses hybrid approach)
+                response = await self.backend_client._request(
+                    "POST",
+                    "/security/scan",
                     json={
                         "api_id": api_id,
-                        "use_ai_enhancement": use_ai_enhancement,
+                        "use_ai_enhancement": True,  # Backend always uses hybrid approach
                     },
                 )
                 
@@ -216,8 +234,9 @@ class SecurityMCPServer(BaseMCPServer):
                 if remediation_strategy:
                     request_body["remediation_strategy"] = remediation_strategy
                 
-                response = await self.backend_client.post(
-                    f"/api/v1/security/vulnerabilities/{vulnerability_id}/remediate",
+                response = await self.backend_client._request(
+                    "POST",
+                    f"/security/vulnerabilities/{vulnerability_id}/remediate",
                     json=request_body if request_body else None,
                 )
                 
@@ -277,8 +296,9 @@ class SecurityMCPServer(BaseMCPServer):
                     params["api_id"] = api_id
                 
                 # Call backend API
-                response = await self.backend_client.get(
-                    "/api/v1/security/posture",
+                response = await self.backend_client._request(
+                    "GET",
+                    "/security/posture",
                     params=params,
                 )
                 
@@ -339,8 +359,9 @@ class SecurityMCPServer(BaseMCPServer):
                     params["severity"] = severity
                 
                 # Call backend API
-                response = await self.backend_client.get(
-                    "/api/v1/security/vulnerabilities",
+                response = await self.backend_client._request(
+                    "GET",
+                    "/security/vulnerabilities",
                     params=params,
                 )
                 
@@ -395,8 +416,9 @@ class SecurityMCPServer(BaseMCPServer):
                 logger.info(f"Verifying remediation for vulnerability {vulnerability_id}")
                 
                 # Call backend API
-                response = await self.backend_client.post(
-                    f"/api/v1/security/vulnerabilities/{vulnerability_id}/verify"
+                response = await self.backend_client._request(
+                    "POST",
+                    f"/security/vulnerabilities/{vulnerability_id}/verify"
                 )
                 
                 logger.info(f"Verification completed: {response.get('verified', False)}")
@@ -412,23 +434,23 @@ class SecurityMCPServer(BaseMCPServer):
                 }
 
 
-async def main():
+def main():
     """Run the Security MCP server."""
-    server = SecurityMCPServer()
-    
-    # Run the server
-    logger.info("Starting Security MCP server on port 8004...")
-    await server.run(port=8004)
-
-
-if __name__ == "__main__":
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     
-    # Run server
-    asyncio.run(main())
+    # Create server
+    server = SecurityMCPServer()
+    
+    # Run MCP server on port 8004 (Security server port)
+    # FastMCP's built-in server will handle both MCP and health endpoints
+    server.run(transport="streamable-http", port=8000)
+
+
+if __name__ == "__main__":
+    main()
 
 # Made with Bob

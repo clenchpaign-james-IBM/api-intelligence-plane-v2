@@ -115,82 +115,86 @@ const APIList = ({ apis, onSelectAPI, loading = false }: APIListProps) => {
           <p className="text-gray-600">No APIs found matching your criteria</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="space-y-2">
           {filteredAPIs.map((api) => (
             <div
               key={api.id}
               onClick={() => onSelectAPI?.(api)}
-              className={`p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all ${
+              className={`px-4 py-2.5 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-sm transition-all ${
                 onSelectAPI ? 'cursor-pointer' : ''
               } ${api.is_shadow ? 'border-l-4 border-l-orange-500' : ''}`}
             >
-              <div className="flex items-start justify-between">
-                {/* API Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{api.name}</h3>
+              <div className="flex items-center justify-between gap-4">
+                {/* API Name & Path */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-base font-bold text-gray-900 truncate">{api.name}</h3>
                     {api.version && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded flex-shrink-0">
                         v{api.version}
                       </span>
                     )}
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(api.status)}`}>
+                    <span className={`px-1.5 py-0.5 text-xs font-medium rounded flex-shrink-0 ${getStatusColor(api.status)}`}>
                       {api.status}
                     </span>
                     {api.is_shadow && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded">
-                        Shadow API
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded flex-shrink-0">
+                        Shadow
                       </span>
                     )}
                   </div>
-                  
-                  <p className="text-sm text-gray-600 mb-2">{api.base_path}</p>
-                  
-                  {/* Tags */}
-                  {api.tags && api.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {api.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {api.tags.length > 3 && (
-                        <span className="px-2 py-0.5 text-xs text-gray-500">
-                          +{api.tags.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Metrics */}
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                    <span>
-                      <span className="font-medium">Endpoints:</span> {api.endpoints.length}
-                    </span>
-                    <span>
-                      <span className="font-medium">Methods:</span> {api.methods.join(', ')}
-                    </span>
-                    <span>
-                      <span className="font-medium">Auth:</span> {api.authentication_type}
-                    </span>
-                    <span>
-                      <span className="font-medium">P95:</span> {api.current_metrics.response_time_p95.toFixed(1)}ms
-                    </span>
-                    <span>
-                      <span className="font-medium">Error Rate:</span> {(api.current_metrics.error_rate * 100).toFixed(2)}%
-                    </span>
-                  </div>
+                  <p className="text-xs text-gray-600 truncate">{api.base_path}</p>
                 </div>
 
-                {/* Health Score */}
-                <div className="ml-4 text-center">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg ${getHealthColor(api.health_score)}`}>
+                {/* Tags - Compact */}
+                {api.tags && api.tags.length > 0 && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {api.tags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-1.5 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {api.tags.length > 3 && (
+                      <span className="px-1.5 py-0.5 text-xs text-gray-500">
+                        +{api.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Metrics - Horizontal Compact */}
+                <div className="flex items-center gap-4 text-xs text-gray-600 flex-shrink-0">
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium">Endpoints:</span>
+                    <span>{api.endpoints.length}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium">Methods:</span>
+                    <span>{api.methods.join(', ')}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium">Auth:</span>
+                    <span className="truncate max-w-[80px]">{api.authentication_type}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium">P95:</span>
+                    <span>{api.current_metrics.response_time_p95.toFixed(0)}ms</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-medium">Error:</span>
+                    <span>{(api.current_metrics.error_rate * 100).toFixed(1)}%</span>
+                  </span>
+                </div>
+
+                {/* Health Score - Right Side */}
+                <div className="text-center flex-shrink-0">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${getHealthColor(api.health_score)}`}>
                     {api.health_score.toFixed(0)}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Health</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Health</p>
                 </div>
               </div>
             </div>

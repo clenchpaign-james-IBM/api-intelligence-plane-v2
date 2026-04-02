@@ -584,4 +584,238 @@ export interface TimeSeriesDataPoint {
   sample_count?: number;
 }
 
+// Compliance Violation Entity
+export interface ComplianceViolation {
+  id: string;
+  api_id: string;
+  api_name?: string;
+  gateway_id: string;
+  compliance_standard: ComplianceStandard;
+  violation_type: ComplianceViolationType;
+  severity: ComplianceSeverity;
+  status: ComplianceStatus;
+  title: string;
+  description: string;
+  regulation_reference: string;
+  evidence: ComplianceEvidence[];
+  remediation_steps: string[];
+  remediation_documentation?: RemediationDocumentation;
+  detected_at: string;
+  detected_by: DetectionMethod;
+  resolved_at?: string;
+  remediated_at?: string;
+  last_audit_date?: string;
+  next_audit_date?: string;
+  audit_trail: AuditTrailEntry[];
+  risk_score: number;
+  business_impact: string;
+  data: Record<string, any>;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComplianceEvidence {
+  type: string;
+  description: string;
+  source: string;
+  collected_at: string;
+  data: Record<string, any>;
+}
+
+export interface RemediationDocumentation {
+  steps_taken: string[];
+  verification_method: string;
+  verification_result: string;
+  documented_by: string;
+  documented_at: string;
+}
+
+export interface AuditTrailEntry {
+  timestamp: string;
+  action: string;
+  performed_by: string;
+  details: Record<string, any>;
+}
+
+export type ComplianceViolationType =
+  // GDPR
+  | 'gdpr_data_protection'
+  | 'gdpr_consent_management'
+  | 'gdpr_data_breach_notification'
+  | 'gdpr_right_to_erasure'
+  | 'gdpr_data_portability'
+  // HIPAA
+  | 'hipaa_access_control'
+  | 'hipaa_audit_controls'
+  | 'hipaa_transmission_security'
+  | 'hipaa_authentication'
+  | 'hipaa_encryption'
+  // SOC2
+  | 'soc2_access_control'
+  | 'soc2_change_management'
+  | 'soc2_system_monitoring'
+  | 'soc2_logical_access'
+  | 'soc2_encryption'
+  // PCI-DSS
+  | 'pci_dss_network_security'
+  | 'pci_dss_access_control'
+  | 'pci_dss_encryption'
+  | 'pci_dss_monitoring'
+  | 'pci_dss_vulnerability_management'
+  // ISO 27001
+  | 'iso27001_access_control'
+  | 'iso27001_cryptography'
+  | 'iso27001_operations_security'
+  | 'iso27001_communications_security'
+  | 'iso27001_system_acquisition';
+
+export type ComplianceSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type ComplianceStatus = 'open' | 'in_progress' | 'resolved' | 'accepted_risk' | 'false_positive';
+export type DetectionMethod = 'automated' | 'manual' | 'ai_enhanced';
+
+// Compliance Posture
+export interface CompliancePosture {
+  total_violations: number;
+  open_violations: number;
+  resolved_violations: number;
+  by_standard: Record<ComplianceStandard, ComplianceStandardScore>;
+  by_severity: Record<ComplianceSeverity, number>;
+  by_status: Record<ComplianceStatus, number>;
+  overall_score: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  last_scan_date: string;
+  next_audit_date?: string;
+  compliance_trends: ComplianceTrend[];
+}
+
+export interface ComplianceStandardScore {
+  standard: ComplianceStandard;
+  score: number;
+  violations: number;
+  compliant_controls: number;
+  total_controls: number;
+  last_assessed: string;
+}
+
+export interface ComplianceTrend {
+  date: string;
+  score: number;
+  violations: number;
+}
+
+// Audit Report (matches backend AuditReportResponse)
+export interface AuditReport {
+  report_id: string;
+  generated_at: string;
+  report_period: {
+    start: string;
+    end: string;
+  };
+  executive_summary: string;
+  compliance_posture: {
+    total_violations: number;
+    open_violations: number;
+    remediated_violations?: number;
+    [key: string]: any;
+  };
+  violations_by_standard: Record<string, number>;
+  violations_by_severity: Record<string, number>;
+  remediation_status: {
+    total_violations: number;
+    remediated_violations: number;
+    open_violations: number;
+    remediation_rate: number;
+  };
+  violations_needing_audit: any[];
+  audit_evidence: any[];
+  recommendations: string[];
+}
+
+export interface AuditFinding {
+  standard: ComplianceStandard;
+  violation_type: ComplianceViolationType;
+  severity: ComplianceSeverity;
+  affected_apis: string[];
+  description: string;
+  regulation_reference: string;
+  evidence: string[];
+  risk_assessment: string;
+}
+
+export interface AuditRecommendation {
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  affected_standards: ComplianceStandard[];
+  implementation_effort: 'low' | 'medium' | 'high';
+  expected_impact: string;
+}
+
+export interface ViolationsSummary {
+  total: number;
+  by_severity: Record<ComplianceSeverity, number>;
+  by_standard: Record<ComplianceStandard, number>;
+  by_status: Record<ComplianceStatus, number>;
+  critical_violations: ComplianceViolation[];
+}
+
+export interface RemediationStatus {
+  total_violations: number;
+  remediated: number;
+  in_progress: number;
+  pending: number;
+  avg_remediation_time_days: number;
+  remediation_rate: number;
+}
+
+// Compliance Scan Request/Response
+export interface ComplianceScanRequest {
+  api_id: string;
+  standards?: ComplianceStandard[];
+  force_rescan?: boolean;
+}
+
+export interface ComplianceScanResponse {
+  scan_id: string;
+  api_id: string;
+  api_name: string;
+  scan_completed_at: string;
+  violations_found: number;
+  severity_breakdown: Record<ComplianceSeverity, number>;
+  violations: ComplianceViolation[];
+  compliance_score: number;
+  standards_checked: ComplianceStandard[];
+}
+
+// Audit Report Request/Response
+export interface AuditReportRequest {
+  report_type: 'comprehensive' | 'standard_specific' | 'api_specific';
+  standards?: ComplianceStandard[];
+  api_ids?: string[];
+  period_start?: string;
+  period_end?: string;
+  include_resolved?: boolean;
+}
+
+export interface AuditReportResponse {
+  report: AuditReport;
+  generated_at: string;
+  format: 'json' | 'pdf' | 'html';
+}
+
+// Compliance Violation List Response
+export interface ComplianceViolationListResponse {
+  violations: ComplianceViolation[];
+  total: number;
+  page: number;
+  page_size: number;
+  filters_applied: {
+    standard?: ComplianceStandard;
+    severity?: ComplianceSeverity;
+    status?: ComplianceStatus;
+    api_id?: string;
+  };
+}
+
 // Made with Bob

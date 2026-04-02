@@ -252,15 +252,17 @@ This is a distributed web application with microservices architecture:
 
 ## Phase 5: User Story 3 - Automated Security Scanning and Remediation (Priority: P2)
 
-**Goal**: Continuous security scanning with automated remediation of common vulnerabilities
+**Goal**: Continuous security scanning with automated remediation of common vulnerabilities (immediate threat response)
+
+**Audience**: Security engineers, DevOps teams, Application security teams
 
 **Independent Test**: Deploy APIs with known security issues, verify detection and automated remediation
 
 ### Backend - Security Service
 
 - [X] T111 [P] [US3] Create Vulnerability repository in backend/app/db/repositories/vulnerability_repository.py with CRUD and query operations
-- [X] T112 [US3] Implement Security Service in backend/app/services/security_service.py with vulnerability scanning logic (Enhanced with hybrid approach, multi-source analysis, compliance detection)
-- [X] T113 [US3] Create Security Agent in backend/app/agents/security_agent.py using LangChain/LangGraph (Enhanced with all security checks and compliance methods)
+- [X] T112 [US3] Implement Security Service in backend/app/services/security_service.py with vulnerability scanning logic (Enhanced with hybrid approach, multi-source analysis, REMOVED compliance detection)
+- [X] T113 [US3] Create Security Agent in backend/app/agents/security_agent.py using LangChain/LangGraph (Enhanced with all security checks, REMOVED compliance methods)
 - [X] T114 [US3] Implement automated remediation workflow in backend/app/agents/security_agent.py (Real Gateway adapter integration)
 - [X] T115 [US3] Create security scanning scheduler job in backend/app/scheduler/security_jobs.py (runs every 1 hour)
 - [X] T116 [US3] Implement remediation verification in backend/app/services/security_service.py (Real re-scanning verification)
@@ -293,34 +295,92 @@ This is a distributed web application with microservices architecture:
 
 ### Frontend - Security View
 
-- [X] T122 [US3] Create Security page in frontend/src/pages/Security.tsx with vulnerability list and security posture
-- [X] T123 [P] [US3] Create vulnerability card component in frontend/src/components/security/VulnerabilityCard.tsx (Enhanced with compliance violations and remediation actions display)
-- [X] T124 [P] [US3] Create security posture dashboard in frontend/src/components/security/SecurityDashboard.tsx (Enhanced with compliance issues section)
+- [X] T122 [US3] Create Security page in frontend/src/pages/Security.tsx with vulnerability list and security posture (REMOVE compliance violations display)
+- [X] T123 [P] [US3] Create vulnerability card component in frontend/src/components/security/VulnerabilityCard.tsx (REMOVE compliance violations display)
+- [X] T124 [P] [US3] Create security posture dashboard in frontend/src/components/security/SecurityDashboard.tsx (REMOVE compliance issues section)
 - [X] T125 [P] [US3] Create remediation status tracker in frontend/src/components/security/RemediationTracker.tsx
 
 ### Frontend - TypeScript Types
 
-- [X] T125a [US3] Add ComplianceStandard enum to frontend/src/types/index.ts
 - [X] T125b [US3] Add RemediationAction interface to frontend/src/types/index.ts
-- [X] T125c [US3] Add ComplianceIssue interface to frontend/src/types/index.ts
-- [X] T125d [US3] Update Vulnerability interface with compliance_violations and remediation_actions fields
+- [X] T125d [US3] Update Vulnerability interface with remediation_actions field (REMOVE compliance_violations)
 
 ### Integration & Validation
 
-- [X] T126 [US3] Create integration test for security scanning in tests/integration/test_security_scanning.py (500 lines covering hybrid scanning, compliance detection, multi-source analysis)
-- [X] T127 [US3] Create end-to-end test for remediation workflow in tests/e2e/test_remediation_workflow.py (400 lines covering complete remediation workflow)
+- [X] T126 [US3] Create integration test for security scanning in tests/integration/test_security_scanning.py (REMOVE compliance detection tests)
+- [X] T127 [US3] Create end-to-end test for remediation workflow in tests/e2e/test_remediation_workflow.py
 - [X] T128 [US3] Validate User Story 3 independently with known vulnerabilities
 
 ### Documentation
 
-- [X] T128a [US3] Create comprehensive implementation summary in research/security_service_improvements_summary.md (450 lines)
-- [X] T128b [US3] Create deployment guide in research/IMPLEMENTATION_COMPLETE.md (300 lines)
+- [X] T128a [US3] Create comprehensive implementation summary in research/security_service_improvements_summary.md
+- [X] T128b [US3] Create deployment guide in research/IMPLEMENTATION_COMPLETE.md
 
-**Checkpoint**: User Story 3 complete - Security scanning and remediation work independently with hybrid approach, compliance detection (GDPR, HIPAA, SOC2, PCI-DSS), real Gateway integration, and comprehensive testing
+**Checkpoint**: User Story 3 complete - Security scanning and remediation work independently with hybrid approach, real Gateway integration, and immediate threat response focus
 
 ---
 
-## Phase 6: User Story 4 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
+## Phase 6: User Story 4 - Compliance Monitoring and Audit Reporting (Priority: P2)
+
+**Goal**: Continuous compliance monitoring with automated detection of regulatory violations and comprehensive audit reporting
+
+**Audience**: Compliance officers, Auditors, Legal teams, Risk management
+
+**Independent Test**: Deploy APIs with known compliance gaps, verify detection of violations, confirm comprehensive audit reports are generated
+
+### Pydantic Models
+
+- [X] T128c [P] [US4] Create ComplianceViolation model in backend/app/models/compliance.py per data-model.md
+
+### Backend - Compliance Service
+
+- [X] T128d [P] [US4] Create ComplianceViolation repository in backend/app/db/repositories/compliance_repository.py with CRUD and query operations
+- [X] T128e [US4] Implement Compliance Service in backend/app/services/compliance_service.py with AI-driven compliance detection logic
+- [X] T128f [US4] Create Compliance Agent in backend/app/agents/compliance_agent.py using LangChain/LangGraph (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001)
+- [X] T128g [US4] Implement compliance scanning workflow in backend/app/agents/compliance_agent.py with multi-source analysis
+- [X] T128h [US4] Create compliance scanning scheduler job in backend/app/scheduler/compliance_jobs.py (runs every 24 hours)
+- [X] T128i [US4] Implement audit report generation in backend/app/services/compliance_service.py
+
+### Backend - REST API Endpoints
+
+- [X] T128j [P] [US4] Implement Compliance endpoints in backend/app/api/v1/compliance.py per backend-api.yaml (GET /compliance/violations, GET /compliance/reports, GET /compliance/posture)
+
+### MCP - Compliance Server
+
+- [X] T128k [US4] Create Compliance MCP server in mcp-servers/compliance_server.py with FastMCP
+- [X] T128l [P] [US4] Implement scan_api_compliance tool in mcp-servers/compliance_server.py per mcp-tools.md
+- [X] T128m [P] [US4] Implement generate_audit_report tool in mcp-servers/compliance_server.py per mcp-tools.md
+- [X] T128n [P] [US4] Implement get_compliance_posture tool in mcp-servers/compliance_server.py per mcp-tools.md
+
+### Frontend - Compliance View
+
+- [X] T128o [US4] Create Compliance page in frontend/src/pages/Compliance.tsx with violation list and compliance posture
+- [X] T128p [P] [US4] Create compliance violation card component in frontend/src/components/compliance/ComplianceViolationCard.tsx
+- [X] T128q [P] [US4] Create compliance posture dashboard in frontend/src/components/compliance/ComplianceDashboard.tsx
+- [X] T128r [P] [US4] Create audit report generator component in frontend/src/components/compliance/AuditReportGenerator.tsx
+
+### Frontend - TypeScript Types
+
+- [X] T128s [P] [US4] Add ComplianceStandard enum to frontend/src/types/index.ts
+- [X] T128t [P] [US4] Add ComplianceViolation interface to frontend/src/types/index.ts
+- [X] T128u [P] [US4] Add AuditReport interface to frontend/src/types/index.ts
+
+### Integration & Validation
+
+- [X] T128v [US4] Create integration test for compliance scanning in tests/integration/test_compliance_scanning.py
+- [X] T128w [US4] Create end-to-end test for audit report generation in tests/e2e/test_audit_workflow.py
+- [X] T128x [US4] Validate User Story 4 independently with known compliance gaps
+
+### Documentation
+
+- [X] T128y [P] [US4] Document compliance monitoring in docs/compliance-monitoring.md
+- [X] T128z [P] [US4] Document audit report generation in docs/audit-reporting.md
+
+**Checkpoint**: User Story 4 complete - Compliance monitoring and audit reporting work independently with AI-driven analysis, comprehensive audit trails, and scheduled reporting focus
+
+---
+
+## Phase 7: User Story 5 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
 
 **MERGED**: This phase combines real-time performance optimization and intelligent rate limiting into a unified feature, as both are gateway-level performance optimization techniques.
 
@@ -403,15 +463,15 @@ This is a distributed web application with microservices architecture:
 - [x] T153 [US4] Implement caching policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java
 - [x] T154 [US4] Implement compression policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CompressionPolicy.java
 
-**Checkpoint**: User Story 4 complete - Unified performance optimization with policy application works independently
+**Checkpoint**: User Story 5 complete - Unified performance optimization with policy application works independently
 
-**Note**: Phase 7 (User Story 5 - Intelligent Rate Limiting) has been MERGED into Phase 6. All rate limiting functionality is now part of the unified performance optimization feature.
+**Note**: Previous Phase 7 (Intelligent Rate Limiting) has been MERGED into this phase. All rate limiting functionality is now part of the unified performance optimization feature.
 
 ---
 
-## Phase 7: User Story 5 - Natural Language Query Interface (Priority: P3)
+## Phase 8: User Story 6 - Natural Language Query Interface (Priority: P3)
 
-**Note**: This was previously Phase 8 / User Story 6. Renumbered due to merge of performance optimization and rate limiting.
+**Note**: Renumbered due to separation of Security and Compliance into distinct phases.
 
 **Goal**: Query API intelligence using natural language questions
 
@@ -444,11 +504,11 @@ This is a distributed web application with microservices architecture:
 - [X] T170 [US5] Create end-to-end test for complete query workflow in tests/e2e/test_query_workflow.py
 - [X] T171 [US5] Validate User Story 5 independently with various query types
 
-**Checkpoint**: All user stories complete - Full system functional
+**Checkpoint**: User Story 6 complete - All user stories complete - Full system functional
 
 ---
 
-## Phase 8: Polish & Cross-Cutting Concerns
+## Phase 9: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories
 
@@ -501,7 +561,7 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-## Phase 9: AI-Enhanced Analysis (LLM Integration) 🤖
+## Phase 10: AI-Enhanced Analysis (LLM Integration) 🤖
 
 **Goal**: Enable LLM-powered intelligent analysis for predictions and optimizations
 
@@ -572,7 +632,7 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-## Phase 10: Query Service Agent Integration 🔗
+## Phase 11: Query Service Agent Integration 🔗
 
 **Goal**: Enhance QueryService with PredictionAgent and OptimizationAgent for AI-driven query responses
 
@@ -626,9 +686,7 @@ This is a distributed web application with microservices architecture:
 - [X] T264 [P] [QS] Add examples of AI-enhanced query responses in docs/query-service.md
 - [X] T265 [P] [QS] Document configuration options (use_ai_agents, agent_timeout) in docs/query-service.md
 
-**Checkpoint**: Phase 11 complete - QueryService provides AI-enhanced responses with agent insights
-
-**Checkpoint**: Phase 10 complete - AI-enhanced analysis operational with fallback to rule-based
+**Checkpoint**: Phase 11 complete - QueryService provides AI-enhanced responses with agent insights and AI-enhanced analysis operational with fallback to rule-based
 
 ---
 
@@ -647,9 +705,10 @@ This is a distributed web application with microservices architecture:
 
 - **User Story 1 (P1)**: Can start after Foundational - No dependencies on other stories
 - **User Story 2 (P1)**: Can start after Foundational - Depends on US1 for metrics data
-- **User Story 3 (P2)**: Can start after Foundational - Depends on US1 for API inventory
-- **User Story 4 (P2)**: Can start after Foundational - Depends on US1 for metrics data (MERGED: includes rate limiting)
-- **User Story 5 (P3)**: Can start after Foundational - Can query data from all previous stories (RENUMBERED from US6)
+- **User Story 3 (P2)**: Can start after Foundational - Depends on US1 for API inventory (Security scanning)
+- **User Story 4 (P2)**: Can start after Foundational - Depends on US1 for API inventory (Compliance monitoring)
+- **User Story 5 (P2)**: Can start after Foundational - Depends on US1 for metrics data (Performance optimization, includes rate limiting)
+- **User Story 6 (P3)**: Can start after Foundational - Can query data from all previous stories (Natural language queries)
 
 ### Within Each User Story
 
@@ -665,8 +724,8 @@ This is a distributed web application with microservices architecture:
 
 - All Setup tasks marked [P] can run in parallel
 - All Foundational tasks marked [P] can run in parallel (within Phase 2)
-- Once Foundational phase completes, User Stories 1, 3, 5 can start in parallel
-- User Stories 2 and 4 can start after US1 completes (need metrics data)
+- Once Foundational phase completes, User Stories 1, 3, 4 can start in parallel
+- User Stories 2 and 5 can start after US1 completes (need metrics data)
 - Within each story, all tasks marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
 - All Polish tasks marked [P] can run in parallel
@@ -691,9 +750,9 @@ This is a distributed web application with microservices architecture:
 2. Add User Story 1 → Test independently → Deploy/Demo (Basic MVP!)
 3. Add User Story 2 → Test independently → Deploy/Demo (Predictive MVP!)
 4. Add User Story 3 → Test independently → Deploy/Demo (Security-aware)
-5. Add User Story 4 → Test independently → Deploy/Demo (Performance-optimized)
-6. Add User Story 5 → Test independently → Deploy/Demo (Rate-limited)
-7. Add User Story 6 → Test independently → Deploy/Demo (Full system!)
+5. Add User Story 4 → Test independently → Deploy/Demo (Compliance-ready)
+6. Add User Story 5 → Test independently → Deploy/Demo (Performance-optimized with rate limiting)
+7. Add User Story 6 → Test independently → Deploy/Demo (Full system with natural language!)
 8. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
@@ -704,12 +763,12 @@ With multiple developers:
 2. Once Foundational is done:
    - Developer A: User Story 1 (Discovery & Monitoring)
    - Developer B: User Story 3 (Security Scanning)
-   - Developer C: User Story 5 (Rate Limiting)
+   - Developer C: User Story 4 (Compliance Monitoring)
 3. After US1 completes:
    - Developer D: User Story 2 (Predictions) - needs US1 metrics
-   - Developer E: User Story 4 (Unified Performance Optimization) - needs US1 metrics
+   - Developer E: User Story 5 (Performance Optimization) - needs US1 metrics
 4. After all P1/P2 stories:
-   - Developer F: User Story 5 (Natural Language) - needs all data
+   - Developer F: User Story 6 (Natural Language) - needs all data
 5. Stories complete and integrate independently
 
 ---
@@ -720,16 +779,17 @@ With multiple developers:
 - **Phase 2 (Foundational)**: 44 tasks (CRITICAL PATH)
 - **Phase 3 (US1 - Discovery & Monitoring)**: 36 tasks
 - **Phase 4 (US2 - Predictions)**: 16 tasks
-- **Phase 5 (US3 - Security)**: 18 tasks
-- **Phase 6 (US4 - Unified Performance Optimization)**: 42 tasks (merged US4 + US5 + new adapter tasks)
-- **Phase 7 (US5 - Natural Language)**: 15 tasks (renumbered from US6)
-- **Phase 8 (Polish)**: 29 tasks
-- **Phase 9 (AI-Enhanced Analysis)**: 38 tasks
-- **Phase 10 (Query Service Agent Integration)**: 27 tasks
+- **Phase 5 (US3 - Security)**: 16 tasks (compliance removed)
+- **Phase 6 (US4 - Compliance)**: 23 tasks (NEW - separated from security)
+- **Phase 7 (US5 - Performance Optimization)**: 42 tasks (includes rate limiting)
+- **Phase 8 (US6 - Natural Language)**: 15 tasks
+- **Phase 9 (Polish)**: 29 tasks
+- **Phase 10 (AI-Enhanced Analysis)**: 38 tasks
+- **Phase 11 (Query Service Agent Integration)**: 27 tasks
 
-**Total**: 221 tasks (increased due to gateway adapter enhancements)
+**Total**: 295 tasks (increased due to security/compliance separation and gateway adapter enhancements)
 
-**Parallel Opportunities**: 89 tasks marked [P] can run in parallel with other tasks
+**Parallel Opportunities**: 100+ tasks marked [P] can run in parallel with other tasks
 
 **MVP Scope** (US1 + US2): 105 tasks (Setup + Foundational + US1 + US2)
 

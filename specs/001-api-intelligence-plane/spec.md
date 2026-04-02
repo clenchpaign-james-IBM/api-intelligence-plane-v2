@@ -54,17 +54,21 @@ As a DevOps engineer, I need to receive advance warnings of potential API failur
 
 ### User Story 3 - Automated Security Scanning and Remediation (Priority: P2)
 
-As a security engineer, I need continuous security scanning of all APIs with automated remediation of common vulnerabilities and compliance detection, so that my API infrastructure remains secure and compliant without constant manual intervention.
+As a security engineer, I need continuous security scanning of all APIs with automated remediation of common vulnerabilities, so that my API infrastructure remains secure without constant manual intervention and I can respond to active threats immediately.
 
-**Why this priority**: Security is critical but builds on the foundation of API discovery. Automated remediation reduces security response time from hours/days to seconds/minutes.
+**Why this priority**: Security is critical but builds on the foundation of API discovery. Automated remediation reduces security response time from hours/days to seconds/minutes. Security issues require immediate attention to prevent breaches.
+
+**Audience**: Security engineers, DevOps teams, Application security teams
+
+**Urgency**: IMMEDIATE - Active threats requiring rapid remediation
 
 **Architecture**:
 - **Hybrid Approach**: Single mode combining rule-based checks with intelligent AI enhancement
 - **Multi-Source Analysis**: Uses API metadata, real-time metrics, and traffic patterns for accurate detection
 - **Real Remediation**: Direct policy application to Gateway via adapter interface
-- **Compliance Detection**: AI-driven analysis for GDPR, HIPAA, SOC2, PCI-DSS requirements
+- **Focus**: Active vulnerabilities and security threats
 
-**Independent Test**: Can be tested by deploying APIs with known security issues (exposed credentials, missing authentication, vulnerable dependencies), verifying detection within scanning cycles, and confirming automated remediation actions are applied to the Gateway. Delivers value by reducing security exposure time and ensuring compliance.
+**Independent Test**: Can be tested by deploying APIs with known security issues (exposed credentials, missing authentication, vulnerable dependencies), verifying detection within scanning cycles, and confirming automated remediation actions are applied to the Gateway. Delivers value by reducing security exposure time.
 
 **Acceptance Scenarios**:
 
@@ -72,12 +76,41 @@ As a security engineer, I need continuous security scanning of all APIs with aut
 2. **Given** a remediable vulnerability is detected, **When** automated remediation is enabled, **Then** the system applies security policies directly to the Gateway and verifies the vulnerability is resolved through re-scanning
 3. **Given** a vulnerability requires manual intervention, **When** detected, **Then** the system creates a detailed remediation ticket with context and recommended actions
 4. **Given** security scans run continuously, **When** new vulnerabilities are published, **Then** the system rescans affected APIs within 1 hour
-5. **Given** APIs handle sensitive data, **When** compliance scanning runs, **Then** the system detects GDPR, HIPAA, SOC2, and PCI-DSS compliance violations using multi-source analysis
-6. **Given** security policies are applied, **When** verification runs, **Then** the system confirms fixes through real re-scanning and updates vulnerability status
+5. **Given** security policies are applied, **When** verification runs, **Then** the system confirms fixes through real re-scanning and updates vulnerability status
+6. **Given** critical vulnerabilities are detected, **When** alerts are sent, **Then** security teams receive immediate notifications with remediation priority
 
 ---
 
-### User Story 4 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
+### User Story 4 - Compliance Monitoring and Audit Reporting (Priority: P2)
+
+As a compliance officer, I need continuous compliance monitoring of all APIs with automated detection of regulatory violations and comprehensive audit reporting, so that I can maintain regulatory compliance and prepare for audits without manual data collection.
+
+**Why this priority**: Compliance is essential for regulatory requirements but operates on audit schedules rather than immediate response. Automated compliance monitoring reduces audit preparation time from weeks to hours.
+
+**Audience**: Compliance officers, Auditors, Legal teams, Risk management
+
+**Urgency**: SCHEDULED - Audit preparation and regulatory reporting timelines
+
+**Architecture**:
+- **AI-Driven Analysis**: Intelligent detection of compliance violations across multiple standards
+- **Multi-Source Analysis**: Uses API metadata, configuration, traffic patterns, and data handling for comprehensive assessment
+- **Audit Trail**: Complete documentation of compliance status, violations, and remediation history
+- **Standards Coverage**: GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001
+
+**Independent Test**: Can be tested by deploying APIs with known compliance gaps (missing data retention policies, inadequate encryption, improper data handling), verifying detection of violations, and confirming comprehensive audit reports are generated. Delivers value by ensuring regulatory compliance and audit readiness.
+
+**Acceptance Scenarios**:
+
+1. **Given** an API is discovered, **When** compliance scanning runs, **Then** compliance violations are identified and categorized by standard (GDPR, HIPAA, SOC2, PCI-DSS) using AI-driven analysis
+2. **Given** compliance violations are detected, **When** audit reports are generated, **Then** the system provides detailed evidence, affected APIs, and remediation recommendations
+3. **Given** APIs handle sensitive data, **When** data protection compliance is assessed, **Then** the system verifies encryption, access controls, and data retention policies
+4. **Given** compliance scans run continuously, **When** new regulations are published, **Then** the system updates compliance rules and rescans affected APIs
+5. **Given** audit preparation is needed, **When** compliance reports are requested, **Then** the system generates comprehensive reports with evidence, timelines, and control effectiveness
+6. **Given** compliance violations require remediation, **When** remediation is tracked, **Then** the system maintains complete audit trail with timestamps, actions, and verification
+
+---
+
+### User Story 5 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
 
 **MERGED**: This user story combines real-time performance optimization recommendations with intelligent rate limiting, as both are gateway-level performance optimization techniques.
 
@@ -113,7 +146,7 @@ As a platform engineer, I need real-time recommendations for optimizing API perf
 
 ---
 
-### User Story 5 - Natural Language Query Interface (Priority: P3)
+### User Story 6 - Natural Language Query Interface (Priority: P3)
 
 As any user of the system, I need to query API intelligence using natural language questions, so that I can quickly get insights without learning complex query syntax or navigating multiple dashboards.
 
@@ -136,6 +169,10 @@ As any user of the system, I need to query API intelligence using natural langua
 - How does the system handle APIs that are intentionally hidden or require special authentication?
 - What happens when prediction models encounter API patterns they haven't seen before?
 - How does the system handle conflicting security remediation actions across different APIs?
+- What happens when a security vulnerability also constitutes a compliance violation?
+- How does the system prioritize between immediate security threats and scheduled compliance audits?
+- What happens when compliance standards conflict or have overlapping requirements?
+- How does the system handle compliance violations that cannot be automatically remediated?
 - What happens when rate limiting decisions conflict with business-critical traffic?
 - How does the system handle multi-vendor Gateway configurations with different capabilities?
 - What happens when automated remediation fails or causes unintended side effects?
@@ -144,6 +181,8 @@ As any user of the system, I need to query API intelligence using natural langua
 - How does the system handle high-frequency API changes in dynamic environments?
 - What happens when applying optimization policies to the Gateway fails?
 - How does the system handle Gateway vendors that don't support certain optimization types?
+- How does the system handle compliance audits that span multiple time periods?
+- What happens when compliance rules change mid-audit cycle?
 
 ## Requirements *(mandatory)*
 
@@ -177,56 +216,72 @@ As any user of the system, I need to query API intelligence using natural langua
 - **FR-018**: System MUST rescan affected APIs within 1 hour when new vulnerabilities are published
 - **FR-019**: System MUST maintain an audit log of all security scans and remediation actions
 - **FR-019a**: System MUST use multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection
-- **FR-019b**: System MUST detect compliance violations for GDPR, HIPAA, SOC2, and PCI-DSS standards using AI-driven analysis
-- **FR-019c**: System MUST support applying 6 types of security policies to Gateway: authentication, authorization, TLS, CORS, validation, and security headers
-- **FR-019d**: System MUST track remediation actions with status, timestamps, Gateway policy IDs, and error messages
-- **FR-019e**: System MUST provide remediation actions that can be directly applied to Gateway APIs, policies, and configurations
+- **FR-019b**: System MUST support applying 6 types of security policies to Gateway: authentication, authorization, TLS, CORS, validation, and security headers
+- **FR-019c**: System MUST track remediation actions with status, timestamps, Gateway policy IDs, and error messages
+- **FR-019d**: System MUST provide remediation actions that can be directly applied to Gateway APIs, policies, and configurations
+- **FR-019e**: System MUST send immediate alerts to security teams for critical vulnerabilities
+- **FR-019f**: System MUST prioritize vulnerabilities based on exploitability and business impact
+
+#### Compliance Monitoring & Audit Reporting
+- **FR-020**: System MUST continuously monitor all discovered APIs for compliance violations using AI-driven analysis
+- **FR-021**: System MUST detect compliance violations for GDPR, HIPAA, SOC2, PCI-DSS, and ISO 27001 standards
+- **FR-022**: System MUST categorize compliance violations by standard and severity
+- **FR-023**: System MUST generate comprehensive audit reports with evidence, timelines, and control effectiveness
+- **FR-024**: System MUST maintain complete audit trail of compliance status, violations, and remediation history
+- **FR-025**: System MUST verify data protection controls including encryption, access controls, and data retention policies
+- **FR-026**: System MUST update compliance rules when new regulations are published
+- **FR-027**: System MUST provide compliance posture dashboard with coverage percentage and audit readiness score
+- **FR-028**: System MUST support compliance report export for external auditors
+- **FR-029**: System MUST track compliance remediation with documentation suitable for audit evidence
+- **FR-030**: System MUST separate compliance violations from security vulnerabilities in reporting and UI
 
 #### Performance Optimization & Rate Limiting (MERGED)
-- **FR-020**: System MUST analyze API usage patterns to identify gateway-level optimization opportunities (caching, compression, rate limiting)
-- **FR-021**: System MUST generate specific optimization recommendations with estimated impact for each API
-- **FR-022**: System MUST prioritize recommendations by expected impact and implementation effort in a unified view
-- **FR-023**: System MUST measure and report performance improvements after optimizations are applied
-- **FR-024**: System MUST identify caching opportunities and estimate potential cache hit rates
-- **FR-025**: System MUST validate optimization effectiveness and adjust recommendations based on results
-- **FR-026**: System MUST support applying caching policies directly to the API Gateway via adapter interface
-- **FR-027**: System MUST support applying compression policies directly to the API Gateway via adapter interface
-- **FR-028**: System MUST support applying rate limiting policies directly to the API Gateway via adapter interface
-- **FR-029**: System MUST implement dynamic rate limiting that adapts to actual usage patterns
-- **FR-030**: System MUST detect and throttle abusive traffic patterns while maintaining legitimate user access
-- **FR-031**: System MUST support priority-based rate limiting for different API consumer tiers
-- **FR-032**: System MUST temporarily adjust rate limits to accommodate legitimate traffic bursts
-- **FR-033**: System MUST learn from traffic patterns and refine rate limiting strategies over time
-- **FR-034**: System MUST use hybrid approach (rule-based + AI-enhanced) for optimization recommendations
-- **FR-035**: System MUST enable AI-driven optimization mode via OPTIMIZATION_AI_ENABLED environment variable
-- **FR-036**: System MUST gracefully fallback to rule-based recommendations when AI enhancement fails
-- **FR-037**: System MUST present all optimization types (caching, compression, rate limiting) in a unified interface
+- **FR-031**: System MUST analyze API usage patterns to identify gateway-level optimization opportunities (caching, compression, rate limiting)
+- **FR-032**: System MUST generate specific optimization recommendations with estimated impact for each API
+- **FR-033**: System MUST prioritize recommendations by expected impact and implementation effort in a unified view
+- **FR-034**: System MUST measure and report performance improvements after optimizations are applied
+- **FR-035**: System MUST identify caching opportunities and estimate potential cache hit rates
+- **FR-036**: System MUST validate optimization effectiveness and adjust recommendations based on results
+- **FR-037**: System MUST support applying caching policies directly to the API Gateway via adapter interface
+- **FR-038**: System MUST support applying compression policies directly to the API Gateway via adapter interface
+- **FR-039**: System MUST support applying rate limiting policies directly to the API Gateway via adapter interface
+- **FR-040**: System MUST implement dynamic rate limiting that adapts to actual usage patterns
+- **FR-041**: System MUST detect and throttle abusive traffic patterns while maintaining legitimate user access
+- **FR-042**: System MUST support priority-based rate limiting for different API consumer tiers
+- **FR-043**: System MUST temporarily adjust rate limits to accommodate legitimate traffic bursts
+- **FR-044**: System MUST learn from traffic patterns and refine rate limiting strategies over time
+- **FR-045**: System MUST use hybrid approach (rule-based + AI-enhanced) for optimization recommendations
+- **FR-046**: System MUST enable AI-driven optimization mode via OPTIMIZATION_AI_ENABLED environment variable
+- **FR-047**: System MUST gracefully fallback to rule-based recommendations when AI enhancement fails
+- **FR-048**: System MUST present all optimization types (caching, compression, rate limiting) in a unified interface
 
 #### Natural Language Interface
-- **FR-038**: System MUST accept natural language queries about API health, performance, security, and predictions
-- **FR-039**: System MUST provide accurate, contextual answers with relevant data and visualizations
-- **FR-040**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
-- **FR-041**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
+- **FR-049**: System MUST accept natural language queries about API health, performance, security, compliance, and predictions
+- **FR-050**: System MUST provide accurate, contextual answers with relevant data and visualizations
+- **FR-051**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
+- **FR-052**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
 
 #### Multi-Vendor Support
-- **FR-042**: System MUST support API Gateways from multiple vendors through standardized integration interfaces
-- **FR-043**: System MUST normalize data from different Gateway vendors into a unified format
-- **FR-044**: System MUST handle vendor-specific capabilities and limitations gracefully
-- **FR-045**: System MUST maintain consistent functionality across different Gateway vendors
-- **FR-046**: System MUST provide vendor-agnostic policy application interface for optimization recommendations
+- **FR-053**: System MUST support API Gateways from multiple vendors through standardized integration interfaces
+- **FR-054**: System MUST normalize data from different Gateway vendors into a unified format
+- **FR-055**: System MUST handle vendor-specific capabilities and limitations gracefully
+- **FR-056**: System MUST maintain consistent functionality across different Gateway vendors
+- **FR-057**: System MUST provide vendor-agnostic policy application interface for optimization recommendations
 
 #### Data & Persistence
-- **FR-047**: System MUST persist API inventory, health metrics, predictions, security findings, and optimization recommendations
-- **FR-048**: System MUST retain historical data for trend analysis and model training for at least 90 days
-- **FR-049**: System MUST support data export for compliance and external analysis
-- **FR-050**: System MUST ensure data integrity and consistency across all operations
+- **FR-058**: System MUST persist API inventory, health metrics, predictions, security findings, compliance violations, and optimization recommendations
+- **FR-059**: System MUST retain historical data for trend analysis and model training for at least 90 days
+- **FR-060**: System MUST support data export for compliance and external analysis
+- **FR-061**: System MUST ensure data integrity and consistency across all operations
+- **FR-062**: System MUST maintain separate storage for security vulnerabilities and compliance violations
 
 ### Key Entities
 
-- **API**: Represents a discovered API with metadata (endpoints, methods, authentication, ownership), health metrics, security status, and performance characteristics
+- **API**: Represents a discovered API with metadata (endpoints, methods, authentication, ownership), health metrics, security status, compliance status, and performance characteristics
 - **Gateway**: Represents a connected API Gateway with vendor information, connection details, capabilities, and associated APIs
 - **Prediction**: Represents a failure prediction with target API, predicted failure time, confidence score, contributing factors, and recommended actions
-- **Vulnerability**: Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions
+- **Vulnerability**: Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions (excludes compliance violations)
+- **ComplianceViolation**: Represents a compliance violation with affected API, compliance standard (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001), violation type, evidence, audit trail, and remediation documentation
 - **Optimization Recommendation**: Represents a performance optimization opportunity (caching, compression, or rate limiting) with target API, recommendation type, estimated impact, implementation effort, and validation results
 - **Query**: Represents a natural language query with original text, interpreted intent, results, and user feedback
 
@@ -237,15 +292,19 @@ As any user of the system, I need to query API intelligence using natural langua
 - **SC-001**: System discovers 100% of registered APIs and at least 90% of shadow APIs within 24 hours of initial connection
 - **SC-002**: Failure predictions achieve at least 80% accuracy with 24-48 hour advance notice
 - **SC-003**: Critical security vulnerabilities are detected within 1 hour of discovery and remediated within 4 hours (automated) or 24 hours (manual)
-- **SC-004**: Performance optimization recommendations result in measurable improvements (at least 20% reduction in response time or 15% reduction in error rates) for 70% of implemented recommendations
-- **SC-005**: Rate limiting prevents 95% of abusive traffic while maintaining 99.9% availability for legitimate users
-- **SC-006**: Natural language queries return accurate results within 3 seconds for 90% of queries
-- **SC-007**: System supports at least 3 different API Gateway vendors with consistent functionality
-- **SC-008**: Operations teams report 50% reduction in time spent on reactive API troubleshooting
-- **SC-009**: API-related incidents decrease by 60% within 3 months of deployment
-- **SC-010**: System processes and analyzes data from at least 1000 APIs with less than 5 second latency for real-time queries
-- **SC-011**: Optimization policies are successfully applied to Gateway within 5 seconds of user action
-- **SC-012**: All optimization types (caching, compression, rate limiting) are presented in a unified interface with consistent interaction patterns
+- **SC-004**: Compliance violations are detected within 24 hours of API discovery and documented with complete audit trail
+- **SC-005**: Compliance audit reports are generated within 1 hour of request with 100% evidence completeness
+- **SC-006**: Performance optimization recommendations result in measurable improvements (at least 20% reduction in response time or 15% reduction in error rates) for 70% of implemented recommendations
+- **SC-007**: Rate limiting prevents 95% of abusive traffic while maintaining 99.9% availability for legitimate users
+- **SC-008**: Natural language queries return accurate results within 3 seconds for 90% of queries
+- **SC-009**: System supports at least 3 different API Gateway vendors with consistent functionality
+- **SC-010**: Operations teams report 50% reduction in time spent on reactive API troubleshooting
+- **SC-011**: API-related incidents decrease by 60% within 3 months of deployment
+- **SC-012**: System processes and analyzes data from at least 1000 APIs with less than 5 second latency for real-time queries
+- **SC-013**: Optimization policies are successfully applied to Gateway within 5 seconds of user action
+- **SC-014**: All optimization types (caching, compression, rate limiting) are presented in a unified interface with consistent interaction patterns
+- **SC-015**: Compliance officers report 70% reduction in audit preparation time
+- **SC-016**: Security and compliance violations are clearly separated in UI with distinct workflows
 
 ## Assumptions
 

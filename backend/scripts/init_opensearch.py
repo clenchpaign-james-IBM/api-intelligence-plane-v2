@@ -26,6 +26,7 @@ from app.db.migrations import (
     create_optimization_recommendations_index,
     create_rate_limit_policies_index,
     create_query_history_index,
+    create_compliance_violations_index,
 )
 
 
@@ -123,6 +124,7 @@ def initialize_indices(client: OpenSearch, force: bool = False):
         ),
         ("rate-limit-policies", "Rate Limit Policies", create_rate_limit_policies_index),
         ("query-history", "Query History", create_query_history_index),
+        ("compliance-violations", "Compliance Violations", create_compliance_violations_index),
     ]
 
     print("\nInitializing indices and templates...")
@@ -184,6 +186,7 @@ def verify_indices(client: OpenSearch):
         "optimization-recommendations",
         "rate-limit-policies",
         "query-history",
+        "compliance-violations",
     ]
     
     all_exist = True

@@ -57,9 +57,10 @@ def setup_scheduler() -> AsyncIOScheduler:
         from app.scheduler.discovery_jobs import run_discovery_job
         from app.scheduler.metrics_jobs import run_metrics_collection_job
         from app.scheduler.security_jobs import setup_security_scheduler
+        from app.scheduler.compliance_jobs import setup_compliance_scheduler
         from app.scheduler.prediction_jobs import run_prediction_job
         from app.scheduler.optimization_jobs import run_optimization_job
-        from app.api.deps import get_security_service
+        from app.api.deps import get_security_service, get_compliance_service
         
         # Add discovery job
         scheduler.add_job(
@@ -92,6 +93,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         # 4. Daily security report (8 AM)
         security_service = get_security_service()
         setup_security_scheduler(scheduler, settings, security_service)
+        
+        # Setup compliance scheduler - registers all 4 compliance jobs:
+        # 1. Daily compliance scan (2 AM)
+        # 2. Weekly audit report (Monday 9 AM)
+        # 3. Daily posture report (9 AM)
+        # 4. Monthly audit reminders (1st at 10 AM)
+        compliance_service = get_compliance_service()
+        setup_compliance_scheduler(scheduler, settings, compliance_service)
         
         # Add prediction job
         scheduler.add_job(

@@ -15,6 +15,7 @@ from .migration_006_optimization_recommendations import (
 )
 from .migration_007_rate_limit_policies import create_rate_limit_policies_index
 from .migration_008_query_history import create_query_history_index
+from .migration_009_compliance_violations import create_compliance_violations_index
 
 __all__ = [
     "create_api_inventory_index",
@@ -25,6 +26,7 @@ __all__ = [
     "create_optimization_recommendations_index",
     "create_rate_limit_policies_index",
     "create_query_history_index",
+    "create_compliance_violations_index",
 ]
 
 # Made with Bob

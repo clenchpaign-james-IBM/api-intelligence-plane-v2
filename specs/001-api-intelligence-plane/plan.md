@@ -7,9 +7,11 @@
 
 ## Summary
 
-API Intelligence Plane is an AI-driven API management application that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to existing API Gateways, providing AI-driven visibility, decision-making, and automation for APIs. Core capabilities include autonomous API discovery (including shadow APIs), predictive health management (24-48 hours advance failure prediction), continuous security scanning with automated remediation, **unified performance optimization (caching, compression, and rate limiting)**, and natural language query interface. The system is vendor-neutral, supporting API Gateways from multiple vendors.
+API Intelligence Plane is an AI-driven API management application that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to existing API Gateways, providing AI-driven visibility, decision-making, and automation for APIs. Core capabilities include autonomous API discovery (including shadow APIs), predictive health management (24-48 hours advance failure prediction), **separate security scanning and compliance monitoring features**, **unified performance optimization (caching, compression, and rate limiting)**, and natural language query interface. The system is vendor-neutral, supporting API Gateways from multiple vendors.
 
-**Key Architecture Update (2026-03-29)**: Performance optimization and rate limiting have been merged into a single unified feature (User Story 4), as both are gateway-level performance optimization techniques. All optimization types (caching, compression, rate limiting) are now presented in a unified interface with consistent interaction patterns.
+**Key Architecture Update (2026-04-02)**: Security and Compliance have been separated into distinct features (User Stories 3 and 4) to address different audiences and urgency levels. Security focuses on immediate threat response for security engineers, while Compliance focuses on scheduled audit preparation for compliance officers.
+
+**Previous Update (2026-03-29)**: Performance optimization and rate limiting have been merged into a single unified feature (User Story 5), as both are gateway-level performance optimization techniques. All optimization types (caching, compression, rate limiting) are now presented in a unified interface with consistent interaction patterns.
 
 ## Technical Context
 
@@ -23,9 +25,11 @@ API Intelligence Plane is an AI-driven API management application that transform
 
 **Prediction Architecture**: Hybrid approach combining rule-based predictions (fast, deterministic baseline) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is automatically triggered based on prediction confidence thresholds (default: ≥80%) and system configuration (PREDICTION_AI_ENABLED, PREDICTION_AI_THRESHOLD).
 
-**Security Architecture**: Hybrid approach combining rule-based security checks with AI-enhanced analysis. Uses multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection. Supports compliance detection for GDPR, HIPAA, SOC2, and PCI-DSS. Real remediation via Gateway adapter with 6 security policy types: authentication, authorization, TLS, CORS, validation, and security headers.
+**Security Architecture**: Hybrid approach combining rule-based security checks with AI-enhanced analysis. Uses multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection. Real remediation via Gateway adapter with 6 security policy types: authentication, authorization, TLS, CORS, validation, and security headers. Focuses on immediate threat response.
 
-**Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, predictions, compliance violations)
+**Compliance Architecture**: AI-driven compliance monitoring separate from security scanning. Detects violations for GDPR, HIPAA, SOC2, PCI-DSS, and ISO 27001. Maintains complete audit trails and generates comprehensive reports for external auditors. Focuses on scheduled audit preparation and regulatory reporting.
+
+**Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, compliance violations, predictions)
 **Testing**: pytest (Backend), Jest/React Testing Library (Frontend), JUnit (Demo Gateway), Integration tests across all components, End-to-end tests using Demo API Gateway
 **Target Platform**: Linux/macOS servers (Docker containers), Web browsers (Chrome, Firefox, Safari, Edge)
 **Project Type**: Distributed web application with microservices architecture (Backend API + Frontend SPA + MCP Servers + Demo Gateway)
@@ -153,6 +157,7 @@ api-intelligence-plane-v2/
 │   │   │   │   ├── metrics.py
 │   │   │   │   ├── predictions.py
 │   │   │   │   ├── security.py
+│   │   │   │   ├── compliance.py
 │   │   │   │   ├── optimization.py
 │   │   │   │   ├── rate_limits.py
 │   │   │   │   └── query.py
@@ -162,7 +167,8 @@ api-intelligence-plane-v2/
 │   │   │   ├── gateway.py
 │   │   │   ├── metric.py
 │   │   │   ├── prediction.py  # Includes ContributingFactorType enum (13 types)
-│   │   │   ├── vulnerability.py
+│   │   │   ├── vulnerability.py  # Security vulnerabilities only
+│   │   │   ├── compliance.py  # Compliance violations (separate from security)
 │   │   │   ├── recommendation.py
 │   │   │   ├── rate_limit.py
 │   │   │   └── query.py
@@ -170,13 +176,15 @@ api-intelligence-plane-v2/
 │   │   │   ├── discovery_service.py
 │   │   │   ├── metrics_service.py
 │   │   │   ├── prediction_service.py  # Hybrid: rule-based + AI enhancement
-│   │   │   ├── security_service.py  # Hybrid security scanning with multi-source analysis
+│   │   │   ├── security_service.py  # Security scanning and remediation (immediate response)
+│   │   │   ├── compliance_service.py  # Compliance monitoring and audit reporting (scheduled)
 │   │   │   ├── optimization_service.py
 │   │   │   ├── query_service.py
 │   │   │   └── llm_service.py  # LiteLLM integration with fallback
 │   │   ├── agents/            # LangChain/LangGraph agents
 │   │   │   ├── prediction_agent.py
-│   │   │   ├── security_agent.py  # All security checks + compliance detection (GDPR, HIPAA, SOC2, PCI-DSS)
+│   │   │   ├── security_agent.py  # Security vulnerability detection and remediation
+│   │   │   ├── compliance_agent.py  # Compliance violation detection (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001)
 │   │   │   ├── optimization_agent.py
 │   │   │   └── query_agent.py
 │   │   ├── adapters/          # Gateway adapters (Strategy pattern)
@@ -191,7 +199,8 @@ api-intelligence-plane-v2/
 │   │   ├── scheduler/         # APScheduler jobs
 │   │   │   ├── discovery_jobs.py
 │   │   │   ├── metrics_jobs.py
-│   │   │   └── security_jobs.py
+│   │   │   ├── security_jobs.py
+│   │   │   └── compliance_jobs.py
 │   │   └── config.py          # Configuration management
 │   ├── tests/
 │   │   ├── integration/       # Integration tests
@@ -212,6 +221,7 @@ api-intelligence-plane-v2/
 │   │   │   ├── metrics/
 │   │   │   ├── predictions/
 │   │   │   ├── security/
+│   │   │   ├── compliance/
 │   │   │   └── query/
 │   │   ├── pages/           # Page components
 │   │   │   ├── Dashboard.tsx
@@ -219,6 +229,7 @@ api-intelligence-plane-v2/
 │   │   │   ├── Gateways.tsx
 │   │   │   ├── Predictions.tsx
 │   │   │   ├── Security.tsx
+│   │   │   ├── Compliance.tsx
 │   │   │   ├── Optimization.tsx
 │   │   │   └── Query.tsx
 │   │   ├── services/        # API client services
@@ -240,7 +251,8 @@ api-intelligence-plane-v2/
 ├── mcp-servers/              # MCP servers (FastMCP)
 │   ├── discovery_server.py   # API discovery tools
 │   ├── metrics_server.py     # Metrics collection tools
-│   ├── security_server.py    # Security scanning tools
+│   ├── security_server.py    # Security scanning tools (immediate threats)
+│   ├── compliance_server.py  # Compliance monitoring tools (audit preparation)
 │   ├── optimization_server.py # Unified optimization tools (caching, compression, rate limiting)
 │   ├── common/
 │   │   ├── mcp_base.py      # Base MCP server class

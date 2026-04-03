@@ -16,6 +16,7 @@ from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
+from app.db.repositories.compliance_repository import ComplianceRepository
 from app.services.query_service import QueryService
 from app.services.llm_service import LLMService
 from app.models.query import Query, UserFeedback
@@ -71,17 +72,20 @@ api_repo = APIRepository()
 metrics_repo = MetricsRepository()
 prediction_repo = PredictionRepository()
 recommendation_repo = RecommendationRepository()
+compliance_repo = ComplianceRepository()
 llm_service = LLMService(settings)
 
 # Initialize agents if enabled
 prediction_agent = None
 optimization_agent = None
 security_agent = None
+compliance_agent = None
 
 try:
     from app.agents.prediction_agent import PredictionAgent
     from app.agents.optimization_agent import OptimizationAgent
     from app.agents.security_agent import SecurityAgent
+    from app.agents.compliance_agent import ComplianceAgent
     from app.services.prediction_service import PredictionService
     from app.services.optimization_service import OptimizationService
     
@@ -116,7 +120,12 @@ try:
         metrics_repository=metrics_repo,
     )
     
-    logger.info("AI agents initialized successfully for query service (Prediction, Optimization, Security)")
+    compliance_agent = ComplianceAgent(
+        llm_service=llm_service,
+        metrics_repository=metrics_repo,
+    )
+    
+    logger.info("AI agents initialized successfully for query service (Prediction, Optimization, Security, Compliance)")
 except Exception as e:
     logger.warning(f"Failed to initialize AI agents: {e}. Query service will work without agent enhancement.")
 
@@ -130,6 +139,8 @@ query_service = QueryService(
     prediction_agent=prediction_agent,
     optimization_agent=optimization_agent,
     security_agent=security_agent,
+    compliance_agent=compliance_agent,
+    compliance_repository=compliance_repo,
 )
 
 
@@ -162,11 +173,13 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         original_prediction_agent = query_service.prediction_agent
         original_optimization_agent = query_service.optimization_agent
         original_security_agent = query_service.security_agent
+        original_compliance_agent = query_service.compliance_agent
         
         # if not request.use_ai_agents:
         #     query_service.prediction_agent = None
         #     query_service.optimization_agent = None
         #     query_service.security_agent = None
+        #     query_service.compliance_agent = None
         #     logger.info("AI agents disabled for this query")
         
         try:
@@ -192,6 +205,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             query_service.prediction_agent = original_prediction_agent
             query_service.optimization_agent = original_optimization_agent
             query_service.security_agent = original_security_agent
+            query_service.compliance_agent = original_compliance_agent
         
     except Exception as e:
         logger.error(f"Failed to execute query: {e}")

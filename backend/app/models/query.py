@@ -21,6 +21,7 @@ class QueryType(str, Enum):
     SECURITY = "security"
     PERFORMANCE = "performance"
     COMPARISON = "comparison"
+    COMPLIANCE = "compliance"
     GENERAL = "general"
 
 

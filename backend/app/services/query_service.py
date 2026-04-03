@@ -16,6 +16,7 @@ from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
+from app.db.repositories.compliance_repository import ComplianceRepository
 from app.models.query import (
     Query,
     QueryType,
@@ -39,6 +40,7 @@ class QueryService:
         QueryType.SECURITY: ["security", "vulnerability", "vulnerabilities", "threat", "risk", "cve"],
         QueryType.PERFORMANCE: ["performance", "latency", "response time", "throughput", "slow"],
         QueryType.COMPARISON: ["compare", "versus", "vs", "difference", "between"],
+        QueryType.COMPLIANCE: ["compliance", "regulatory", "regulation", "gdpr", "hipaa", "soc2", "pci", "iso", "audit", "violation"],
     }
     
     # Entity keywords for extraction
@@ -50,6 +52,7 @@ class QueryService:
         "vulnerability": ["vulnerability", "vulnerabilities", "security issue"],
         "recommendation": ["recommendation", "recommendations", "optimization", "suggestion"],
         "rate_limit": ["rate limit", "rate limiting", "throttle", "throttling"],
+        "compliance": ["compliance", "violation", "violations", "regulatory", "audit"],
     }
     
     # Action keywords
@@ -72,6 +75,8 @@ class QueryService:
         prediction_agent: Optional[Any] = None,
         optimization_agent: Optional[Any] = None,
         security_agent: Optional[Any] = None,
+        compliance_agent: Optional[Any] = None,
+        compliance_repository: Optional[ComplianceRepository] = None,
     ):
         """
         Initialize the Query Service.
@@ -86,16 +91,20 @@ class QueryService:
             prediction_agent: Optional PredictionAgent for AI-enhanced prediction queries
             optimization_agent: Optional OptimizationAgent for AI-enhanced performance queries
             security_agent: Optional SecurityAgent for AI-enhanced security queries
+            compliance_agent: Optional ComplianceAgent for AI-enhanced compliance queries
+            compliance_repository: Optional ComplianceRepository for compliance operations
         """
         self.query_repo = query_repository
         self.api_repo = api_repository
         self.metrics_repo = metrics_repository
         self.prediction_repo = prediction_repository
         self.recommendation_repo = recommendation_repository
+        self.compliance_repo = compliance_repository or ComplianceRepository()
         self.llm_service = llm_service
         self.prediction_agent = prediction_agent
         self.optimization_agent = optimization_agent
         self.security_agent = security_agent
+        self.compliance_agent = compliance_agent
         
         # Cache for agent analysis results (5-minute TTL)
         self._agent_cache: Dict[str, Tuple[Any, float]] = {}
@@ -621,6 +630,80 @@ Respond in JSON format:
         enhanced_results.extend(results[3:])
         return enhanced_results
     
+    async def _enhance_with_compliance_agent(
+        self,
+        results: List[Any],
+        intent: InterpretedIntent,
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhance query results with ComplianceAgent insights.
+        
+        Args:
+            results: Query results to enhance
+            intent: Interpreted intent
+            
+        Returns:
+            Enhanced results with agent insights
+        """
+        if not self.compliance_agent:
+            logger.debug("ComplianceAgent not available, skipping enhancement")
+            return results
+        
+        enhanced_results = []
+        
+        # Limit to top 3 results to avoid latency
+        for result in results[:3]:
+            try:
+                # Check cache first
+                cache_key = f"comp_{result.get('id', '')}"
+                cached_result = self._get_from_cache(cache_key)
+                if cached_result:
+                    enhanced_results.append(cached_result)
+                    continue
+                
+                # Get API details if this is a compliance violation
+                api_id = result.get("api_id")
+                if not api_id:
+                    enhanced_results.append(result)
+                    continue
+                
+                # Fetch API object for compliance analysis
+                api = self.api_repo.get(str(api_id))
+                if not api:
+                    logger.warning(f"API {api_id} not found for compliance analysis")
+                    enhanced_results.append(result)
+                    continue
+                
+                # Perform compliance analysis
+                agent_result = await self.compliance_agent.analyze_api_compliance(api)
+                
+                # Merge agent insights with original result
+                enhanced = {**result}
+                enhanced["agent_insights"] = {
+                    "type": "compliance",
+                    "violations": agent_result.get("violations", []),
+                    "standards_checked": agent_result.get("standards_checked", []),
+                    "compliance_score": agent_result.get("compliance_score", 0),
+                    "audit_evidence": agent_result.get("audit_evidence", []),
+                    "total_violations": len(agent_result.get("violations", [])),
+                    "critical_count": sum(
+                        1 for v in agent_result.get("violations", [])
+                        if v.get("severity") == "critical"
+                    ),
+                }
+                
+                # Cache the result
+                self._add_to_cache(cache_key, enhanced)
+                enhanced_results.append(enhanced)
+                
+            except Exception as e:
+                logger.warning(f"Failed to enhance result with ComplianceAgent: {e}")
+                enhanced_results.append(result)
+        
+        # Add remaining results without enhancement
+        enhanced_results.extend(results[3:])
+        return enhanced_results
+    
     def _get_from_cache(self, key: str) -> Optional[Any]:
         """Get result from cache if not expired."""
         if key in self._agent_cache:
@@ -677,6 +760,11 @@ Respond in JSON format:
                     opensearch_query["query"], size=50
                 )
                 data = [rec.model_dump(mode="json") for rec in results]
+            elif primary_entity == "compliance":
+                results, total = self.compliance_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                data = [comp.model_dump(mode="json") for comp in results]
             else:
                 data = []
                 total = 0
@@ -691,6 +779,9 @@ Respond in JSON format:
             elif query_type == QueryType.SECURITY and self.security_agent and data:
                 logger.info("Enhancing results with SecurityAgent")
                 data = await self._enhance_with_security_agent(data, intent)
+            elif query_type == QueryType.COMPLIANCE and self.compliance_agent and data:
+                logger.info("Enhancing results with ComplianceAgent")
+                data = await self._enhance_with_compliance_agent(data, intent)
             
             execution_time = int((time.time() - start_time) * 1000)
             
@@ -771,6 +862,10 @@ Guidelines:
                             results_summary += f"\nAnalysis: {insights['analysis'][:200]}..."
                         if insights.get('performance_analysis'):
                             results_summary += f"\nPerformance: {insights['performance_analysis'][:200]}..."
+                        if insights.get('compliance_score') is not None:
+                            results_summary += f"\nCompliance Score: {insights['compliance_score']}"
+                        if insights.get('total_violations'):
+                            results_summary += f"\nTotal Violations: {insights['total_violations']}"
             else:
                 results_summary += f"\n\nSample results:\n{results.data[:3]}"
         
@@ -848,6 +943,12 @@ Guidelines:
                         "Show me the implementation priority order",
                         "What are the resource requirements?",
                     ])
+                elif agent_type == "compliance":
+                    follow_ups.extend([
+                        "What are the remediation steps for these violations?",
+                        "Show me the audit evidence for these findings",
+                        "Which compliance standards are most affected?",
+                    ])
             
             # Suggest related queries based on entity type
             if primary_entity == "api":
@@ -873,6 +974,13 @@ Guidelines:
                     "What's the implementation status?",
                     "Show me the expected impact",
                     "Which recommendations are highest priority?",
+                ])
+            elif primary_entity == "compliance":
+                follow_ups.extend([
+                    "Show me critical compliance violations",
+                    "What's the remediation status?",
+                    "Which APIs have the most violations?",
+                    "Show GDPR compliance violations",
                 ])
         else:
             follow_ups.extend([

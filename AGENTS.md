@@ -227,4 +227,7 @@ docker-compose build --no-cache
 - 2026-03-09: Added Python 3.11+ (Backend), JavaScript/TypeScript (Frontend), Java (Demo API Gateway)
 
 <!-- MANUAL ADDITIONS START -->
+## Chat Instructions
+
+- Don't create summary reports at the end of conversations
 <!-- MANUAL ADDITIONS END -->

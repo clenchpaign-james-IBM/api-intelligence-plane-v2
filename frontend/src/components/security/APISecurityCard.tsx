@@ -9,7 +9,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { API, Vulnerability } from '../../types';
 import { VulnerabilityCard } from './VulnerabilityCard';
-import { getSeverityColor } from '../../services/security';
 
 interface APISecurityCardProps {
   api: API;
@@ -32,7 +31,6 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
   const totalCount = vulnerabilities.length;
 
   const openCount = vulnerabilities.filter(v => v.status === 'open').length;
-  const inProgressCount = vulnerabilities.filter(v => v.status === 'in_progress').length;
   const remediatedCount = vulnerabilities.filter(v => v.status === 'remediated').length;
 
   // Calculate risk score (0-100, higher is worse)
@@ -73,20 +71,20 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
                 {api.base_path} • {api.methods.join(', ')} • {api.endpoints.length} endpoints
               </p>
               
-              {/* Security Policies - Inline */}
-              {api.security_policies && (
+              {/* Policy Actions - Inline */}
+              {api.policy_actions && api.policy_actions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1.5">
-                  {api.security_policies.authentication_required && (
+                  {api.policy_actions.some((action) => action.enabled && action.action_type === 'authentication') && (
                     <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Auth</span>
                   )}
-                  {api.security_policies.tls_enforced && (
+                  {api.policy_actions.some((action) => action.enabled && action.action_type === 'tls') && (
                     <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">TLS</span>
                   )}
-                  {api.security_policies.rate_limiting_enabled && (
+                  {api.policy_actions.some((action) => action.enabled && action.action_type === 'rate_limiting') && (
                     <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Rate Limit</span>
                   )}
-                  {api.security_policies.waf_enabled && (
-                    <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">WAF</span>
+                  {api.policy_actions.some((action) => action.enabled && action.action_type === 'authorization') && (
+                    <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Authorization</span>
                   )}
                 </div>
               )}
@@ -176,7 +174,6 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
                 <VulnerabilityCard
                   key={vulnerability.id}
                   vulnerability={vulnerability}
-                  apiName={api.name}
                   onRemediate={onRemediate}
                 />
               ))}
@@ -188,31 +185,5 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
   );
 };
 
-// Helper component for policy items
-const PolicyItem: React.FC<{ label: string; enabled: boolean; detail?: string }> = ({
-  label,
-  enabled,
-  detail
-}) => (
-  <div className="flex items-center space-x-2">
-    {enabled ? (
-      <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-      </svg>
-    ) : (
-      <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    )}
-    <div className="flex-1 min-w-0">
-      <span className={`text-xs font-medium ${enabled ? 'text-gray-900' : 'text-gray-500'}`}>
-        {label}
-      </span>
-      {detail && (
-        <span className="ml-1 text-xs text-gray-600">({detail})</span>
-      )}
-    </div>
-  </div>
-);
 
 // Made with Bob

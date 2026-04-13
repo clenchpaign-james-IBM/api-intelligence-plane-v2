@@ -8,8 +8,8 @@ import logging
 from typing import Any, Optional
 
 from app.adapters.base import BaseGatewayAdapter
-from app.models.api import API
-from app.models.metric import Metric
+from app.models.base.api import API, PolicyAction
+from app.models.base.metric import Metric
 
 logger = logging.getLogger(__name__)
 
@@ -75,44 +75,14 @@ class KongGatewayAdapter(BaseGatewayAdapter):
         """
         return None
 
-    async def collect_metrics(
-        self, api_id: Optional[str] = None, time_range_minutes: int = 5
-    ) -> list[Metric]:
-        """Collect metrics from Kong Gateway.
-
-        Args:
-            api_id: Optional API identifier
-            time_range_minutes: Time range for metrics
-
-        Returns:
-            list[Metric]: Empty list (not implemented)
-        """
-        logger.warning("Kong Gateway metrics collection not yet implemented")
-        return []
-
-    async def get_api_logs(
-        self, api_id: str, limit: int = 100, time_range_minutes: int = 60
-    ) -> list[dict[str, Any]]:
-        """Retrieve API logs from Kong Gateway.
-
-        Args:
-            api_id: API identifier
-            limit: Maximum log entries
-            time_range_minutes: Time range
-
-        Returns:
-            list[dict]: Empty list (not implemented)
-        """
-        return []
-
     async def apply_rate_limit_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply rate limit policy in Kong Gateway.
+        """Apply a vendor-neutral rate limit policy in Kong Gateway.
 
         Args:
             api_id: API identifier
-            policy: Rate limit policy
+            policy: Vendor-neutral policy action model
 
         Returns:
             bool: False (not implemented)

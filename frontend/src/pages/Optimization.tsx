@@ -83,7 +83,6 @@ const Optimization = () => {
   }
 
   const recommendations = data?.recommendations || [];
-  const total = data?.total || 0;
   const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
   const highPriorityCount = recommendations.filter((r: Recommendation) =>
     r.priority === 'critical' || r.priority === 'high'
@@ -97,36 +96,6 @@ const Optimization = () => {
     acc[apiKey].push(rec);
     return acc;
   }, {} as Record<string, Recommendation[]>);
-
-  // Priority badge color
-  const getPriorityColor = (priority: RecommendationPriority) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Status badge color
-  const getStatusColor = (status: RecommendationStatus) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'implemented': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-gray-100 text-gray-800';
-      case 'expired': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Type display name
-  const getTypeDisplayName = (type: RecommendationType) => {
-    return type.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
 
   return (
     <div className="p-6">

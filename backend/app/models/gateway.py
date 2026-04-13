@@ -16,6 +16,7 @@ class GatewayVendor(str, Enum):
     """Supported gateway vendors."""
 
     NATIVE = "native"
+    WEBMETHODS = "webmethods"
     KONG = "kong"
     APIGEE = "apigee"
     AWS = "aws"
@@ -43,11 +44,20 @@ class GatewayStatus(str, Enum):
 class GatewayCredentials(BaseModel):
     """Gateway authentication credentials (encrypted at rest)."""
 
-    type: str = Field(..., description="Credential type (e.g., 'api_key', 'oauth2')")
+    type: str = Field(..., description="Credential type (e.g., 'api_key', 'oauth2', 'none')")
     username: Optional[str] = Field(None, description="Username for basic auth")
     password: Optional[str] = Field(None, description="Password (encrypted)")
     api_key: Optional[str] = Field(None, description="API key (encrypted)")
     token: Optional[str] = Field(None, description="Bearer token (encrypted)")
+
+    @field_validator("type")
+    @classmethod
+    def validate_credential_type(cls, v: str) -> str:
+        """Validate credential type and ensure required fields are present."""
+        valid_types = ["api_key", "oauth2", "basic", "bearer", "none"]
+        if v not in valid_types:
+            raise ValueError(f"Credential type must be one of: {', '.join(valid_types)}")
+        return v
 
 
 class Gateway(BaseModel):
@@ -58,9 +68,11 @@ class Gateway(BaseModel):
         name: Gateway name (1-255 characters)
         vendor: Gateway vendor (native, kong, apigee, aws, azure, custom)
         version: Gateway version (semantic versioning)
-        connection_url: Gateway API endpoint (HTTPS URL)
+        connection_url: Gateway API endpoint for APIs, Policies, and Policy Actions (HTTPS URL)
+        transactional_logs_url: Optional separate endpoint for transactional logs (HTTPS URL)
         connection_type: Connection method (rest_api, grpc, graphql)
-        credentials: Authentication credentials (encrypted)
+        base_url_credentials: Authentication credentials for base_url (encrypted, optional)
+        transactional_logs_credentials: Authentication credentials for transactional_logs_url (encrypted, optional)
         capabilities: Supported features list
         status: Connection status (connected, disconnected, error, maintenance)
         last_connected_at: Last successful connection timestamp
@@ -79,9 +91,21 @@ class Gateway(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Gateway name")
     vendor: GatewayVendor = Field(..., description="Gateway vendor")
     version: Optional[str] = Field(None, description="Gateway version")
-    connection_url: HttpUrl = Field(..., description="Gateway API endpoint")
+    base_url: HttpUrl = Field(
+        ..., description="Gateway base URL (e.g., https://gateway.example.com:5555) used to construct endpoints for APIs, Policies, and PolicyActions"
+    )
+    transactional_logs_url: Optional[HttpUrl] = Field(
+        None,
+        description="Separate endpoint for transactional logs (if different from connection_url)",
+    )
     connection_type: ConnectionType = Field(..., description="Connection method")
-    credentials: GatewayCredentials = Field(..., description="Authentication credentials")
+    base_url_credentials: Optional[GatewayCredentials] = Field(
+        None, description="Authentication credentials for base_url (None for no authentication)"
+    )
+    transactional_logs_credentials: Optional[GatewayCredentials] = Field(
+        None,
+        description="Authentication credentials for transactional_logs_url (None for no authentication)",
+    )
     capabilities: list[str] = Field(
         ..., min_length=1, description="Supported features"
     )
@@ -113,13 +137,14 @@ class Gateway(BaseModel):
         default_factory=datetime.utcnow, description="Last update timestamp"
     )
 
-    @field_validator("connection_url")
+    @field_validator("base_url", "transactional_logs_url")
     @classmethod
-    def validate_connection_url(cls, v: HttpUrl) -> HttpUrl:
-        """Validate connection URL is HTTPS (except localhost)."""
-        url_str = str(v)
-        if not url_str.startswith("https://") and "localhost" not in url_str:
-            raise ValueError("Connection URL must use HTTPS (except localhost)")
+    def validate_urls(cls, v: Optional[HttpUrl]) -> Optional[HttpUrl]:
+        """Validate URLs use HTTPS (except localhost)."""
+        if v:
+            url_str = str(v)
+            if not url_str.startswith("https://") and "localhost" not in url_str:
+                raise ValueError("URLs must use HTTPS (except localhost)")
         return v
 
     @field_validator("capabilities")
@@ -147,11 +172,17 @@ class Gateway(BaseModel):
                 "name": "Production Gateway",
                 "vendor": "native",
                 "version": "1.0.0",
-                "connection_url": "https://gateway.example.com/api",
+                "base_url": "https://gateway.example.com:5555",
+                "transactional_logs_url": "https://analytics.example.com/logs",
                 "connection_type": "rest_api",
-                "credentials": {
+                "base_url_credentials": {
                     "type": "api_key",
                     "api_key": "encrypted_key_here",
+                },
+                "transactional_logs_credentials": {
+                    "type": "basic",
+                    "username": "analytics_user",
+                    "password": "encrypted_password_here",
                 },
                 "capabilities": [
                     "api_discovery",

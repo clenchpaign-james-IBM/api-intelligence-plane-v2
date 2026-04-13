@@ -66,6 +66,8 @@ const GatewayCard: React.FC<GatewayCardProps> = ({
     switch (vendor) {
       case 'native':
         return 'bg-blue-100 text-blue-800';
+      case 'webmethods':
+        return 'bg-green-100 text-green-800';
       case 'kong':
         return 'bg-purple-100 text-purple-800';
       case 'apigee':
@@ -102,13 +104,31 @@ const GatewayCard: React.FC<GatewayCardProps> = ({
             </p>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600">Connection URL</p>
-            <p className="mt-1 text-sm text-gray-900 break-all">{gateway.connection_url}</p>
+            <p className="text-sm font-medium text-gray-600">Base URL</p>
+            <p className="mt-1 text-sm text-gray-900 break-all">{gateway.base_url}</p>
           </div>
+          {gateway.transactional_logs_url && (
+            <div>
+              <p className="text-sm font-medium text-gray-600">Transactional Logs URL</p>
+              <p className="mt-1 text-sm text-gray-900 break-all">{gateway.transactional_logs_url}</p>
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium text-gray-600">Connection Type</p>
             <p className="mt-1 text-sm text-gray-900">{gateway.connection_type}</p>
           </div>
+          {gateway.base_url_credentials && (
+            <div>
+              <p className="text-sm font-medium text-gray-600">Base URL Authentication</p>
+              <p className="mt-1 text-sm text-gray-900">{gateway.base_url_credentials.type}</p>
+            </div>
+          )}
+          {gateway.transactional_logs_credentials && (
+            <div>
+              <p className="text-sm font-medium text-gray-600">Logs Authentication</p>
+              <p className="mt-1 text-sm text-gray-900">{gateway.transactional_logs_credentials.type}</p>
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium text-gray-600">API Count</p>
             <p className="mt-1 text-sm text-gray-900">{gateway.api_count}</p>

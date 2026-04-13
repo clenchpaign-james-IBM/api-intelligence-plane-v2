@@ -22,7 +22,7 @@ except ImportError:
 from app.services.llm_service import LLMService
 from app.services.prediction_service import PredictionService
 from app.models.prediction import Prediction, ContributingFactor
-from app.models.metric import Metric
+from app.models.base.metric import Metric
 
 logger = logging.getLogger(__name__)
 
@@ -172,11 +172,12 @@ class PredictionAgent:
         metrics_summary = self._prepare_metrics_summary(state["metrics"])
         
         # Create analysis prompt
-        system_prompt = """You are an expert API performance analyst. Analyze the provided metrics data and identify:
+        system_prompt = """You are an expert API performance analyst. Analyze vendor-neutral, time-bucketed API metrics and identify:
 1. Key trends (increasing, decreasing, stable)
 2. Anomalies or concerning patterns
 3. Potential risk factors
 4. Overall health assessment
+5. Whether gateway processing, backend latency, cache performance, or error patterns are driving degradation
 
 Provide a concise, technical analysis focusing on actionable insights."""
         
@@ -381,7 +382,7 @@ Provide a clear explanation of this prediction and why the recommended actions a
         Prepare a summary of metrics for LLM analysis.
         
         Args:
-            metrics: List of metrics
+            metrics: List of time-bucketed metrics
             
         Returns:
             Formatted metrics summary
@@ -394,20 +395,32 @@ Provide a clear explanation of this prediction and why the recommended actions a
         response_times_p95 = [m.response_time_p95 for m in metrics]
         throughputs = [m.throughput for m in metrics]
         availabilities = [m.availability for m in metrics]
+        cache_hit_rates = [m.cache_hit_rate for m in metrics]
+        gateway_times = [m.gateway_time_avg for m in metrics]
+        backend_times = [m.backend_time_avg for m in metrics]
         
-        summary = f"""Metrics Summary ({len(metrics)} data points over {(metrics[0].timestamp - metrics[-1].timestamp).total_seconds() / 3600:.1f} hours):
+        # Get time bucket info from first metric
+        time_bucket = metrics[0].time_bucket.value if hasattr(metrics[0], 'time_bucket') else "unknown"
+        
+        hours_covered = abs((metrics[0].timestamp - metrics[-1].timestamp).total_seconds()) / 3600
 
-Error Rate:
-  - Current: {error_rates[0]:.2%}
-  - Average: {sum(error_rates) / len(error_rates):.2%}
-  - Min: {min(error_rates):.2%}
-  - Max: {max(error_rates):.2%}
+        summary = f"""Metrics Summary ({len(metrics)} data points, {time_bucket} buckets, over {hours_covered:.1f} hours):
+
+Error Rate (% of requests):
+  - Current: {error_rates[0]:.2f}%
+  - Average: {sum(error_rates) / len(error_rates):.2f}%
+  - Min: {min(error_rates):.2f}%
+  - Max: {max(error_rates):.2f}%
 
 Response Time (P95):
   - Current: {response_times_p95[0]:.0f}ms
   - Average: {sum(response_times_p95) / len(response_times_p95):.0f}ms
   - Min: {min(response_times_p95):.0f}ms
   - Max: {max(response_times_p95):.0f}ms
+
+Timing Breakdown:
+  - Gateway Time (avg): {gateway_times[0]:.0f}ms (current), {sum(gateway_times) / len(gateway_times):.0f}ms (avg)
+  - Backend Time (avg): {backend_times[0]:.0f}ms (current), {sum(backend_times) / len(backend_times):.0f}ms (avg)
 
 Throughput:
   - Current: {throughputs[0]:.0f} req/s
@@ -421,10 +434,15 @@ Availability:
   - Min: {min(availabilities):.2f}%
   - Max: {max(availabilities):.2f}%
 
+Cache Performance:
+  - Hit Rate (current): {cache_hit_rates[0]:.2f}%
+  - Hit Rate (average): {sum(cache_hit_rates) / len(cache_hit_rates):.2f}%
+
 Recent Trend (last 5 points):
-  - Error Rate: {error_rates[:5]}
+  - Error Rate: {[f'{rate:.2f}%' for rate in error_rates[:5]]}
   - Response Time P95: {[f'{rt:.0f}ms' for rt in response_times_p95[:5]]}
   - Throughput: {[f'{t:.0f}' for t in throughputs[:5]]}
+  - Cache Hit Rate: {[f'{rate:.1f}%' for rate in cache_hit_rates[:5]]}
 """
         
         return summary

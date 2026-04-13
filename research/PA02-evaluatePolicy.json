@@ -1,0 +1,101 @@
+{
+    "policyAction": {
+        "id": "d0bf40d6-e7b0-4b5f-876e-2f392bd7465c",
+        "names": [
+            {
+                "value": "Identify & Authorize",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "evaluatePolicy",
+        "parameters": [
+            {
+                "templateKey": "logicalConnector",
+                "values": [
+                    "OR"
+                ]
+            },
+            {
+                "templateKey": "allowAnonymous",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "triggerPolicyViolationOnMissingAuthorizationHeader",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "IdentificationRule",
+                "parameters": [
+                    {
+                        "templateKey": "applicationLookup",
+                        "values": [
+                            "strict"
+                        ]
+                    },
+                    {
+                        "templateKey": "identificationType",
+                        "values": [
+                            "apiKey"
+                        ]
+                    }
+                ]
+            },
+            {
+                "templateKey": "IdentificationRule",
+                "parameters": [
+                    {
+                        "templateKey": "applicationLookup",
+                        "values": [
+                            "relax"
+                        ]
+                    },
+                    {
+                        "templateKey": "identificationType",
+                        "values": [
+                            "httpBasicAuth"
+                        ]
+                    }
+                ]
+            },
+            {
+                "templateKey": "IdentificationRule",
+                "parameters": [
+                    {
+                        "templateKey": "applicationLookup",
+                        "values": [
+                            "open"
+                        ]
+                    },
+                    {
+                        "templateKey": "identificationType",
+                        "values": [
+                            "jwtClaims"
+                        ]
+                    }
+                ]
+            },
+            {
+                "templateKey": "IdentificationRule",
+                "parameters": [
+                    {
+                        "templateKey": "applicationLookup",
+                        "values": [
+                            "strict"
+                        ]
+                    },
+                    {
+                        "templateKey": "identificationType",
+                        "values": [
+                            "oAuth2Token"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "active": false
+    }
+}

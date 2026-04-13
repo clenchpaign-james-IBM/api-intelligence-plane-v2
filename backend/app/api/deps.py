@@ -10,20 +10,22 @@ FastAPI dependencies for request handling including:
 
 import logging
 from typing import Generator
+
 from fastapi import Depends
 from opensearchpy import OpenSearch
 
-from app.db.client import get_client, get_opensearch_client, OpenSearchClient
+from app.adapters.factory import GatewayAdapterFactory
+from app.config import settings
+from app.db.client import OpenSearchClient, get_client, get_opensearch_client
 from app.db.repositories.api_repository import APIRepository
+from app.db.repositories.compliance_repository import ComplianceRepository
 from app.db.repositories.gateway_repository import GatewayRepository
 from app.db.repositories.metrics_repository import MetricsRepository
+from app.db.repositories.transactional_log_repository import TransactionalLogRepository
 from app.db.repositories.vulnerability_repository import VulnerabilityRepository
-from app.db.repositories.compliance_repository import ComplianceRepository
-from app.services.security_service import SecurityService
 from app.services.compliance_service import ComplianceService
 from app.services.llm_service import LLMService
-from app.config import settings
-
+from app.services.security_service import SecurityService
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +100,7 @@ def get_compliance_service() -> ComplianceService:
             return await compliance_service.scan_api_compliance(api_id)
     """
     return ComplianceService(settings)
+
 
 
 # Service dependencies will be added as services are implemented

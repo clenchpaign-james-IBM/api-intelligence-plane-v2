@@ -13,7 +13,7 @@ from app.config import Settings
 from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.gateway_repository import GatewayRepository
 from app.db.repositories.vulnerability_repository import VulnerabilityRepository
-from app.models.api import API
+from app.models.base.api import API, PolicyActionType
 from app.models.vulnerability import (
     Vulnerability,
     VulnerabilityStatus,
@@ -508,8 +508,10 @@ class SecurityService:
                     )
                     
                 elif "cors" in vulnerability.title.lower():
+                    # Get base_path from API (now a top-level field)
+                    base_path = api.base_path if hasattr(api, 'base_path') else "/"
                     policy = {
-                        "allowed_origins": [api.base_path],
+                        "allowed_origins": [base_path],
                         "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
                         "allowed_headers": ["Content-Type", "Authorization"],
                         "expose_headers": [],
@@ -689,6 +691,58 @@ class SecurityService:
             return "medium"
         else:
             return "low"
+
+    def check_missing_security_policies(self, api: API) -> List[str]:
+        """
+        Check for missing security policies in API's policy_actions array.
+        
+        This method analyzes the vendor-neutral policy_actions to identify
+        missing security policies that should be present.
+        
+        Args:
+            api: API to check
+            
+        Returns:
+            List of missing policy types
+        """
+        missing_policies = []
+        
+        # Get existing policy action types
+        existing_types = set()
+        if api.policy_actions:
+            for policy_action in api.policy_actions:
+                if policy_action.enabled:
+                    existing_types.add(policy_action.action_type)
+        
+        # Check for required security policies
+        required_policies = {
+            PolicyActionType.AUTHENTICATION: "Authentication policy missing",
+            PolicyActionType.AUTHORIZATION: "Authorization policy missing",
+            PolicyActionType.TLS: "TLS/HTTPS enforcement missing",
+            PolicyActionType.CORS: "CORS policy missing",
+            PolicyActionType.VALIDATION: "Input validation policy missing",
+        }
+        
+        for policy_type, message in required_policies.items():
+            if policy_type not in existing_types:
+                missing_policies.append(message)
+        
+        # Check for security headers (custom policy type)
+        has_security_headers = False
+        if api.policy_actions:
+            for policy_action in api.policy_actions:
+                if (policy_action.action_type == PolicyActionType.CUSTOM and
+                    policy_action.enabled and
+                    policy_action.config and
+                    any(header in str(policy_action.config).lower()
+                        for header in ['hsts', 'x-frame-options', 'x-content-type-options'])):
+                    has_security_headers = True
+                    break
+        
+        if not has_security_headers:
+            missing_policies.append("Security headers policy missing")
+        
+        return missing_policies
 
 
 # Made with Bob

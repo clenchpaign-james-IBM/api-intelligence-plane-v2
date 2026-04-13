@@ -1,8 +1,10 @@
 # API Reference: API Intelligence Plane
 
-**Version**: 1.0.0  
-**Last Updated**: 2026-03-12  
+**Version**: 2.0.0
+**Last Updated**: 2026-04-11
 **Base URL**: `http://localhost:8000` (Development) | `https://api.yourdomain.com` (Production)
+
+**Architecture**: Vendor-Neutral with Time-Bucketed Metrics
 
 ## Table of Contents
 
@@ -13,6 +15,7 @@
    - [APIs](#apis)
    - [Gateways](#gateways)
    - [Metrics](#metrics)
+   - [Analytics](#analytics)
    - [Predictions](#predictions)
    - [Optimization](#optimization)
    - [Query](#query)
@@ -25,7 +28,17 @@
 
 ## Overview
 
-The API Intelligence Plane provides a RESTful API for managing API discovery, monitoring, predictions, security, optimization, and natural language queries. All endpoints return JSON responses and follow REST conventions.
+The API Intelligence Plane provides a RESTful API for managing **vendor-neutral** API discovery, monitoring, predictions, security, optimization, and natural language queries. The system uses vendor-neutral data models with vendor-specific adapters, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
+
+### Key Architecture Features
+
+- **Vendor-Neutral Models**: All API data stored in vendor-neutral format with vendor-specific fields in `vendor_metadata`
+- **Time-Bucketed Metrics**: Metrics stored separately from API entities in time-bucketed indices (1m, 5m, 1h, 1d)
+- **Separated Intelligence**: Intelligence fields (`health_score`, `risk_score`, `security_score`) in `intelligence_metadata` wrapper
+- **Policy Actions**: Vendor-neutral policy representation with `vendor_config` for vendor-specific settings
+- **Drill-Down Pattern**: Query aggregated metrics, then drill down to raw transactional logs
+
+All endpoints return JSON responses and follow REST conventions.
 
 ### API Versioning
 
@@ -177,39 +190,434 @@ GET /api/v1/apis/{api_id}
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "gateway_id": "660e8400-e29b-41d4-a716-446655440001",
   "name": "User Service API",
-  "version": "1.2.3",
+  "version_info": {
+    "version": "1.2.3",
+    "maturity_state": "production"
+  },
   "base_path": "/api/users",
-  "endpoints": [...],
+  "endpoints": [
+    {
+      "path": "/users/{id}",
+      "method": "GET",
+      "description": "Get user by ID",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "path",
+          "data_type": "string",
+          "required": true
+        }
+      ]
+    }
+  ],
   "methods": ["GET", "POST", "PUT", "DELETE"],
-  "authentication_type": "bearer",
+  "api_definition": {
+    "type": "openapi",
+    "version": "3.0.0",
+    "content": {
+      "openapi": "3.0.0",
+      "info": {
+        "title": "User Service API",
+        "version": "1.2.3"
+      }
+    }
+  },
   "ownership": {
     "team": "Platform Team",
     "contact": "platform@example.com",
     "repository": "https://github.com/example/user-service"
   },
   "tags": ["user-management", "core-service"],
-  "is_shadow": false,
-  "discovery_method": "registered",
-  "discovered_at": "2026-03-01T10:00:00Z",
-  "last_seen_at": "2026-03-12T15:30:00Z",
-  "status": "active",
-  "health_score": 95.5,
-  "current_metrics": {
-    "response_time_p50": 45.2,
-    "response_time_p95": 120.5,
-    "response_time_p99": 250.0,
-    "error_rate": 0.5,
-    "throughput": 1500.0,
-    "availability": 99.95
+  "policy_actions": [
+    {
+      "action_type": "AUTHENTICATION",
+      "enabled": true,
+      "stage": "request",
+      "description": "Require bearer token validation",
+      "vendor_config": {
+        "auth_type": "jwt",
+        "issuer": "https://auth.example.com"
+      }
+    },
+    {
+      "action_type": "RATE_LIMITING",
+      "enabled": true,
+      "stage": "request",
+      "description": "Rate limit to 1000 requests per minute",
+      "vendor_config": {
+        "requests_per_minute": 1000,
+        "burst_size": 100
+      }
+    }
+  ],
+  "intelligence_metadata": {
+    "is_shadow": false,
+    "discovery_method": "registered",
+    "discovered_at": "2026-03-01T10:00:00Z",
+    "last_seen_at": "2026-03-12T15:30:00Z",
+    "health_score": 95.5,
+    "risk_score": 18,
+    "security_score": 91,
+    "usage_trend": "stable"
   },
+  "vendor_metadata": {
+    "vendor": "webmethods",
+    "native_id": "wm-api-123",
+    "maturity_state": "Active",
+    "owner": "platform-team"
+  },
+  "status": "active",
   "created_at": "2026-03-01T10:00:00Z",
   "updated_at": "2026-03-12T15:30:00Z"
 }
 ```
 
+**Note**: This response shows the vendor-neutral API structure. Metrics are NOT embedded in the API response - use the `/api/v1/apis/{api_id}/metrics` endpoint to retrieve time-bucketed metrics separately.
+
 **Error Responses**:
 - `404 Not Found`: API not found
 - `500 Internal Server Error`: Server error
+
+#### Get Derived Security Policies
+
+```http
+GET /api/v1/apis/{api_id}/security-policies
+```
+
+**Purpose**: Returns a derived security-policy view based on normalized `policy_actions`. Filters for security-related policy types: AUTHENTICATION, AUTHORIZATION, TLS, CORS, VALIDATION, DATA_MASKING.
+
+**Path Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `api_id` | UUID | Yes | API identifier |
+
+**Response**: `200 OK`
+
+```json
+{
+  "api_id": "550e8400-e29b-41d4-a716-446655440000",
+  "security_policies": [
+    {
+      "action_type": "AUTHENTICATION",
+      "enabled": true,
+      "stage": "request",
+      "description": "Require bearer token validation",
+      "vendor_config": {
+        "auth_type": "jwt",
+        "issuer": "https://auth.example.com"
+      }
+    },
+    {
+      "action_type": "TLS",
+      "enabled": true,
+      "stage": "transport",
+      "description": "Enforce TLS 1.3",
+      "vendor_config": {
+        "min_version": "1.3",
+        "cipher_suites": ["TLS_AES_256_GCM_SHA384"]
+      }
+    }
+  ],
+  "total_policies": 2
+}
+```
+
+---
+
+### Analytics
+
+Query aggregated analytics metrics and drill down into raw transactional logs.
+
+**Architecture**: Three-tier data model
+1. **API Metadata**: Vendor-neutral API structure (from `/api/v1/apis`)
+2. **Aggregated Metrics**: Time-bucketed metrics (from `/api/v1/analytics/metrics`)
+3. **Raw Logs**: Transactional events (from `/api/v1/analytics/logs`)
+
+### Metrics
+
+Metrics are exposed as vendor-neutral, time-bucketed records stored separately from API entities. The frontend should:
+1. Fetch API metadata from `/api/v1/apis/{api_id}`
+2. Fetch time-bucketed metrics from `/api/v1/apis/{api_id}/metrics` or `/api/v1/analytics/metrics`
+3. Drill down to raw logs from `/api/v1/analytics/logs` or `/api/v1/analytics/metrics/{metric_id}/logs`
+
+**Time Buckets**:
+- `1m`: 1-minute buckets (24-hour retention)
+- `5m`: 5-minute buckets (7-day retention)
+- `1h`: 1-hour buckets (30-day retention)
+- `1d`: 1-day buckets (90-day retention)
+
+#### Get API Metrics
+
+```http
+GET /api/v1/apis/{api_id}/metrics
+```
+
+**Path Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `api_id` | UUID | Yes | API identifier |
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `time_bucket` | string | No | Bucket size: `1m`, `5m`, `1h`, `1d` |
+| `start_time` | ISO 8601 datetime | No | Start of time window |
+| `end_time` | ISO 8601 datetime | No | End of time window |
+| `limit` | integer | No | Max points to return |
+
+**Response**: `200 OK`
+
+```json
+{
+  "api_id": "550e8400-e29b-41d4-a716-446655440000",
+  "time_bucket": "5m",
+  "total_data_points": 2,
+  "time_series": [
+    {
+      "timestamp": "2026-04-11T08:00:00Z",
+      "time_bucket": "5m",
+      "request_count": 1200,
+      "success_count": 1160,
+      "status_4xx_count": 25,
+      "status_5xx_count": 15,
+      "response_time_avg": 145.5,
+      "response_time_p50": 110.0,
+      "response_time_p95": 220.0,
+      "response_time_p99": 310.0,
+      "throughput": 4.0
+    },
+    {
+      "timestamp": "2026-04-11T08:05:00Z",
+      "time_bucket": "5m",
+      "request_count": 980,
+      "success_count": 955,
+      "status_4xx_count": 18,
+      "status_5xx_count": 7,
+      "response_time_avg": 132.2,
+      "response_time_p50": 102.0,
+      "response_time_p95": 205.0,
+      "response_time_p99": 290.0,
+      "throughput": 3.3
+    }
+  ],
+  "aggregated": {
+    "request_count": 2180,
+    "success_count": 2115,
+    "status_4xx_count": 43,
+    "status_5xx_count": 22
+  }
+}
+```
+
+#### Get Derived Security Policies
+
+```http
+GET /api/v1/apis/{api_id}/security-policies
+```
+
+Returns a derived security-policy view based on normalized `policy_actions`.
+
+#### List Analytics Metrics
+
+```http
+GET /api/v1/analytics/metrics
+```
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gateway_id` | UUID | No | Filter by gateway ID |
+| `api_id` | UUID | No | Filter by API ID |
+| `application_id` | string | No | Filter by application/client identifier |
+| `start_time` | ISO 8601 datetime | No | Start of analytics time window |
+| `end_time` | ISO 8601 datetime | No | End of analytics time window |
+| `time_bucket` | string | No | Aggregation bucket: `1m`, `5m`, `1h`, `1d` |
+| `limit` | integer | No | Max results to return (default: 100) |
+| `offset` | integer | No | Result offset for pagination |
+
+**Response**: `200 OK`
+
+```json
+{
+  "metrics": [
+    {
+      "id": "9d445dc2-f4cb-4c52-9264-201774db6f5f",
+      "gateway_id": "660e8400-e29b-41d4-a716-446655440001",
+      "api_id": "orders-api",
+      "application_id": "portal-app",
+      "operation": "getOrders",
+      "timestamp": "2026-04-11T08:00:00",
+      "time_bucket": "1h",
+      "request_count": 1200,
+      "success_count": 1160,
+      "failure_count": 40,
+      "timeout_count": 5,
+      "error_rate": 3.333,
+      "availability": 99.2,
+      "response_time_avg": 145.5,
+      "response_time_min": 35.0,
+      "response_time_max": 980.0,
+      "response_time_p50": 120.0,
+      "response_time_p95": 280.0,
+      "response_time_p99": 430.0,
+      "gateway_time_avg": 28.0,
+      "backend_time_avg": 117.5,
+      "throughput": 20.0,
+      "total_data_size": 2400000,
+      "avg_request_size": 240.0,
+      "avg_response_size": 1760.0,
+      "cache_hit_count": 300,
+      "cache_miss_count": 700,
+      "cache_bypass_count": 200,
+      "cache_hit_rate": 30.0,
+      "status_2xx_count": 1160,
+      "status_3xx_count": 0,
+      "status_4xx_count": 25,
+      "status_5xx_count": 15,
+      "status_codes": {
+        "200": 1160,
+        "400": 10,
+        "404": 15,
+        "500": 15
+      },
+      "vendor_metadata": {
+        "vendor": "webmethods"
+      }
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "offset": 0,
+  "time_bucket": "1h"
+}
+```
+
+#### Drill Down from Metric to Transactional Logs
+
+```http
+GET /api/v1/analytics/metrics/{metric_id}/logs
+```
+
+**Path Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `metric_id` | UUID | Yes | Metric bucket identifier |
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gateway_id` | UUID | No | Narrow results to a specific gateway |
+| `api_id` | UUID | No | Narrow results to a specific API |
+| `application_id` | string | No | Narrow results to a specific application |
+| `limit` | integer | No | Max logs to return |
+| `offset` | integer | No | Result offset |
+
+**Response**: `200 OK`
+
+```json
+{
+  "metric_id": "9d445dc2-f4cb-4c52-9264-201774db6f5f",
+  "logs": [
+    {
+      "id": "fa2f9634-e4ac-4cd0-9365-bf84c6200ff3",
+      "event_type": "transactional",
+      "timestamp": 1744360200000,
+      "api_id": "orders-api",
+      "api_name": "Orders API",
+      "api_version": "v1",
+      "operation": "getOrders",
+      "http_method": "GET",
+      "request_path": "/orders/1",
+      "request_headers": {
+        "accept": "application/json"
+      },
+      "status_code": 200,
+      "response_headers": {
+        "content-type": "application/json"
+      },
+      "client_id": "portal-app",
+      "client_name": "Portal App",
+      "client_ip": "10.0.0.15",
+      "total_time_ms": 120,
+      "gateway_time_ms": 20,
+      "backend_time_ms": 100,
+      "status": "success",
+      "correlation_id": "corr-123",
+      "cache_status": "miss",
+      "backend_url": "http://orders.internal/orders",
+      "backend_request_headers": {},
+      "backend_response_headers": {},
+      "external_calls": [],
+      "gateway_id": "660e8400-e29b-41d4-a716-446655440001",
+      "created_at": "2026-04-11T08:30:00"
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+#### List Raw Transactional Logs
+
+```http
+GET /api/v1/analytics/logs
+```
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gateway_id` | UUID | No | Filter by gateway ID |
+| `api_id` | UUID | No | Filter by API ID |
+| `application_id` | string | No | Filter by application/client identifier |
+| `start_time` | ISO 8601 datetime | No | Start of time window |
+| `end_time` | ISO 8601 datetime | No | End of time window |
+| `limit` | integer | No | Max logs to return |
+| `offset` | integer | No | Result offset |
+
+**Response**: `200 OK`
+
+```json
+{
+  "logs": [
+    {
+      "id": "fa2f9634-e4ac-4cd0-9365-bf84c6200ff3",
+      "event_type": "transactional",
+      "timestamp": 1744360200000,
+      "api_id": "orders-api",
+      "api_name": "Orders API",
+      "api_version": "v1",
+      "operation": "getOrders",
+      "http_method": "GET",
+      "request_path": "/orders/1",
+      "status_code": 200,
+      "client_id": "portal-app",
+      "total_time_ms": 120,
+      "gateway_time_ms": 20,
+      "backend_time_ms": 100,
+      "status": "success",
+      "correlation_id": "corr-123",
+      "cache_status": "miss",
+      "backend_url": "http://orders.internal/orders",
+      "backend_request_headers": {},
+      "backend_response_headers": {},
+      "external_calls": [],
+      "gateway_id": "660e8400-e29b-41d4-a716-446655440001",
+      "created_at": "2026-04-11T08:30:00"
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "offset": 0
+}
+```
 
 ---
 
@@ -229,7 +637,7 @@ GET /api/v1/gateways
 |-----------|------|----------|-------------|
 | `page` | integer | No | Page number (default: 1) |
 | `page_size` | integer | No | Items per page (default: 20) |
-| `vendor` | string | No | Filter by vendor (native, kong, apigee) |
+| `vendor` | string | No | Filter by vendor (webmethods, kong, apigee, native) |
 | `status` | string | No | Filter by status (active, inactive) |
 
 **Response**: `200 OK`
@@ -265,15 +673,23 @@ POST /api/v1/gateways
 ```json
 {
   "name": "Production Gateway",
-  "vendor": "native",
+  "vendor": "webmethods",
   "base_url": "http://gateway:8080",
   "credentials": {
     "type": "basic",
     "username": "admin",
     "password": "secret"
+  },
+  "transactional_logs_url": "http://opensearch:9200",
+  "transactional_logs_credentials": {
+    "type": "basic",
+    "username": "admin",
+    "password": "admin"
   }
 }
 ```
+
+**Note**: Gateway connections support flexible authentication with separate optional credentials for `base_url` (gateway API) and `transactional_logs_url` (analytics data source).
 
 **Response**: `201 Created`
 
@@ -312,36 +728,57 @@ GET /api/v1/apis/{api_id}/metrics
 |-----------|------|----------|-------------|
 | `start_time` | datetime | No | Start time (ISO 8601, default: 24h ago) |
 | `end_time` | datetime | No | End time (ISO 8601, default: now) |
-| `interval` | string | No | Aggregation interval (1m, 5m, 15m, 1h, 1d, default: 5m) |
+| `time_bucket` | string | No | Time bucket size: `1m`, `5m`, `1h`, `1d` (default: 5m) |
 
 **Response**: `200 OK`
 
 ```json
 {
   "api_id": "550e8400-e29b-41d4-a716-446655440000",
+  "time_bucket": "5m",
+  "total_data_points": 288,
   "time_series": [
     {
+      "id": "metric-uuid-1",
       "timestamp": "2026-03-12T15:00:00Z",
+      "time_bucket": "5m",
+      "request_count": 1500,
+      "success_count": 1485,
+      "failure_count": 15,
+      "error_rate": 1.0,
+      "availability": 99.0,
+      "response_time_avg": 52.3,
+      "response_time_min": 12.5,
+      "response_time_max": 450.0,
       "response_time_p50": 45.2,
       "response_time_p95": 120.5,
       "response_time_p99": 250.0,
-      "error_rate": 0.5,
-      "throughput": 1500.0,
-      "availability": 99.95
+      "gateway_time_avg": 8.5,
+      "backend_time_avg": 43.8,
+      "throughput": 5.0,
+      "cache_hit_count": 450,
+      "cache_miss_count": 1050,
+      "cache_hit_rate": 30.0,
+      "status_2xx_count": 1485,
+      "status_4xx_count": 10,
+      "status_5xx_count": 5,
+      "vendor_metadata": {
+        "vendor": "webmethods"
+      }
     }
   ],
   "aggregated": {
+    "request_count": 432000,
+    "success_count": 427680,
+    "failure_count": 4320,
     "avg_response_time": 52.3,
-    "max_response_time": 450.0,
-    "min_response_time": 12.5,
-    "total_requests": 150000,
-    "total_errors": 750,
-    "avg_throughput": 1450.0,
-    "uptime_percentage": 99.92
-  },
-  "total_data_points": 288
+    "avg_error_rate": 1.0,
+    "avg_availability": 99.0
+  }
 }
 ```
+
+**Note**: Each time series point includes a unique `id` that can be used to drill down to raw transactional logs via `/api/v1/analytics/metrics/{metric_id}/logs`.
 
 **Error Responses**:
 - `404 Not Found`: API not found

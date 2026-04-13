@@ -22,7 +22,7 @@ from app.models.prediction import (
     ContributingFactor,
     ContributingFactorType,
 )
-from app.models.metric import Metric
+from app.models.base.metric import Metric, TimeBucket
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -92,14 +92,16 @@ class PredictionService:
             logger.warning(f"API {api_id} not found")
             return []
 
-        # Get historical metrics for trend analysis
+        # Get historical metrics for trend analysis using 1-hour buckets
+        # Use 1-hour buckets for 24-hour trend analysis (optimal for prediction)
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
         
-        metrics, _ = self.metrics_repo.find_by_api(
+        metrics, _ = self.metrics_repo.find_by_api_with_bucket(
             api_id=api_id,
             start_time=start_time,
             end_time=end_time,
+            time_bucket=TimeBucket.ONE_HOUR,  # Use 1-hour buckets for trend analysis
         )
 
         if len(metrics) < 10:  # Need sufficient data points
@@ -189,6 +191,8 @@ class PredictionService:
             }
         
         # Get historical metrics
+        # TODO: Add time_bucket=TimeBucket.ONE_HOUR parameter in Phase 0.6 (Repository Layer Updates)
+        # Will use 1-hour buckets for 24-hour trend analysis
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
         
@@ -380,8 +384,13 @@ class PredictionService:
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         return Prediction(
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.FAILURE,
             predicted_at=predicted_at,
             predicted_time=predicted_time,
@@ -478,11 +487,16 @@ class PredictionService:
         severity = self._determine_severity(confidence, contributing_factors)
         recommended_actions = self._generate_recommended_actions(contributing_factors)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
         return Prediction(
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.DEGRADATION,
             predicted_at=predicted_at,
             predicted_time=predicted_time,
@@ -560,11 +574,16 @@ class PredictionService:
         severity = self._determine_severity(confidence, contributing_factors)
         recommended_actions = self._generate_recommended_actions(contributing_factors)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
         return Prediction(
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.CAPACITY,
             predicted_at=predicted_at,
             predicted_time=predicted_time,

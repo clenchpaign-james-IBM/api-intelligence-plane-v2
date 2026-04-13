@@ -20,7 +20,15 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 
 ## Architecture
 
-The API Intelligence Plane is a microservices-based platform with clear separation between the core application and optional external agent integrations.
+The API Intelligence Plane is a microservices-based platform with **vendor-neutral data models** and **vendor-specific gateway adapters**, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
+
+### Architecture Highlights
+
+- **Vendor-Neutral Models**: All data stored in vendor-neutral format (`API`, `Metric`, `TransactionalLog`)
+- **Adapter Pattern**: Gateway-specific adapters transform vendor data to vendor-neutral models
+- **Time-Bucketed Metrics**: Metrics stored separately in time-bucketed indices (1m, 5m, 1h, 1d)
+- **WebMethods-First**: Initial implementation focuses on webMethods API Gateway
+- **Future-Ready**: Easy addition of Kong, Apigee, and other gateway vendors
 
 ### Core Application Architecture
 
@@ -78,7 +86,7 @@ MCP servers are **optional** components for external AI agents (Bob IDE, Claude 
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - OpenSearch Dashboards: http://localhost:5601
-   - Demo Gateway: http://localhost:8080
+   - Gateway integrations: configured through backend adapters (webMethods-first)
 
 ### Manual Setup (Development)
 
@@ -100,13 +108,21 @@ npm install
 npm run dev
 ```
 
-#### Demo Gateway Setup
+#### Gateway Integration Setup
+
+Gateway connectivity is handled through backend adapters using the Strategy pattern:
 
 ```bash
-cd demo-gateway
-mvn clean install
-mvn spring-boot:run
+# WebMethods Gateway Adapter (Implemented)
+# - Transforms webMethods API data to vendor-neutral API model
+# - Stores webMethods-specific fields in vendor_metadata
+# - Supports policy actions, metrics, and transactional logs
+
+# Kong Gateway Adapter (Planned)
+# Apigee Gateway Adapter (Planned)
 ```
+
+**Current Status**: WebMethods adapter fully implemented. Kong and Apigee adapters planned for future releases.
 
 ## Project Structure
 
@@ -127,7 +143,7 @@ api-intelligence-plane-v2/
 │       ├── components/  # React components
 │       ├── pages/       # Page components
 │       └── services/    # API clients
-├── demo-gateway/        # Demo API Gateway (REQUIRED)
+├── demo-gateway/        # Demo API Gateway assets (optional for experiments)
 │   └── src/main/java/   # Spring Boot application
 ├── mcp-servers/         # MCP servers (OPTIONAL - for AI agents)
 │   ├── discovery_server.py
@@ -140,13 +156,14 @@ api-intelligence-plane-v2/
 ```
 
 **Core Components** (Required):
-- **Backend**: FastAPI service with business logic
+- **Backend**: FastAPI service with business logic and vendor-neutral gateway normalization
 - **Frontend**: React SPA for user interface
-- **Demo Gateway**: Native API Gateway implementation
+- **Gateway Integrations**: External gateway connectivity through adapters, currently webMethods-first
 - **OpenSearch**: Data storage and search
 
 **Optional Components**:
 - **MCP Servers**: For external AI agent integration (Bob IDE, Claude Desktop)
+- **Demo Gateway assets**: Experimental Spring Boot resources that are not required for the vendor-neutral flow
 
 ## Features
 
@@ -204,9 +221,17 @@ The platform includes optional AI-powered features that enhance predictions and 
 
 - **Backend**: Python 3.11+, FastAPI, LangChain, LangGraph, LiteLLM
 - **Frontend**: React 18, TypeScript, Vite, TanStack Query, Recharts, Tailwind CSS
-- **MCP**: FastMCP with Streamable HTTP transport
-- **Demo Gateway**: Java 17, Spring Boot 3.2
-- **Database**: OpenSearch 2.18
+- **Gateway Integration**: Vendor-neutral models with adapter pattern
+  - **Implemented**: WebMethodsGatewayAdapter
+  - **Planned**: KongGatewayAdapter, ApigeeGatewayAdapter
+- **Data Architecture**:
+  - Vendor-neutral models: `API`, `Metric`, `TransactionalLog`
+  - Time-bucketed metrics: 1m, 5m, 1h, 1d indices
+  - Separated intelligence: `intelligence_metadata` wrapper
+  - Vendor-specific fields: `vendor_metadata` dict
+- **MCP**: FastMCP with Streamable HTTP transport (optional)
+- **Demo Gateway Assets**: Java 17, Spring Boot 3.2 (optional/experimental)
+- **Database**: OpenSearch 2.11+
 - **AI/ML**: LangChain for agent orchestration, LiteLLM for multi-provider support
 - **Testing**: pytest, Jest, JUnit
 
@@ -288,10 +313,10 @@ See [`.env.example`](.env.example) for all configuration options.
 
 ### Core Documentation
 
-- [Architecture Documentation](docs/architecture.md) - System architecture, design patterns, and component details
-- [API Reference](docs/api-reference.md) - Complete REST API documentation with examples
+- [Architecture Documentation](docs/architecture.md) - Vendor-neutral architecture, adapter pattern, and time-bucketed metrics
+- [API Reference](docs/api-reference.md) - Complete REST API documentation with vendor-neutral structures
+- [Fresh Installation Guide](docs/fresh-installation-guide.md) - Step-by-step installation for new deployments
 - [Deployment Guide](docs/deployment.md) - Local, Docker, and Kubernetes deployment instructions
-- [Contributing Guidelines](docs/contributing.md) - How to contribute to the project
 
 ### Additional Guides
 

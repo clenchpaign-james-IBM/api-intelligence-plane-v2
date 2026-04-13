@@ -1,4 +1,4 @@
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Activity, AlertTriangle } from 'lucide-react';
 import type { RateLimitEffectivenessResponse } from '../../types';
 

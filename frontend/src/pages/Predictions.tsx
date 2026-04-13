@@ -18,8 +18,8 @@ import type { Prediction, PredictionSeverity, PredictionStatus } from '../types'
  * - Detailed prediction cards
  */
 const Predictions = () => {
-  const [selectedSeverity, setSelectedSeverity] = useState<PredictionSeverity | 'all'>('all');
-  const [selectedStatus, setSelectedStatus] = useState<PredictionStatus | 'all'>('all');
+  const [selectedSeverity] = useState<PredictionSeverity | 'all'>('all');
+  const [selectedStatus] = useState<PredictionStatus | 'all'>('all');
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
@@ -63,16 +63,12 @@ const Predictions = () => {
   if (error) {
     return (
       <div className="p-6">
-        <Error
-          message="Failed to load predictions"
-          details={error as Error}
-        />
+        <Error message="Failed to load predictions" />
       </div>
     );
   }
 
   const predictions = data?.predictions || [];
-  const total = data?.total || 0;
   const activePredictions = predictions.filter((p: Prediction) => p.status === 'active');
   const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
 

@@ -24,6 +24,7 @@ from app.models.query import (
     QueryResults,
     TimeRange,
 )
+from app.models.base.metric import TimeBucket
 from app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -456,6 +457,8 @@ Respond in JSON format:
                 api_name = result.get("name", "Unknown")
                 
                 # Fetch recent metrics for this API
+                # TODO: Add time_bucket parameter in Phase 0.6 (Repository Layer Updates)
+                # Will query appropriate time bucket based on query time range
                 metrics, _ = self.metrics_repo.search(
                     {"term": {"api_id": api_id}},
                     size=100,
@@ -525,6 +528,8 @@ Respond in JSON format:
                 api_name = result.get("name", "Unknown")
                 
                 # Fetch recent metrics for this API
+                # TODO: Add time_bucket parameter in Phase 0.6 (Repository Layer Updates)
+                # Will query appropriate time bucket based on query time range
                 metrics, _ = self.metrics_repo.search(
                     {"term": {"api_id": api_id}},
                     size=100,

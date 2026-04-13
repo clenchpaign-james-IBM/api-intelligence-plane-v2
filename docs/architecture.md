@@ -1,8 +1,8 @@
 # Architecture Documentation: API Intelligence Plane
 
-**Version**: 1.0.0  
-**Last Updated**: 2026-03-12  
-**Status**: Production Ready
+**Version**: 2.0.0
+**Last Updated**: 2026-04-11
+**Status**: Production Ready - Vendor-Neutral Architecture
 
 ## Table of Contents
 
@@ -20,11 +20,14 @@
 
 ## Overview
 
-API Intelligence Plane is an AI-driven API management platform that transforms API operations from reactive firefighting to proactive, autonomous management. The system uses a **microservices architecture** with clear separation between the core application and optional external agent integrations.
+API Intelligence Plane is an AI-driven API management platform that transforms API operations from reactive firefighting to proactive, autonomous management. The system uses a **microservices architecture** with **vendor-neutral data models** and **vendor-specific gateway adapters**, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
 
 ### Core Principles
 
-- **Vendor-Neutral Design**: Support multiple API Gateway vendors through adapter pattern
+- **Vendor-Neutral Architecture**: All data stored in vendor-neutral models (`API`, `Metric`, `TransactionalLog`) with vendor-specific fields in `vendor_metadata`
+- **Adapter Pattern**: Gateway-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter) transform vendor data to vendor-neutral models
+- **Time-Bucketed Metrics**: Metrics stored separately from API entities in time-bucketed indices (1m, 5m, 1h, 1d) for efficient querying
+- **Separated Intelligence**: Intelligence fields (`health_score`, `risk_score`, `security_score`) stored in `intelligence_metadata` wrapper
 - **Model-Agnostic AI**: LiteLLM provides unified interface to multiple LLM providers
 - **Single Source of Truth**: Backend services contain all business logic
 - **Separation of Concerns**: Clear boundaries between discovery, monitoring, prediction, security, and optimization
@@ -45,12 +48,12 @@ API Intelligence Plane is an AI-driven API management platform that transforms A
 |-----------|---------------|------------|------|----------|
 | **Frontend** | User interface, visualization, interaction | React 18, TypeScript, Vite | 3000 | Yes |
 | **Backend API** | Business logic, orchestration, data processing | FastAPI, Python 3.11+ | 8000 | Yes |
-| **Demo Gateway** | Native API Gateway implementation | Spring Boot 3.2, Java 17 | 8080 | Yes |
+| **Gateway Integrations** | Vendor adapters for connected gateways, with webMethods as the current primary integration | Python adapters, vendor APIs | Varies | Yes |
 | **OpenSearch** | Data persistence, search, analytics | OpenSearch 2.11+ | 9200 | Yes |
 | **LLM Providers** | AI-powered analysis and predictions | OpenAI, Anthropic, Azure | N/A | Optional |
 | **MCP Servers** | Protocol adapters for external AI agents | FastMCP, Python 3.11+ | 8001-8004 | Optional |
 
-**Note**: MCP servers are **optional** components that enable external AI agents (like Bob IDE or Claude Desktop) to interact with the platform. The core application (Frontend + Backend + Demo Gateway + OpenSearch) functions independently without MCP servers.
+**Note**: MCP servers are **optional** components that enable external AI agents (like Bob IDE or Claude Desktop) to interact with the platform. The core application (Frontend + Backend + Gateway Integrations + OpenSearch) functions independently without MCP servers.
 
 ---
 
@@ -126,33 +129,119 @@ src/
 - Security scans: Every 1 hour
 - Optimization analysis: Every 30 minutes
 
-### 3. Demo Gateway (Spring Boot)
+### 3. Gateway Integration Layer
 
-**Purpose**: Native API Gateway implementation for testing and demonstration
+**Purpose**: Provide a vendor-neutral ingestion and normalization layer for external API gateways through the adapter pattern.
 
-**Features**:
-- API registration and routing
-- Metrics collection and reporting
-- Rate limiting enforcement
-- OpenSearch integration for metrics storage
+**Architecture**: Strategy Pattern with Vendor-Specific Adapters
 
-**Key Components**:
-```java
-com.example.gateway/
-├── controller/
-│   ├── APIController.java
-│   ├── GatewayController.java
-│   └── MetricsController.java
-├── service/
-│   ├── APIService.java
-│   ├── MetricsService.java
-│   └── RateLimitService.java
-├── model/
-│   ├── API.java
-│   └── Policy.java
-└── repository/
-    └── APIRepository.java
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                    Backend Services                          │
+│  (Discovery, Metrics, Prediction, Security, Optimization)   │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Vendor-Neutral Data Models                      │
+│  • API (base/api.py)                                        │
+│  • Metric (base/metric.py) - Time-bucketed                  │
+│  • TransactionalLog (base/transaction.py)                   │
+│  • PolicyAction (base/api.py)                               │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Gateway Adapters                            │
+│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │ WebMethods       │  │ Kong         │  │ Apigee       │  │
+│  │ Adapter          │  │ Adapter      │  │ Adapter      │  │
+│  │ (IMPLEMENTED)    │  │ (PLANNED)    │  │ (PLANNED)    │  │
+│  └──────────────────┘  └──────────────┘  └──────────────┘  │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Vendor-Specific Models                          │
+│  • webmethods/wm_api.py (480 lines)                         │
+│  • webmethods/wm_policy.py (271 lines)                      │
+│  • webmethods/wm_policy_action.py (1184 lines)              │
+│  • webmethods/wm_transaction.py (264 lines)                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Current Implementation Status**:
+- ✅ **WebMethodsGatewayAdapter**: Fully implemented for discovery, policies, analytics, and metrics
+- 🔜 **KongGatewayAdapter**: Planned for future release
+- 🔜 **ApigeeGatewayAdapter**: Planned for future release
+
+**Vendor-Neutral Data Models**:
+
+1. **API Model** (`backend/app/models/base/api.py`):
+   - Comprehensive structure with `policy_actions`, `api_definition`, `endpoints`, `version_info`
+   - Intelligence fields in `intelligence_metadata` wrapper (`health_score`, `is_shadow`, `risk_score`, `security_score`)
+   - Vendor-specific fields in `vendor_metadata` dict
+   - **Does NOT include** embedded metrics (stored separately)
+
+2. **Metric Model** (`backend/app/models/base/metric.py`):
+   - Time-bucketed structure (1m, 5m, 1h, 1d)
+   - `gateway_id` dimension for multi-gateway support
+   - Cache metrics (`cache_hit_count`, `cache_miss_count`, `cache_hit_rate`)
+   - Timing breakdown (`gateway_time_avg`, `backend_time_avg`)
+   - HTTP status code breakdown (2xx/3xx/4xx/5xx)
+   - Optional per-endpoint breakdown
+   - Stored separately from API entities in time-bucketed OpenSearch indices
+
+3. **TransactionalLog Model** (`backend/app/models/base/transaction.py`):
+   - Comprehensive fields for timing, request/response, client info
+   - Caching details, backend service information
+   - Error tracking and external call details
+   - Vendor-specific fields in `vendor_metadata`
+
+4. **PolicyAction Model** (`backend/app/models/base/api.py`):
+   - Vendor-neutral policy types (AUTHENTICATION, AUTHORIZATION, TLS, CORS, VALIDATION, etc.)
+   - `vendor_config` dict for vendor-specific configuration
+   - Stage-based execution (request, routing, response)
+
+**Adapter Responsibilities**:
+
+Each adapter implements the following transformations:
+
+1. **API Transformation**: Vendor API → Vendor-Neutral API
+   - Map vendor-specific fields to standard fields
+   - Store vendor-specific data in `vendor_metadata`
+   - Populate `intelligence_metadata` with discovery info
+
+2. **Policy Transformation**: Vendor Policy → PolicyAction
+   - Map vendor policy types to standard `PolicyActionType` enum
+   - Extract configuration to `vendor_config`
+
+3. **Transaction Transformation**: Vendor Log → TransactionalLog
+   - Extract timing metrics, error info, cache metrics
+   - Normalize field names and structures
+
+4. **Metric Aggregation**: TransactionalLog → Metric
+   - Aggregate by time bucket, gateway, API, application
+   - Calculate percentiles, error rates, cache metrics
+
+5. **Reverse Transformation**: PolicyAction → Vendor Format
+   - For policy enforcement and updates
+   - Map standard types back to vendor-specific format
+
+**WebMethods Integration Details**:
+
+- **API Discovery**: `GET /rest/apigateway/apis` and `GET /rest/apigateway/apis/{api_id}`
+- **Policy Management**: `GET /rest/apigateway/policies/{policy_id}` and `PUT /rest/apigateway/policies/{policy_id}`
+- **Policy Actions**: `GET /rest/apigateway/policyActions/{policyaction_id}` and `POST /rest/apigateway/policyActions`
+- **Transactional Logs**: OpenSearch query with filter `eventType: "Transactional"`
+- **Policy Stages**: Multi-stage pipeline (transport, requestPayloadProcessing, IAM, LMT, routing, responseProcessing)
+
+**Benefits of Vendor-Neutral Architecture**:
+- Consistent intelligence capabilities across all gateway vendors
+- Easy addition of new gateway vendors through adapter implementation
+- Vendor-agnostic frontend and business logic
+- Simplified testing with mock adapters
+- Future-proof against vendor API changes
 
 ### 4. OpenSearch (Data Store)
 
@@ -160,21 +249,34 @@ com.example.gateway/
 
 **Indices**:
 
-| Index | Purpose | Retention |
-|-------|---------|-----------|
-| `api-inventory` | API catalog and metadata | Permanent |
-| `gateway-registry` | Gateway configurations | Permanent |
-| `api-metrics-*` | Time-series metrics data | 90 days |
-| `api-predictions` | Failure predictions | 90 days |
-| `security-findings` | Vulnerability scan results | 90 days |
-| `optimization-recommendations` | Performance recommendations | 90 days |
-| `rate-limit-policies` | Rate limiting policies | Permanent |
-| `query-history` | Natural language query history | 30 days |
+| Index Pattern | Purpose | Retention | Rollover |
+|---------------|---------|-----------|----------|
+| `api-inventory` | API catalog and metadata (vendor-neutral) | Permanent | N/A |
+| `gateway-registry` | Gateway configurations | Permanent | N/A |
+| `api-metrics-1m-{YYYY.MM}` | 1-minute time-bucketed metrics | 24 hours | Monthly |
+| `api-metrics-5m-{YYYY.MM}` | 5-minute time-bucketed metrics | 7 days | Monthly |
+| `api-metrics-1h-{YYYY.MM}` | 1-hour time-bucketed metrics | 30 days | Monthly |
+| `api-metrics-1d-{YYYY.MM}` | 1-day time-bucketed metrics | 90 days | Monthly |
+| `transactional-logs-{YYYY.MM}` | Raw transactional events | 7 days | Monthly |
+| `api-predictions` | Failure predictions | 90 days | N/A |
+| `security-findings` | Vulnerability scan results | 90 days | N/A |
+| `compliance-violations` | Compliance violations | 90 days | N/A |
+| `optimization-recommendations` | Performance recommendations | 90 days | N/A |
+| `rate-limit-policies` | Rate limiting policies | Permanent | N/A |
+| `query-history` | Natural language query history | 30 days | N/A |
+
+**Time-Bucketed Metrics Architecture**:
+- Metrics stored separately from API entities for efficient querying
+- Four time bucket sizes (1m, 5m, 1h, 1d) for different query patterns
+- Automatic aggregation from raw transactional logs
+- Monthly index rotation with automatic retention cleanup
+- Drill-down pattern: Aggregated metrics → Raw transactional logs
 
 **Index Lifecycle Management**:
-- Daily rollover for time-series indices
+- Monthly rollover for time-series indices
 - Automatic deletion after retention period
 - Snapshot backups every 24 hours
+- Index templates for consistent mapping across time periods
 
 ### 5. MCP Servers (Optional - External Agent Integration)
 
@@ -256,39 +358,108 @@ async def discover_apis(gateway_id: str) -> dict:
 
 ### 1. Strategy Pattern (Gateway Adapters)
 
-**Purpose**: Support multiple API Gateway vendors with consistent interface
+**Purpose**: Support multiple API Gateway vendors with consistent vendor-neutral interface
 
 ```python
+from abc import ABC, abstractmethod
+from typing import List, Any
+from app.models.base.api import API, PolicyAction
+from app.models.base.metric import Metric
+from app.models.base.transaction import TransactionalLog
+
 class GatewayAdapter(ABC):
-    """Base strategy interface"""
+    """Base strategy interface for vendor-neutral gateway integration"""
     
     @abstractmethod
     async def discover_apis(self) -> List[API]:
+        """Discover APIs and transform to vendor-neutral API model"""
         pass
     
     @abstractmethod
-    async def collect_metrics(self, api_id: str) -> Metrics:
+    async def collect_transactional_logs(
+        self,
+        start_time: datetime,
+        end_time: datetime
+    ) -> List[TransactionalLog]:
+        """Collect raw transactional logs in vendor-neutral format"""
+        pass
+    
+    @abstractmethod
+    def _transform_to_api(self, vendor_data: Any) -> API:
+        """Transform vendor-specific API data to vendor-neutral API"""
+        pass
+    
+    @abstractmethod
+    def _transform_to_metric(self, vendor_data: Any) -> Metric:
+        """Transform vendor-specific metrics to vendor-neutral Metric"""
+        pass
+    
+    @abstractmethod
+    def _transform_to_transactional_log(self, vendor_data: Any) -> TransactionalLog:
+        """Transform vendor-specific log to vendor-neutral TransactionalLog"""
+        pass
+    
+    @abstractmethod
+    def _transform_to_policy_action(self, vendor_data: Any) -> PolicyAction:
+        """Transform vendor-specific policy to vendor-neutral PolicyAction"""
+        pass
+    
+    @abstractmethod
+    def _transform_from_policy_action(self, policy_action: PolicyAction) -> Any:
+        """Transform vendor-neutral PolicyAction to vendor-specific format"""
         pass
 
-class NativeGatewayAdapter(GatewayAdapter):
-    """Concrete strategy for Native Gateway"""
+class WebMethodsGatewayAdapter(GatewayAdapter):
+    """Concrete strategy for webMethods API Gateway"""
     
     async def discover_apis(self) -> List[API]:
-        # Native Gateway specific implementation
-        pass
+        # Fetch from webMethods REST API
+        wm_apis = await self._fetch_webmethods_apis()
+        # Transform to vendor-neutral API model
+        return [self._transform_to_api(wm_api) for wm_api in wm_apis]
+    
+    def _transform_to_api(self, wm_api: WMApi) -> API:
+        # Map webMethods fields to vendor-neutral API
+        # Store webMethods-specific fields in vendor_metadata
+        return API(
+            name=wm_api.apiName,
+            version_info={"version": wm_api.apiVersion},
+            policy_actions=[
+                self._transform_to_policy_action(p)
+                for p in wm_api.policies
+            ],
+            intelligence_metadata={
+                "discovery_method": "registered",
+                "health_score": 100.0
+            },
+            vendor_metadata={
+                "vendor": "webmethods",
+                "maturity_state": wm_api.maturityState,
+                "owner": wm_api.owner
+            }
+        )
 
 class KongGatewayAdapter(GatewayAdapter):
-    """Concrete strategy for Kong Gateway"""
+    """Concrete strategy for Kong Gateway (Planned)"""
     
     async def discover_apis(self) -> List[API]:
-        # Kong specific implementation
+        # Kong-specific implementation
+        pass
+
+class ApigeeGatewayAdapter(GatewayAdapter):
+    """Concrete strategy for Apigee Gateway (Planned)"""
+    
+    async def discover_apis(self) -> List[API]:
+        # Apigee-specific implementation
         pass
 ```
 
 **Benefits**:
-- Easy to add new Gateway vendors
-- Consistent interface across vendors
-- Vendor-specific logic encapsulated
+- Easy to add new Gateway vendors through adapter implementation
+- Consistent vendor-neutral interface across all vendors
+- Vendor-specific logic encapsulated in adapters
+- Vendor-specific fields preserved in `vendor_metadata`
+- Business logic remains vendor-agnostic
 
 ### 2. Repository Pattern (Data Access)
 
@@ -311,15 +482,29 @@ class BaseRepository(ABC):
         pass
 
 class MetricsRepository(BaseRepository):
-    """Metrics-specific repository"""
+    """Metrics-specific repository with time-bucketed queries"""
     
     async def get_time_series(
-        self, 
-        api_id: str, 
-        start: datetime, 
-        end: datetime
+        self,
+        api_id: str,
+        start: datetime,
+        end: datetime,
+        time_bucket: str = "5m"
     ) -> List[Metric]:
+        """Query time-bucketed metrics from appropriate index"""
+        index = self._get_index_for_bucket(time_bucket)
+        # Query from time-bucketed index
         pass
+    
+    def _get_index_for_bucket(self, time_bucket: str) -> str:
+        """Select appropriate index based on time bucket"""
+        bucket_to_index = {
+            "1m": "api-metrics-1m-*",
+            "5m": "api-metrics-5m-*",
+            "1h": "api-metrics-1h-*",
+            "1d": "api-metrics-1d-*"
+        }
+        return bucket_to_index.get(time_bucket, "api-metrics-5m-*")
 ```
 
 ### 3. Agent Pattern (AI Workflows)
@@ -533,17 +718,38 @@ All operations are logged with:
 
 ### Future Gateway Integrations
 
+All future gateway integrations will follow the adapter pattern with vendor-neutral data models:
+
 1. **Kong Gateway**
    - Protocol: Kong Admin API
    - Status: Planned
+   - Adapter: `KongGatewayAdapter` (to be implemented)
+   - Transformation: Kong entities → Vendor-neutral API/Metric/TransactionalLog
 
 2. **Apigee Gateway**
    - Protocol: Apigee Management API
    - Status: Planned
+   - Adapter: `ApigeeGatewayAdapter` (to be implemented)
+   - Transformation: Apigee proxies → Vendor-neutral API/Metric/TransactionalLog
 
 3. **AWS API Gateway**
    - Protocol: AWS SDK
    - Status: Future
+   - Adapter: `AWSGatewayAdapter` (to be implemented)
+   - Transformation: AWS API Gateway resources → Vendor-neutral models
+
+4. **Azure API Management**
+   - Protocol: Azure Management API
+   - Status: Future
+   - Adapter: `AzureGatewayAdapter` (to be implemented)
+
+**Adapter Implementation Guide**:
+1. Create vendor-specific models in `backend/app/models/{vendor}/`
+2. Implement adapter in `backend/app/adapters/{vendor}_gateway.py`
+3. Implement transformation methods for all vendor-neutral models
+4. Add vendor to `GatewayVendor` enum
+5. Register adapter in `AdapterFactory`
+6. Add integration tests
 
 ---
 

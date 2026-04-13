@@ -20,7 +20,7 @@ from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
-from app.models.metric import Metric
+from app.models.base.metric import Metric
 from datetime import datetime, timedelta
 from uuid import uuid4
 

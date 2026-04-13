@@ -103,7 +103,6 @@ export function useRealtimeTimeSeries({
   pollingInterval = 10000, // 10 seconds for time series
   onUpdate,
 }: UseRealtimeTimeSeriesOptions) {
-  const queryClient = useQueryClient();
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const { data, error, isLoading } = useQuery({
@@ -154,15 +153,6 @@ export function useRealtimeMultipleMetrics({
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   // Use individual queries for each API
-  const queries = apiIds.map(apiId => ({
-    queryKey: ['metrics', 'realtime', apiId],
-    queryFn: () => metricsService.getCurrent(apiId),
-    enabled: enabled && !!apiId,
-    refetchInterval: enabled ? pollingInterval : false,
-    refetchIntervalInBackground: true,
-    staleTime: 0,
-  }));
-
   // This would typically use useQueries from React Query
   // For simplicity, we'll track updates manually
   useEffect(() => {
@@ -176,9 +166,11 @@ export function useRealtimeMultipleMetrics({
         apiIds.map(async (apiId) => {
           try {
             const metrics = await metricsService.getCurrent(apiId);
-            newMetricsMap.set(apiId, metrics);
-            if (onUpdate) {
-              onUpdate(apiId, metrics);
+            if (metrics) {
+              newMetricsMap.set(apiId, metrics);
+              if (onUpdate) {
+                onUpdate(apiId, metrics);
+              }
             }
           } catch (error) {
             newErrorsMap.set(apiId, error as Error);
@@ -265,14 +257,20 @@ export function useMetricsAlerts({
       if (onAlert) onAlert(alert);
     }
 
+    const totalRequests = metrics.request_count ?? 0;
+    const errorCount = (metrics.status_4xx_count ?? 0) + (metrics.status_5xx_count ?? 0);
+    const successCount = metrics.success_count ?? Math.max(totalRequests - errorCount, 0);
+    const computedErrorRate = totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0;
+    const computedAvailability = totalRequests > 0 ? (successCount / totalRequests) * 100 : 100;
+
     // Check error rate threshold
-    if (thresholds.errorRate && metrics.error_rate > thresholds.errorRate) {
+    if (thresholds.errorRate && computedErrorRate > thresholds.errorRate) {
       const alert: MetricsAlert = {
         apiId,
         metric: 'error_rate',
-        value: metrics.error_rate,
+        value: computedErrorRate,
         threshold: thresholds.errorRate,
-        severity: metrics.error_rate > thresholds.errorRate * 2 ? 'critical' : 'warning',
+        severity: computedErrorRate > thresholds.errorRate * 2 ? 'critical' : 'warning',
         timestamp: new Date(),
       };
       newAlerts.push(alert);
@@ -280,13 +278,13 @@ export function useMetricsAlerts({
     }
 
     // Check availability threshold
-    if (thresholds.availability && metrics.availability < thresholds.availability) {
+    if (thresholds.availability && computedAvailability < thresholds.availability) {
       const alert: MetricsAlert = {
         apiId,
         metric: 'availability',
-        value: metrics.availability,
+        value: computedAvailability,
         threshold: thresholds.availability,
-        severity: metrics.availability < thresholds.availability * 0.9 ? 'critical' : 'warning',
+        severity: computedAvailability < thresholds.availability * 0.9 ? 'critical' : 'warning',
         timestamp: new Date(),
       };
       newAlerts.push(alert);

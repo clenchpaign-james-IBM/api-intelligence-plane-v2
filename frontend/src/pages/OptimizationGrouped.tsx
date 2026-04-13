@@ -1,18 +1,14 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Zap, TrendingUp, Filter, DollarSign, Shield, Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Zap, TrendingUp, DollarSign } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
-import RateLimitPolicy from '../components/optimization/RateLimitPolicy';
-import RateLimitChart from '../components/optimization/RateLimitChart';
 import { api } from '../services/api';
 import type {
   Recommendation,
   RecommendationPriority,
   RecommendationStatus,
-  RecommendationType,
-  RateLimitPolicy as RateLimitPolicyType,
-  PolicyStatus
+  RecommendationType
 } from '../types';
 
 /**
@@ -22,19 +18,13 @@ import type {
  */
 const OptimizationGrouped = () => {
   const [activeTab, setActiveTab] = useState<'recommendations' | 'rate-limiting'>('recommendations');
-  const [selectedPriority, setSelectedPriority] = useState<RecommendationPriority | 'all'>('all');
-  const [selectedStatus, setSelectedStatus] = useState<RecommendationStatus | 'all'>('all');
-  const [selectedType, setSelectedType] = useState<RecommendationType | 'all'>('all');
+  const [selectedPriority] = useState<RecommendationPriority | 'all'>('all');
+  const [selectedStatus] = useState<RecommendationStatus | 'all'>('all');
+  const [selectedType] = useState<RecommendationType | 'all'>('all');
   const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<RateLimitPolicyType | null>(null);
-  const [selectedPolicyStatus, setSelectedPolicyStatus] = useState<PolicyStatus | 'all'>('all');
-  const [useAi, setUseAi] = useState<boolean>(false);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  
-  const queryClient = useQueryClient();
 
   // Fetch recommendations
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['recommendations', selectedPriority, selectedStatus, selectedType],
     queryFn: () => {
       const params: any = {};
@@ -52,10 +42,9 @@ const OptimizationGrouped = () => {
     if (!acc[apiKey]) acc[apiKey] = [];
     acc[apiKey].push(rec);
     return acc;
-  }, {});
+  }, {} as Record<string, Recommendation[]>);
 
   const recommendations = data?.recommendations || [];
-  const total = data?.total || 0;
   const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
   const highPriorityCount = recommendations.filter((r: Recommendation) => r.priority === 'high' || r.priority === 'critical').length;
   const avgImprovement = recommendations.length > 0
@@ -186,7 +175,7 @@ const OptimizationGrouped = () => {
         </div>
       ) : (
         <div className="space-y-8">
-          {Object.entries(groupedRecommendations).map(([apiKey, apiRecs]) => (
+          {(Object.entries(groupedRecommendations) as [string, Recommendation[]][]).map(([apiKey, apiRecs]) => (
             <div key={apiKey} className="bg-white rounded-lg shadow-lg p-6">
               {/* API Group Header - Highlighted */}
               <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-300">

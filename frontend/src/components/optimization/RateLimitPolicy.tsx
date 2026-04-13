@@ -62,12 +62,6 @@ const RateLimitPolicy = ({ policy, onApply, detailed = false }: RateLimitPolicyP
 
   const enforcementDisplay = getEnforcementActionDisplay(policy.enforcement_action);
 
-  // Format threshold display
-  const formatThreshold = (value: number | undefined, unit: string) => {
-    if (value === undefined) return null;
-    return `${value.toLocaleString()} ${unit}`;
-  };
-
   if (detailed) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-6">

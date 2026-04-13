@@ -141,8 +141,8 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = Field(
         default=True, description="Enable background scheduler"
     )
-    DISCOVERY_INTERVAL_MINUTES: int = Field(
-        default=5, description="API discovery interval in minutes"
+    API_DISCOVERY_INTERVAL_MINUTES: int = Field(
+        default=5, description="API discovery interval in minutes per gateway"
     )
     METRICS_INTERVAL_MINUTES: int = Field(
         default=1, description="Metrics collection interval in minutes"
@@ -155,6 +155,12 @@ class Settings(BaseSettings):
     )
     OPTIMIZATION_INTERVAL_MINUTES: int = Field(
         default=30, description="Optimization analysis interval in minutes"
+    )
+    TRANSACTIONAL_LOGS_INTERVAL_MINUTES: int = Field(
+        default=1, description="Transactional logs collection interval in minutes per gateway"
+    )
+    METRICS_AGGREGATION_BUCKET: str = Field(
+        default="1m", description="Default time bucket for metrics aggregation (1m, 5m, 1h, 1d)"
     )
     
     # TLS/SSL Settings

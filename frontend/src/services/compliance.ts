@@ -11,7 +11,6 @@ import type {
   ComplianceScanRequest,
   ComplianceScanResponse,
   CompliancePosture,
-  AuditReport,
   AuditReportRequest,
   AuditReportResponse,
   ComplianceStandard,

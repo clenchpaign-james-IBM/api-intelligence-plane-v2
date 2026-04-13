@@ -1,0 +1,21 @@
+{
+	"policyAction": {
+		"id": "9dd81270-356f-4311-a31f-8f64543e5aaf",
+		"names": [
+			{
+				"value": "Enable HTTP / HTTPS",
+				"locale": "en"
+			}
+		],
+		"templateKey": "entryProtocolPolicy",
+		"parameters": [
+			{
+				"templateKey": "protocol",
+				"values": [
+					"https"
+				]
+			}
+		],
+		"active": false
+	}
+}

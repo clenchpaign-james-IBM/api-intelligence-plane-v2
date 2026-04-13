@@ -36,13 +36,16 @@ const APIList = ({
       api.base_path.toLowerCase().includes(searchTerm.toLowerCase()) ||
       api.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     
+    const healthScore = api.intelligence_metadata?.health_score ?? 0;
+    const isShadow = api.intelligence_metadata?.is_shadow ?? false;
+
     const matchesStatus = statusFilter === 'all' || api.status === statusFilter;
-    const matchesShadow = shadowFilter === 'all' || api.is_shadow === shadowFilter;
+    const matchesShadow = shadowFilter === 'all' || isShadow === shadowFilter;
     
     const matchesHealth = healthFilter === 'all' ||
-      (healthFilter === 'low' && api.health_score < 70) ||
-      (healthFilter === 'medium' && api.health_score >= 70 && api.health_score < 80) ||
-      (healthFilter === 'high' && api.health_score >= 80);
+      (healthFilter === 'low' && healthScore < 70) ||
+      (healthFilter === 'medium' && healthScore >= 70 && healthScore < 80) ||
+      (healthFilter === 'high' && healthScore >= 80);
 
     return matchesSearch && matchesStatus && matchesShadow && matchesHealth;
   });
@@ -148,7 +151,7 @@ const APIList = ({
               onClick={() => onSelectAPI?.(api)}
               className={`px-4 py-2.5 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-sm transition-all ${
                 onSelectAPI ? 'cursor-pointer' : ''
-              } ${api.is_shadow ? 'border-l-4 border-l-orange-500' : ''}`}
+              } ${api.intelligence_metadata?.is_shadow ? 'border-l-4 border-l-orange-500' : ''}`}
             >
               <div className="flex items-center justify-between gap-4">
                 {/* API Name & Path */}
@@ -163,7 +166,7 @@ const APIList = ({
                     <span className={`px-1.5 py-0.5 text-xs font-medium rounded flex-shrink-0 ${getStatusColor(api.status)}`}>
                       {api.status}
                     </span>
-                    {api.is_shadow && (
+                    {api.intelligence_metadata?.is_shadow && (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded flex-shrink-0">
                         Shadow
                       </span>
@@ -206,19 +209,19 @@ const APIList = ({
                     <span className="truncate max-w-[80px]">{api.authentication_type}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="font-medium">P95:</span>
-                    <span>{api.current_metrics.response_time_p95.toFixed(0)}ms</span>
+                    <span className="font-medium">Policies:</span>
+                    <span>{api.policy_actions?.length || 0}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="font-medium">Error:</span>
-                    <span>{(api.current_metrics.error_rate * 100).toFixed(1)}%</span>
+                    <span className="font-medium">Risk:</span>
+                    <span>{(api.intelligence_metadata?.risk_score ?? 0).toFixed(0)}</span>
                   </span>
                 </div>
 
                 {/* Health Score - Right Side */}
                 <div className="text-center flex-shrink-0">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${getHealthColor(api.health_score)}`}>
-                    {api.health_score.toFixed(0)}
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${getHealthColor(api.intelligence_metadata?.health_score ?? 0)}`}>
+                    {(api.intelligence_metadata?.health_score ?? 0).toFixed(0)}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">Health</p>
                 </div>

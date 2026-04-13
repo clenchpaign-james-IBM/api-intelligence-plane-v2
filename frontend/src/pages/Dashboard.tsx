@@ -36,15 +36,13 @@ const Dashboard = () => {
   const stats: DashboardStats = {
     total_apis: apis?.items?.length || 0,
     active_apis: apis?.items?.filter((a: API) => a.status === 'active').length || 0,
-    shadow_apis: apis?.items?.filter((a: API) => a.is_shadow).length || 0,
+    shadow_apis: apis?.items?.filter((a: API) => a.intelligence_metadata?.is_shadow).length || 0,
     total_gateways: gateways?.items?.length || 0,
     active_gateways: gateways?.items?.filter((g: Gateway) => g.status === 'connected').length || 0,
     avg_health_score: apis?.items?.length
-      ? apis.items.reduce((sum: number, a: API) => sum + a.health_score, 0) / apis.items.length
+      ? apis.items.reduce((sum: number, a: API) => sum + (a.intelligence_metadata?.health_score ?? 0), 0) / apis.items.length
       : 0,
-    avg_response_time: apis?.items?.length
-      ? apis.items.reduce((sum: number, a: API) => sum + a.current_metrics.response_time_p95, 0) / apis.items.length
-      : 0,
+    avg_response_time: 0,
     total_requests_24h: 0, // Would come from metrics aggregation
     error_rate_24h: 0, // Would come from metrics aggregation
     critical_vulnerabilities: 0, // Would come from security scan
@@ -175,7 +173,7 @@ const Dashboard = () => {
         <Card title="Top Performing APIs" subtitle="Highest health scores">
           <div className="space-y-3">
             {apis?.items
-              ?.sort((a: API, b: API) => b.health_score - a.health_score)
+              ?.sort((a: API, b: API) => (b.intelligence_metadata?.health_score ?? 0) - (a.intelligence_metadata?.health_score ?? 0))
               .slice(0, 5)
               .map((api: API) => (
                 <Link
@@ -190,13 +188,13 @@ const Dashboard = () => {
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">
-                        {api.health_score.toFixed(1)}
+                        {(api.intelligence_metadata?.health_score ?? 0).toFixed(1)}
                       </p>
                       <p className="text-xs text-gray-500">Health Score</p>
                     </div>
                     <div className={`w-3 h-3 rounded-full ${
-                      api.health_score >= 80 ? 'bg-green-500' :
-                      api.health_score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                      (api.intelligence_metadata?.health_score ?? 0) >= 80 ? 'bg-green-500' :
+                      (api.intelligence_metadata?.health_score ?? 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                   </div>
                 </Link>
@@ -211,8 +209,8 @@ const Dashboard = () => {
         <Card title="APIs Needing Attention" subtitle="Low health scores or issues">
           <div className="space-y-3">
             {apis?.items
-              ?.filter((a: API) => a.health_score < 70 || a.status === 'failed')
-              .sort((a: API, b: API) => a.health_score - b.health_score)
+              ?.filter((a: API) => (a.intelligence_metadata?.health_score ?? 0) < 70 || a.status === 'failed')
+              .sort((a: API, b: API) => (a.intelligence_metadata?.health_score ?? 0) - (b.intelligence_metadata?.health_score ?? 0))
               .slice(0, 5)
               .map((api: API) => (
                 <Link
@@ -227,7 +225,7 @@ const Dashboard = () => {
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <p className="text-sm font-medium text-red-600">
-                        {api.health_score.toFixed(1)}
+                        {(api.intelligence_metadata?.health_score ?? 0).toFixed(1)}
                       </p>
                       <p className="text-xs text-gray-500">Health Score</p>
                     </div>
@@ -235,7 +233,7 @@ const Dashboard = () => {
                   </div>
                 </Link>
               ))}
-            {(!apis?.items || apis.items.filter((a: API) => a.health_score < 70).length === 0) && (
+            {(!apis?.items || apis.items.filter((a: API) => (a.intelligence_metadata?.health_score ?? 0) < 70).length === 0) && (
               <p className="text-center text-green-600 py-4">
                 All APIs are performing well! 🎉
               </p>
@@ -265,7 +263,7 @@ const Dashboard = () => {
                 </span>
               </div>
               <p className="text-sm text-gray-600 mb-2">{gateway.vendor}</p>
-              <p className="text-xs text-gray-500 truncate">{gateway.connection_url}</p>
+              <p className="text-xs text-gray-500 truncate">{gateway.base_url}</p>
               {gateway.last_connected_at && (
                 <p className="text-xs text-gray-400 mt-2">
                   Last connected: {new Date(gateway.last_connected_at).toLocaleString()}

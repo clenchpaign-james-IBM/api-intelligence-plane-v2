@@ -27,6 +27,11 @@ from app.db.migrations import (
     create_rate_limit_policies_index,
     create_query_history_index,
     create_compliance_violations_index,
+    create_transactional_logs_index_template,
+    create_wm_metrics_1m_index_template,
+    create_wm_metrics_5m_index_template,
+    create_wm_metrics_1h_index_template,
+    create_wm_metrics_1d_index_template,
 )
 
 
@@ -125,6 +130,15 @@ def initialize_indices(client: OpenSearch, force: bool = False):
         ("rate-limit-policies", "Rate Limit Policies", create_rate_limit_policies_index),
         ("query-history", "Query History", create_query_history_index),
         ("compliance-violations", "Compliance Violations", create_compliance_violations_index),
+        (
+            "transactional-logs-*",
+            "Transactional Logs Template",
+            create_transactional_logs_index_template,
+        ),
+        ("api-metrics-1m-*", "API Metrics 1m Template", create_wm_metrics_1m_index_template),
+        ("api-metrics-5m-*", "API Metrics 5m Template", create_wm_metrics_5m_index_template),
+        ("api-metrics-1h-*", "API Metrics 1h Template", create_wm_metrics_1h_index_template),
+        ("api-metrics-1d-*", "API Metrics 1d Template", create_wm_metrics_1d_index_template),
     ]
 
     print("\nInitializing indices and templates...")
@@ -197,14 +211,23 @@ def verify_indices(client: OpenSearch):
         if not exists:
             all_exist = False
     
-    # Check template
-    template_name = "api-metrics-template"
-    template_exists = client.indices.exists_template(name=template_name)
-    status = "✓" if template_exists else "✗"
-    print(f"  {status} {template_name}")
-    if not template_exists:
-        all_exist = False
-    
+    # Check templates
+    expected_templates = [
+        "api-metrics-template",
+        "transactional-logs-template",
+        "api-metrics-1m-template",
+        "api-metrics-5m-template",
+        "api-metrics-1h-template",
+        "api-metrics-1d-template",
+    ]
+
+    for template_name in expected_templates:
+        template_exists = client.indices.exists_template(name=template_name)
+        status = "✓" if template_exists else "✗"
+        print(f"  {status} {template_name}")
+        if not template_exists:
+            all_exist = False
+
     return all_exist
 
 

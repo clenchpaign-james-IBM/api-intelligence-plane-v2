@@ -1,23 +1,23 @@
 """Adapters package for API Intelligence Plane.
 
-This package contains Gateway adapters implementing the Strategy pattern
-for multi-vendor Gateway support.
+This package exposes the active gateway adapter surface for the current
+implementation phase.
+
+The architecture remains vendor-neutral at the model and service layers, but
+the currently supported runtime adapter is webMethods only. Deferred adapters
+are intentionally not exported from this package surface.
 """
 
-from app.adapters.apigee_gateway import ApigeeGatewayAdapter
 from app.adapters.base import BaseGatewayAdapter
 from app.adapters.factory import (
     GatewayAdapterFactory,
     create_gateway_adapter,
 )
-from app.adapters.kong_gateway import KongGatewayAdapter
-from app.adapters.native_gateway import NativeGatewayAdapter
+from app.adapters.webmethods_gateway import WebMethodsGatewayAdapter
 
 __all__ = [
     "BaseGatewayAdapter",
-    "NativeGatewayAdapter",
-    "KongGatewayAdapter",
-    "ApigeeGatewayAdapter",
+    "WebMethodsGatewayAdapter",
     "GatewayAdapterFactory",
     "create_gateway_adapter",
 ]

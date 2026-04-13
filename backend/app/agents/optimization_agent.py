@@ -22,7 +22,7 @@ except ImportError:
 from app.services.llm_service import LLMService
 from app.services.optimization_service import OptimizationService
 from app.models.recommendation import OptimizationRecommendation, RecommendationType
-from app.models.metric import Metric
+from app.models.base.metric import Metric
 
 logger = logging.getLogger(__name__)
 
@@ -180,12 +180,13 @@ class OptimizationAgent:
         metrics_summary = self._prepare_metrics_summary(state["metrics"])
         
         # Create analysis prompt
-        system_prompt = """You are an expert performance optimization consultant. Analyze the provided metrics data and identify:
+        system_prompt = """You are an expert performance optimization consultant. Analyze vendor-neutral, time-bucketed API metrics and identify:
 1. Performance bottlenecks (response time, throughput, error rates)
 2. Resource utilization patterns
 3. Scalability concerns
 4. Optimization opportunities with highest impact
 5. Quick wins vs. long-term improvements
+6. Whether latency is dominated by gateway overhead, backend latency, cache performance, or traffic spikes
 
 Provide a concise, technical analysis focusing on actionable optimization opportunities."""
         
@@ -428,10 +429,10 @@ Provide a clear implementation roadmap."""
     
     def _prepare_metrics_summary(self, metrics: List[Metric]) -> str:
         """
-        Prepare a summary of metrics for LLM analysis.
+        Prepare a summary of time-bucketed metrics for LLM analysis.
         
         Args:
-            metrics: List of metrics
+            metrics: List of time-bucketed metrics
             
         Returns:
             Formatted metrics summary
@@ -447,6 +448,13 @@ Provide a clear implementation roadmap."""
         avg_throughput = sum(m.throughput for m in metrics) / len(metrics)
         avg_availability = sum(m.availability for m in metrics) / len(metrics)
         
+        # Calculate cache metrics averages
+        avg_cache_hit_rate = sum(m.cache_hit_rate for m in metrics) / len(metrics)
+        
+        # Calculate timing breakdown averages
+        avg_gateway_time = sum(m.gateway_time_avg for m in metrics) / len(metrics)
+        avg_backend_time = sum(m.backend_time_avg for m in metrics) / len(metrics)
+        
         # Calculate trends (compare first half vs second half)
         mid = len(metrics) // 2
         first_half_p95 = sum(m.response_time_p95 for m in metrics[:mid]) / mid
@@ -457,23 +465,39 @@ Provide a clear implementation roadmap."""
         second_half_error = sum(m.error_rate for m in metrics[mid:]) / (len(metrics) - mid)
         error_trend = ((second_half_error - first_half_error) / first_half_error * 100) if first_half_error > 0 else 0
         
+        first_half_cache = sum(m.cache_hit_rate for m in metrics[:mid]) / mid
+        second_half_cache = sum(m.cache_hit_rate for m in metrics[mid:]) / (len(metrics) - mid)
+        cache_trend = ((second_half_cache - first_half_cache) / first_half_cache * 100) if first_half_cache > 0 else 0
+        
+        # Get time bucket info from first metric
+        time_bucket = metrics[0].time_bucket.value if hasattr(metrics[0], 'time_bucket') else "unknown"
+        
         summary = f"""
-Metrics Summary ({len(metrics)} data points):
+Metrics Summary ({len(metrics)} data points, {time_bucket} buckets):
 
 Response Times:
 - P50: {avg_p50:.1f}ms
 - P95: {avg_p95:.1f}ms (trend: {p95_trend:+.1f}%)
 - P99: {avg_p99:.1f}ms
 
-Error Rate: {avg_error_rate*100:.2f}% (trend: {error_trend:+.1f}%)
+Timing Breakdown:
+- Gateway Time: {avg_gateway_time:.1f}ms (avg)
+- Backend Time: {avg_backend_time:.1f}ms (avg)
+- Gateway Overhead: {(avg_gateway_time / avg_p95 * 100):.1f}% of total response time
+
+Cache Performance:
+- Hit Rate: {avg_cache_hit_rate:.1f}% (trend: {cache_trend:+.1f}%)
+- Potential for caching optimization: {'HIGH' if avg_cache_hit_rate < 50 else 'MEDIUM' if avg_cache_hit_rate < 80 else 'LOW'}
+
+Error Rate: {avg_error_rate:.2f}% (trend: {error_trend:+.1f}%)
 Throughput: {avg_throughput:.1f} req/s
 Availability: {avg_availability:.2f}%
 
 Recent Metrics (last 5):
 """
-        
+
         for i, m in enumerate(metrics[-5:], 1):
-            summary += f"\n{i}. P95: {m.response_time_p95:.0f}ms, Errors: {m.error_rate*100:.1f}%, Throughput: {m.throughput:.0f} req/s"
+            summary += f"\n{i}. P95: {m.response_time_p95:.0f}ms, Errors: {m.error_rate:.1f}%, Cache: {m.cache_hit_rate:.0f}%, Throughput: {m.throughput:.0f} req/s"
         
         return summary
 

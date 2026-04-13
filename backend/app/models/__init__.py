@@ -4,11 +4,10 @@ This package contains all Pydantic models representing the core entities
 of the API Intelligence Plane system.
 """
 
-from app.models.api import (
+from app.models.base.api import (
     API,
     APIStatus,
     AuthenticationType,
-    CurrentMetrics,
     DiscoveryMethod,
     Endpoint,
     EndpointParameter,
@@ -21,7 +20,10 @@ from app.models.gateway import (
     GatewayStatus,
     GatewayVendor,
 )
-from app.models.metric import EndpointMetric, Metric
+from app.models.base.metric import EndpointMetric, Metric
+
+# Backward compatibility alias
+CurrentMetrics = Metric
 from app.models.prediction import (
     ActualOutcome,
     ContributingFactor,
@@ -68,6 +70,21 @@ from app.models.vulnerability import (
     VulnerabilityStatus,
     VulnerabilityType,
 )
+from app.models.base.transaction import (
+    CacheStatus,
+    ErrorOrigin,
+    EventStatus,
+    EventType,
+    ExternalCall,
+    ExternalCallType,
+    TransactionalLog,
+)
+from app.models.base.metric import (
+    TimeBucket,
+)
+
+# Alias for backward compatibility
+Metrics = Metric
 
 __all__ = [
     # API models
@@ -129,6 +146,16 @@ __all__ = [
     "VulnerabilitySeverity",
     "VulnerabilityStatus",
     "VulnerabilityType",
+    # WebMethods Analytics models
+    "CacheStatus",
+    "ErrorOrigin",
+    "EventStatus",
+    "EventType",
+    "ExternalCall",
+    "ExternalCallType",
+    "Metrics",
+    "TimeBucket",
+    "TransactionalLog",
 ]
 
 # Made with Bob

@@ -29,8 +29,8 @@ except ImportError:
     StateGraph = None
     END = None
 
-from app.models.api import API, AuthenticationType
-from app.models.metric import Metric
+from app.models.base.api import API, AuthenticationType, PolicyActionType
+from app.models.base.metric import Metric
 from app.models.compliance import (
     ComplianceViolation,
     ComplianceViolationType,
@@ -281,15 +281,17 @@ class ComplianceAgent:
                 "error_rate": 0,
             }
 
-        total_requests = sum(m.throughput for m in metrics if m.throughput)
-        total_errors = sum(m.error_rate * m.throughput for m in metrics if m.error_rate and m.throughput)
-        
+        total_requests = sum(m.request_count for m in metrics)
+        total_errors = sum(m.failure_count for m in metrics)
+        total_throughput = sum(m.throughput for m in metrics if m.throughput)
+
         return {
             "has_traffic": len(metrics) > 0,
             "total_requests": total_requests,
             "avg_requests_per_minute": total_requests / len(metrics) if metrics else 0,
             "peak_requests_per_minute": max((m.throughput for m in metrics if m.throughput), default=0),
-            "error_rate": (total_errors / total_requests) if total_requests > 0 else 0,
+            "avg_throughput": total_throughput / len(metrics) if metrics else 0,
+            "error_rate": (total_errors / total_requests) * 100 if total_requests > 0 else 0,
             "metrics_count": len(metrics),
         }
 
@@ -311,7 +313,7 @@ class ComplianceAgent:
                     "base_path": api.base_path,
                     "has_traffic": traffic_analysis.get("has_traffic", False),
                     "traffic_volume": traffic_analysis.get("total_requests", 0),
-                    "is_shadow": api.is_shadow,
+                    "is_shadow": api.intelligence_metadata.is_shadow,
                 },
             )
             
@@ -511,7 +513,11 @@ class ComplianceAgent:
             severity = await self._assess_compliance_severity(
                 api=api,
                 violation_type="iso_27001_access_control",
-                context={"api_name": api.name, "is_shadow": api.is_shadow},
+                context={
+                    "api_name": api.name,
+                    "is_shadow": api.intelligence_metadata.is_shadow,
+                    "traffic_volume": traffic_analysis.get("total_requests", 0),
+                },
             )
             
             violations.append(self._create_violation(
@@ -677,23 +683,57 @@ Respond with ONLY one word: CRITICAL, HIGH, MEDIUM, or LOW"""
             metadata={},
         )
 
+    def _has_policy_action(self, api: API, action_type: PolicyActionType) -> bool:
+        """
+        Check if API has a specific policy action configured.
+        
+        Args:
+            api: API object
+            action_type: Policy action type to check for
+            
+        Returns:
+            True if policy action exists and is enabled
+        """
+        if not api.policy_actions:
+            return False
+        
+        return any(
+            pa.action_type == action_type and pa.enabled
+            for pa in api.policy_actions
+        )
+    
     def _has_tls_encryption(self, api: API) -> bool:
         """Check if API has TLS encryption configured."""
-        # In real implementation, query Gateway for TLS policy
-        # For now, check if base_path starts with https
-        return api.base_path.startswith("https://") if api.base_path else False
+        # Check if TLS policy action exists in policy_actions
+        has_tls_policy = self._has_policy_action(api, PolicyActionType.TLS)
+        
+        # Also check if base_path starts with https
+        has_https = api.base_path.startswith("https://") if api.base_path else False
+        
+        return has_tls_policy or has_https
 
     def _has_strong_tls(self, api: API) -> bool:
         """Check if API has strong TLS (1.3) configured."""
-        # In real implementation, query Gateway for TLS version policy
-        # For now, assume false to detect violations
+        # Check if TLS policy action exists
+        if not api.policy_actions:
+            return False
+        
+        # Look for TLS policy with strong configuration
+        for pa in api.policy_actions:
+            if pa.action_type == PolicyActionType.TLS and pa.enabled:
+                # Check vendor_config for TLS version
+                if pa.vendor_config and pa.vendor_config.get("min_tls_version") == "1.3":
+                    return True
+                # Check common config for TLS version
+                if pa.config and pa.config.get("min_tls_version") == "1.3":
+                    return True
+        
         return False
 
     def _has_audit_logging(self, api: API) -> bool:
         """Check if API has audit logging configured."""
-        # In real implementation, query Gateway for logging policy
-        # For now, assume false to detect violations
-        return False
+        # Check if logging policy action exists in policy_actions
+        return self._has_policy_action(api, PolicyActionType.LOGGING)
 
     def _has_monitoring(self, api: API, traffic_analysis: Dict[str, Any]) -> bool:
         """Check if API has adequate monitoring."""

@@ -100,6 +100,7 @@ const Gateways = () => {
   const getVendorColor = (vendor: string) => {
     switch (vendor) {
       case 'native': return 'bg-blue-100 text-blue-800';
+      case 'webmethods': return 'bg-green-100 text-green-800';
       case 'kong': return 'bg-purple-100 text-purple-800';
       case 'apigee': return 'bg-orange-100 text-orange-800';
       case 'aws': return 'bg-yellow-100 text-yellow-800';
@@ -260,7 +261,7 @@ const Gateways = () => {
                   {getStatusIcon(gateway.status)}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{gateway.name}</h3>
-                    <p className="text-sm text-gray-600">{gateway.connection_url}</p>
+                    <p className="text-sm text-gray-600">{gateway.base_url}</p>
                   </div>
                 </div>
 

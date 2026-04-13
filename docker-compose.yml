@@ -97,16 +97,14 @@ services:
       retries: 5
       start_period: 40s
 
-  # MCP Servers - Commented out until Phase 2 implementation
+  # MCP Servers - Thin wrapper architecture delegating to backend API
   mcp-discovery:
     build:
       context: ./mcp-servers
       dockerfile: Dockerfile
     container_name: aip-mcp-discovery
     environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
+      - BACKEND_URL=http://backend:8000
       - MCP_SERVER_NAME=discovery
     env_file:
       - .env
@@ -117,8 +115,7 @@ services:
     networks:
       - aip-network
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
       interval: 30s
@@ -132,9 +129,7 @@ services:
       dockerfile: Dockerfile
     container_name: aip-mcp-metrics
     environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
+      - BACKEND_URL=http://backend:8000
       - MCP_SERVER_NAME=metrics
     env_file:
       - .env
@@ -145,8 +140,7 @@ services:
     networks:
       - aip-network
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
       interval: 30s
@@ -160,9 +154,7 @@ services:
       dockerfile: Dockerfile
     container_name: aip-mcp-security
     environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
+      - BACKEND_URL=http://backend:8000
       - MCP_SERVER_NAME=security
     env_file:
       - .env
@@ -173,8 +165,7 @@ services:
     networks:
       - aip-network
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
       interval: 30s
@@ -188,9 +179,7 @@ services:
       dockerfile: Dockerfile
     container_name: aip-mcp-optimization
     environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
+      - BACKEND_URL=http://backend:8000
       - MCP_SERVER_NAME=optimization
     env_file:
       - .env
@@ -201,8 +190,7 @@ services:
     networks:
       - aip-network
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
       interval: 30s
@@ -216,9 +204,7 @@ services:
       dockerfile: Dockerfile
     container_name: aip-mcp-compliance
     environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
+      - BACKEND_URL=http://backend:8000
       - MCP_SERVER_NAME=compliance
     env_file:
       - .env
@@ -229,8 +215,7 @@ services:
     networks:
       - aip-network
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
       interval: 30s

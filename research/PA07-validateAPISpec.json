@@ -1,0 +1,43 @@
+{
+    "policyAction": {
+        "templateKey": "validateAPISpec",
+        "parameters": [
+            {
+                "templateKey": "schemaValidationFlag",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateQueryParams",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "validatePathParams",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateCookieParams",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateContentTypes",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "headersValidationFlag",
+                "values": [
+                    "false"
+                ]
+            }
+        ]
+    }
+}

@@ -148,11 +148,12 @@ async def root():
 
 
 # API v1 routes
-from app.api.v1 import gateways, apis, metrics, predictions, optimization, rate_limits, query, security, compliance
+from app.api.v1 import analytics, gateways, apis, metrics, predictions, optimization, rate_limits, query, security, compliance
 
 app.include_router(gateways.router, prefix="/api/v1", tags=["Gateways"])
 app.include_router(apis.router, prefix="/api/v1", tags=["APIs"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
+app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(predictions.router, prefix="/api/v1", tags=["Predictions"])
 app.include_router(optimization.router, prefix="/api/v1", tags=["Optimization"])
 app.include_router(rate_limits.router, prefix="/api/v1", tags=["Rate Limiting"])

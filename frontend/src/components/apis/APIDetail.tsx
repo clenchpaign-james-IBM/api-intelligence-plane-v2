@@ -1,5 +1,8 @@
-import { Clock, Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, Activity, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
 import Card from '../common/Card';
+import PolicyActionsViewer from './PolicyActionsViewer';
+import APIDefinitionViewer from './APIDefinitionViewer';
 import type { API } from '../../types';
 
 /**
@@ -8,7 +11,7 @@ import type { API } from '../../types';
  * Displays detailed information about a specific API including:
  * - Basic information and metadata
  * - Endpoints and methods
- * - Current metrics and health status
+ * - Intelligence metadata and health status
  * - Authentication configuration
  */
 
@@ -18,6 +21,8 @@ interface APIDetailProps {
 }
 
 const APIDetail = ({ api, onClose }: APIDetailProps) => {
+  const [showVendorMetadata, setShowVendorMetadata] = useState(false);
+
   // Get health score color
   const getHealthColor = (score: number) => {
     if (score >= 80) return 'text-green-600 bg-green-100';
@@ -75,13 +80,17 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
 
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${getHealthColor(api.health_score)}`}>
-              {api.health_score.toFixed(0)}
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${getHealthColor(api.intelligence_metadata?.health_score ?? 0)}`}>
+              {(api.intelligence_metadata?.health_score ?? 0).toFixed(0)}
             </div>
             <div>
               <p className="text-sm text-gray-600">Health Score</p>
               <p className="text-lg font-semibold text-gray-900">
-                {api.health_score >= 80 ? 'Excellent' : api.health_score >= 50 ? 'Good' : 'Poor'}
+                {(api.intelligence_metadata?.health_score ?? 0) >= 80
+                  ? 'Excellent'
+                  : (api.intelligence_metadata?.health_score ?? 0) >= 50
+                    ? 'Good'
+                    : 'Poor'}
               </p>
             </div>
           </div>
@@ -93,7 +102,7 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
             <div>
               <p className="text-sm text-gray-600">Discovery Method</p>
               <p className="text-lg font-semibold text-gray-900 capitalize">
-                {api.discovery_method.replace('_', ' ')}
+                {(api.intelligence_metadata?.discovery_method || 'registered').replace('_', ' ')}
               </p>
             </div>
           </div>
@@ -101,7 +110,7 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
       </div>
 
       {/* Shadow API Warning */}
-      {api.is_shadow && (
+      {api.intelligence_metadata?.is_shadow && (
         <div className="p-4 bg-orange-50 border-l-4 border-orange-500 rounded">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -113,48 +122,33 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
         </div>
       )}
 
-      {/* Current Metrics */}
-      <Card title="Current Metrics" subtitle="Latest performance measurements">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Intelligence Metadata */}
+      <Card title="Intelligence Metadata" subtitle="AI-derived discovery and risk insights">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-sm text-gray-600">Response Time (P50)</p>
+            <p className="text-sm text-gray-600">Risk Score</p>
             <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p50.toFixed(1)}ms
+              {(api.intelligence_metadata?.risk_score ?? 0).toFixed(0)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Response Time (P95)</p>
+            <p className="text-sm text-gray-600">Security Score</p>
             <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p95.toFixed(1)}ms
+              {(api.intelligence_metadata?.security_score ?? 0).toFixed(0)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Response Time (P99)</p>
+            <p className="text-sm text-gray-600">Shadow API</p>
             <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.response_time_p99.toFixed(1)}ms
+              {api.intelligence_metadata?.is_shadow ? 'Yes' : 'No'}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Error Rate</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {(api.current_metrics.error_rate * 100).toFixed(2)}%
+            <p className="text-sm text-gray-600">Usage Trend</p>
+            <p className="text-sm font-semibold text-gray-900 capitalize">
+              {api.intelligence_metadata?.usage_trend?.replace('_', ' ') || 'Not available'}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Throughput</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.throughput.toFixed(1)} req/s
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Availability</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {api.current_metrics.availability.toFixed(2)}%
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 text-xs text-gray-500">
-          Last measured: {new Date(api.current_metrics.measured_at).toLocaleString()}
         </div>
       </Card>
 
@@ -213,6 +207,42 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
         </div>
       </Card>
 
+      {/* Policy Actions */}
+      <PolicyActionsViewer policyActions={api.policy_actions} />
+
+      {/* API Definition */}
+      {api.api_definition && (
+        <APIDefinitionViewer apiDefinition={api.api_definition} />
+      )}
+
+      {/* Vendor Metadata (Collapsible) */}
+      {api.vendor_metadata && Object.keys(api.vendor_metadata).length > 0 && (
+        <Card title="Vendor Metadata" subtitle="Gateway-specific configuration and data">
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowVendorMetadata(!showVendorMetadata)}
+              className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+            >
+              <span className="font-medium text-gray-900">
+                {Object.keys(api.vendor_metadata).length} vendor-specific fields
+              </span>
+              {showVendorMetadata ? (
+                <ChevronDown className="w-5 h-5 text-gray-600" />
+              ) : (
+                <ChevronRight className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+            {showVendorMetadata && (
+              <div className="p-4 bg-white">
+                <pre className="text-sm text-gray-800 overflow-x-auto">
+                  <code>{JSON.stringify(api.vendor_metadata, null, 2)}</code>
+                </pre>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Tags */}
       {api.tags && api.tags.length > 0 && (
         <Card title="Tags" subtitle="API categorization">
@@ -242,11 +272,15 @@ const APIDetail = ({ api, onClose }: APIDetailProps) => {
           </div>
           <div>
             <p className="text-gray-600">Discovered At</p>
-            <p className="text-gray-900">{new Date(api.discovered_at).toLocaleString()}</p>
+            <p className="text-gray-900">
+              {new Date(api.intelligence_metadata.discovered_at).toLocaleString()}
+            </p>
           </div>
           <div>
             <p className="text-gray-600">Last Seen At</p>
-            <p className="text-gray-900">{new Date(api.last_seen_at).toLocaleString()}</p>
+            <p className="text-gray-900">
+              {new Date(api.intelligence_metadata.last_seen_at).toLocaleString()}
+            </p>
           </div>
           <div>
             <p className="text-gray-600">Created At</p>

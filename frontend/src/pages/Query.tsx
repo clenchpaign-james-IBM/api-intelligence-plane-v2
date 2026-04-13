@@ -5,12 +5,11 @@
  * Provides a chat-like interface for asking questions about APIs.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { QueryHistory } from '../components/query/QueryHistory';
 import { QueryInput } from '../components/query/QueryInput';
 import { useQuerySession } from '../hooks/useQuerySession';
 import Loading from '../components/common/Loading';
-import Error from '../components/common/Error';
 
 export const Query: React.FC = () => {
   const {
@@ -30,7 +29,7 @@ export const Query: React.FC = () => {
     console.log('[Query Page] Mount effect - sessionId:', sessionId, 'queries.length:', queries.length);
     if (sessionId && queries.length === 0) {
       // Only load if we don't have queries yet
-      loadSessionHistory().catch((err) => {
+      loadSessionHistory().catch(() => {
         // Ignore errors on initial load (session might not exist yet)
         console.log('[Query Page] No existing session history');
       });

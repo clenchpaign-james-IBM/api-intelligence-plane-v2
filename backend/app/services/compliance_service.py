@@ -14,7 +14,7 @@ from app.config import Settings
 from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.compliance_repository import ComplianceRepository
 from app.db.repositories.gateway_repository import GatewayRepository
-from app.models.api import API
+from app.models.base.api import API, PolicyActionType
 from app.models.compliance import (
     ComplianceViolation,
     ComplianceStandard,
@@ -489,5 +489,90 @@ Recommend addressing violations needing audit attention within 30 days.
         # Default: 90 days from now
         next_audit = datetime.utcnow() + timedelta(days=90)
         return next_audit.isoformat()
+
+    def check_compliance_policies(self, api: API) -> List[Dict[str, Any]]:
+        """Check API policy_actions for compliance violations.
+
+        Analyzes the vendor-neutral policy_actions array to identify:
+        - Missing data masking policies (GDPR, HIPAA compliance)
+        - Missing logging policies (audit trail requirements)
+        - Missing authentication/authorization (access control)
+        - Missing encryption policies (data protection)
+
+        Args:
+            api: API object with policy_actions array
+
+        Returns:
+            List of compliance issues found
+        """
+        issues = []
+        
+        # Extract policy action types from the API
+        policy_types = set()
+        if api.policy_actions:
+            for action in api.policy_actions:
+                policy_types.add(action.action_type)
+        
+        # Check for data masking (GDPR, HIPAA)
+        if PolicyActionType.DATA_MASKING not in policy_types:
+            issues.append({
+                "type": "missing_data_masking",
+                "severity": "high",
+                "message": "API lacks data masking policy (GDPR/HIPAA requirement)",
+                "standards": ["GDPR", "HIPAA"],
+                "recommendation": "Add DATA_MASKING policy action to protect sensitive data"
+            })
+        
+        # Check for logging (audit trail)
+        if PolicyActionType.LOGGING not in policy_types:
+            issues.append({
+                "type": "missing_logging",
+                "severity": "medium",
+                "message": "API lacks logging policy (audit trail requirement)",
+                "standards": ["SOC2", "PCI_DSS"],
+                "recommendation": "Add LOGGING policy action for audit compliance"
+            })
+        
+        # Check for authentication
+        if PolicyActionType.AUTHENTICATION not in policy_types:
+            issues.append({
+                "type": "missing_authentication",
+                "severity": "critical",
+                "message": "API lacks authentication policy (access control requirement)",
+                "standards": ["SOC2", "ISO27001", "PCI_DSS"],
+                "recommendation": "Add AUTHENTICATION policy action to secure API access"
+            })
+        
+        # Check for authorization
+        if PolicyActionType.AUTHORIZATION not in policy_types:
+            issues.append({
+                "type": "missing_authorization",
+                "severity": "high",
+                "message": "API lacks authorization policy (access control requirement)",
+                "standards": ["SOC2", "ISO27001"],
+                "recommendation": "Add AUTHORIZATION policy action for role-based access control"
+            })
+        
+        # Check for TLS/encryption
+        if PolicyActionType.TLS not in policy_types:
+            issues.append({
+                "type": "missing_tls",
+                "severity": "critical",
+                "message": "API lacks TLS policy (data protection requirement)",
+                "standards": ["PCI_DSS", "HIPAA", "GDPR"],
+                "recommendation": "Add TLS policy action to encrypt data in transit"
+            })
+        
+        # Check for validation (input sanitization)
+        if PolicyActionType.VALIDATION not in policy_types:
+            issues.append({
+                "type": "missing_validation",
+                "severity": "medium",
+                "message": "API lacks validation policy (security requirement)",
+                "standards": ["OWASP", "PCI_DSS"],
+                "recommendation": "Add VALIDATION policy action to prevent injection attacks"
+            })
+        
+        return issues
 
 # Made with Bob

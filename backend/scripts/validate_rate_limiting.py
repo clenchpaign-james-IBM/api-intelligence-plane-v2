@@ -28,8 +28,8 @@ from app.models.rate_limit import (
     LimitThresholds,
     AdaptationParameters,
 )
-from app.models.metric import Metric
-from app.models.api import (
+from app.models.base.metric import Metric
+from app.models.base.api import (
     API,
     APIStatus,
     AuthenticationType,

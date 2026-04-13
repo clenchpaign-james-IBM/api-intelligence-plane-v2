@@ -24,7 +24,7 @@ from app.models.recommendation import (
     ActualImpact,
     ValidationResults,
 )
-from app.models.metric import Metric
+from app.models.base.metric import Metric, TimeBucket
 
 logger = logging.getLogger(__name__)
 
@@ -123,14 +123,16 @@ class OptimizationService:
             logger.warning(f"API {api_id} not found")
             return []
 
-        # Get historical metrics for analysis
+        # Get historical metrics for analysis using 1-hour buckets
+        # Use 1-hour buckets for 24-hour optimization analysis
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=self.ANALYSIS_WINDOW_HOURS)
         
-        metrics, _ = self.metrics_repo.find_by_api(
+        metrics, _ = self.metrics_repo.find_by_api_with_bucket(
             api_id=api_id,
             start_time=start_time,
             end_time=end_time,
+            time_bucket=TimeBucket.ONE_HOUR,  # Use 1-hour buckets for optimization analysis
         )
 
         if len(metrics) < 10:  # Need sufficient data points
@@ -207,6 +209,7 @@ class OptimizationService:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=self.ANALYSIS_WINDOW_HOURS)
         
+        # TODO: Add time_bucket=TimeBucket.ONE_HOUR parameter in Phase 0.6 (Repository Layer Updates)
         metrics, _ = self.metrics_repo.find_by_api(
             api_id=api_id,
             start_time=start_time,
@@ -421,6 +424,10 @@ class OptimizationService:
                 "Configure cache invalidation rules",
                 "Monitor cache hit rates and adjust policy as needed",
             ],
+            implemented_at=None,
+            validation_results=None,
+            cost_savings=None,
+            metadata=None,
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 
@@ -471,6 +478,10 @@ class OptimizationService:
                 "Add compression headers to responses",
                 "Monitor compression ratios and performance",
             ],
+            implemented_at=None,
+            validation_results=None,
+            cost_savings=None,
+            metadata=None,
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 
@@ -544,6 +555,10 @@ class OptimizationService:
                 "Implement consumer tier-based limits if needed",
                 "Monitor effectiveness and adjust thresholds",
             ],
+            implemented_at=None,
+            validation_results=None,
+            cost_savings=None,
+            metadata=None,
             expires_at=datetime.utcnow() + timedelta(days=30),
         )
 

@@ -1,0 +1,51 @@
+{
+    "policyAction": {
+        "id": "39f5cc33-489e-4e8b-9d20-e1332b60e153",
+        "names": [
+            {
+                "value": "Validate API Specification",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "validateAPISpec",
+        "parameters": [
+            {
+                "templateKey": "schemaValidationFlag",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateQueryParams",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "validatePathParams",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateCookieParams",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "validateContentTypes",
+                "values": [
+                    "false"
+                ]
+            },
+            {
+                "templateKey": "headersValidationFlag",
+                "values": [
+                    "false"
+                ]
+            }
+        ],
+        "active": false
+    }
+}

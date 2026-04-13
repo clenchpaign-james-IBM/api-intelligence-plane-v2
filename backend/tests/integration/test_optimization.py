@@ -19,8 +19,8 @@ from app.db.repositories.recommendation_repository import RecommendationReposito
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
 from app.services.optimization_service import OptimizationService
-from app.models.metric import Metric
-from app.models.api import (
+from app.models.base.metric import Metric
+from app.models.base.api import (
     API,
     APIStatus,
     AuthenticationType,

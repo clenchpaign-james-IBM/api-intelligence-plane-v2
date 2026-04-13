@@ -24,7 +24,7 @@ from app.models.rate_limit import (
     PriorityRule,
     ConsumerTier,
 )
-from app.models.metric import Metric
+from app.models.base.metric import Metric, TimeBucket
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,10 @@ class RateLimitService:
             burst_allowance=burst_allowance,
             adaptation_parameters=adaptation_parameters,
             consumer_tiers=consumer_tiers,
+            applied_at=None,
+            last_adjusted_at=None,
+            effectiveness_score=None,
+            metadata=None,
         )
 
         return self.rate_limit_repo.create_policy(policy)
@@ -298,7 +302,7 @@ class RateLimitService:
             except Exception as e:
                 logger.warning(f"Failed to disconnect from Gateway: {e}")
 
-    def get_active_policy(self, api_id: UUID) -> Optional[RateLimitPolicy]:
+    async def get_active_policy(self, api_id: UUID) -> Optional[RateLimitPolicy]:
         """
         Get the active rate limit policy for an API.
 
@@ -308,7 +312,7 @@ class RateLimitService:
         Returns:
             Active policy if found, None otherwise
         """
-        return self.rate_limit_repo.get_active_policy(api_id)
+        return await self.rate_limit_repo.get_active_policy(api_id)
 
     def list_policies(
         self,
@@ -357,6 +361,8 @@ class RateLimitService:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=self.ANALYSIS_WINDOW_HOURS)
 
+        # TODO: Add time_bucket=TimeBucket.FIVE_MINUTE parameter in Phase 0.6 (Repository Layer Updates)
+        # Will use 5-minute buckets for rate limit analysis
         metrics, _ = self.metrics_repo.find_by_api(
             api_id=api_id,
             start_time=start_time,
@@ -491,6 +497,7 @@ class RateLimitService:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(seconds=lookback_seconds)
 
+        # TODO: Add time_bucket=TimeBucket.FIVE_MINUTE parameter in Phase 0.6 (Repository Layer Updates)
         metrics, _ = self.metrics_repo.find_by_api(
             api_id=policy.api_id,
             start_time=start_time,
@@ -583,6 +590,7 @@ class RateLimitService:
 
         end_time = datetime.utcnow()
 
+        # TODO: Add time_bucket=TimeBucket.FIVE_MINUTE parameter in Phase 0.6 (Repository Layer Updates)
         metrics, _ = self.metrics_repo.find_by_api(
             api_id=policy.api_id,
             start_time=start_time,
@@ -599,7 +607,8 @@ class RateLimitService:
 
         # Calculate effectiveness metrics
         total_requests = sum(m.request_count for m in metrics if m.request_count)
-        total_errors = sum(m.error_count for m in metrics if m.error_count)
+        # Calculate total errors from error_rate * request_count (error_count doesn't exist in Metric model)
+        total_errors = sum(int(m.error_rate * m.request_count) for m in metrics if m.error_rate is not None and m.request_count)
         avg_error_rate = statistics.mean([m.error_rate for m in metrics if m.error_rate is not None])
         avg_response_time = statistics.mean([m.response_time_p95 for m in metrics if m.response_time_p95])
 

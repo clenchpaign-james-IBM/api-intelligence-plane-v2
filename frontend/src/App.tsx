@@ -11,6 +11,7 @@ import Optimization from './pages/Optimization';
 import { Query } from './pages/Query';
 import { Security } from './pages/Security';
 import { Compliance } from './pages/Compliance';
+import Analytics from './pages/Analytics';
 
 // Placeholder components for routes (will be implemented in user stories)
 const Metrics = () => <div className="p-6"><h1 className="text-2xl font-bold">Metrics</h1></div>;
@@ -98,6 +99,12 @@ function App() {
                       Compliance
                     </Link>
                     <Link
+                      to="/analytics"
+                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                    >
+                      Analytics
+                    </Link>
+                    <Link
                       to="/query"
                       className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                     >
@@ -121,6 +128,7 @@ function App() {
               <Route path="/optimization" element={<Optimization />} />
               <Route path="/security" element={<Security />} />
               <Route path="/compliance" element={<Compliance />} />
+              <Route path="/analytics" element={<Analytics />} />
               <Route path="/query" element={<Query />} />
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />

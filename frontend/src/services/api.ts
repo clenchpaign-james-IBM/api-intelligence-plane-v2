@@ -150,6 +150,8 @@ export const api = {
     list: (params?: any) => api.get('/api/v1/apis', params),
     get: (id: string) => api.get(`/api/v1/apis/${id}`),
     search: (query: string) => api.get('/api/v1/apis/search', { query }),
+    // Get security policies for an API (derived from policy_actions)
+    getSecurityPolicies: (id: string) => api.get(`/api/v1/apis/${id}/security-policies`),
   },
 
   // Metrics endpoints

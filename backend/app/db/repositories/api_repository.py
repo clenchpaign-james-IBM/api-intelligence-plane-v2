@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from app.db.repositories.base import BaseRepository
-from app.models.api import API, APIStatus, DiscoveryMethod
+from app.models.base.api import API, APIStatus, DiscoveryMethod, PolicyAction, PolicyActionType
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "term": {
-                "is_shadow": True
+                "intelligence_metadata.is_shadow": True
             }
         }
         return self.search(query, size=size, from_=from_)
@@ -110,7 +110,7 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "term": {
-                "discovery_method": method.value
+                "intelligence_metadata.discovery_method": method.value
             }
         }
         return self.search(query, size=size, from_=from_)
@@ -185,12 +185,12 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "range": {
-                "health_score": {
+                "intelligence_metadata.health_score": {
                     "lt": health_threshold
                 }
             }
         }
-        sort = [{"health_score": {"order": "asc"}}]
+        sort = [{"intelligence_metadata.health_score": {"order": "asc"}}]
         return self.search(query, size=size, from_=from_, sort=sort)
     
     def find_by_base_path(
@@ -270,7 +270,7 @@ class APIRepository(BaseRepository[API]):
         # Shadow API filter
         if "is_shadow" in filters:
             must_clauses.append({
-                "term": {"is_shadow": filters["is_shadow"]}
+                "term": {"intelligence_metadata.is_shadow": filters["is_shadow"]}
             })
         
         # Health score range
@@ -281,7 +281,7 @@ class APIRepository(BaseRepository[API]):
             if "max_health_score" in filters:
                 range_query["lte"] = filters["max_health_score"]
             must_clauses.append({
-                "range": {"health_score": range_query}
+                "range": {"intelligence_metadata.health_score": range_query}
             })
         
         # Tags filter
@@ -330,20 +330,20 @@ class APIRepository(BaseRepository[API]):
             aggs = {
                 "total_apis": {"value_count": {"field": "id"}},
                 "shadow_apis": {
-                    "filter": {"term": {"is_shadow": True}}
+                    "filter": {"term": {"intelligence_metadata.is_shadow": True}}
                 },
                 "by_status": {
                     "terms": {"field": "status"}
                 },
                 "by_discovery_method": {
-                    "terms": {"field": "discovery_method"}
+                    "terms": {"field": "intelligence_metadata.discovery_method"}
                 },
                 "avg_health_score": {
-                    "avg": {"field": "health_score"}
+                    "avg": {"field": "intelligence_metadata.health_score"}
                 },
                 "health_distribution": {
                     "histogram": {
-                        "field": "health_score",
+                        "field": "intelligence_metadata.health_score",
                         "interval": 10
                     }
                 }
@@ -387,3 +387,104 @@ class APIRepository(BaseRepository[API]):
 
 
 # Made with Bob
+    
+    def derive_security_policies(self, api: API) -> List[PolicyAction]:
+        """
+        Derive security-related policy actions from an API's policy_actions array.
+        
+        Filters policy_actions for security-related types:
+        - AUTHENTICATION
+        - AUTHORIZATION
+        - TLS
+        - CORS
+        - VALIDATION
+        - DATA_MASKING
+        
+        Args:
+            api: API entity to analyze
+            
+        Returns:
+            List of security-related PolicyAction objects
+        """
+        # Define security-related policy types
+        security_types = {
+            PolicyActionType.AUTHENTICATION,
+            PolicyActionType.AUTHORIZATION,
+            PolicyActionType.TLS,
+            PolicyActionType.CORS,
+            PolicyActionType.VALIDATION,
+            PolicyActionType.DATA_MASKING,
+        }
+        
+        # Handle case where policy_actions might be None
+        if not api.policy_actions:
+            logger.info(f"API {api.id} has no policy actions")
+            return []
+        
+        # Filter policy actions for security types
+        security_policies = [
+            policy_action
+            for policy_action in api.policy_actions
+            if policy_action.action_type in security_types
+        ]
+        
+        logger.info(
+            f"Derived {len(security_policies)} security policies from API {api.id} "
+            f"(total policies: {len(api.policy_actions)})"
+        )
+        
+        return security_policies
+    
+    def find_apis_with_security_issues(
+        self,
+        size: int = 100,
+        from_: int = 0,
+    ) -> tuple[List[API], int]:
+        """
+        Find APIs with potential security issues (low security score).
+        
+        Args:
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of APIs with security issues, total count)
+        """
+        query = {
+            "range": {
+                "intelligence_metadata.security_score": {
+                    "lt": 70.0
+                }
+            }
+        }
+        sort = [{"intelligence_metadata.security_score": {"order": "asc"}}]
+        return self.search(query, size=size, from_=from_, sort=sort)
+    
+    def find_apis_by_policy_type(
+        self,
+        policy_type: str,
+        size: int = 100,
+        from_: int = 0,
+    ) -> tuple[List[API], int]:
+        """
+        Find APIs that have a specific policy action type applied.
+        
+        Args:
+            policy_type: PolicyActionType value to search for
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of APIs, total count)
+        """
+        query = {
+            "nested": {
+                "path": "policy_actions",
+                "query": {
+                    "term": {
+                        "policy_actions.action_type": policy_type
+                    }
+                }
+            }
+        }
+        return self.search(query, size=size, from_=from_)

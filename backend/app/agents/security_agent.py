@@ -1,14 +1,14 @@
 """Security Agent for API Intelligence Plane.
 
 AI-driven security analysis and automated remediation using LangChain/LangGraph.
-This agent intelligently analyzes API security policy coverage and recommends
+This agent analyzes vendor-neutral API security policy coverage and recommends
 appropriate gateway-level protections.
 
 The agent uses a HYBRID approach:
 - Rule-based checks for deterministic security factors
 - AI enhancement for context-aware severity assessment and insights
 - Combined API metadata, metrics, and traffic analysis for comprehensive assessment
-- Compliance detection across GDPR, HIPAA, SOC2, PCI-DSS
+- Vendor-neutral policy action analysis across supported gateway adapters
 """
 
 import logging
@@ -25,8 +25,8 @@ except ImportError:
     StateGraph = None
     END = None
 
-from app.models.api import API, AuthenticationType
-from app.models.metric import Metric
+from app.models.base.api import API, AuthenticationType, PolicyActionType
+from app.models.base.metric import Metric
 from app.models.vulnerability import (
     Vulnerability,
     VulnerabilityType,
@@ -44,13 +44,12 @@ logger = logging.getLogger(__name__)
 
 class SecurityAnalysisState(TypedDict):
     """State for security analysis workflow."""
-    
+
     api_id: str
     api_name: str
     api_data: Dict[str, Any]
     metrics_data: Dict[str, Any]
     vulnerabilities: List[Dict[str, Any]]
-    compliance_issues: List[Dict[str, Any]]
     remediation_plan: Dict[str, Any]
     analysis_complete: bool
     error: str
@@ -63,8 +62,8 @@ class SecurityAgent:
     1. Rule-based checks for deterministic security factors
     2. AI enhancement for context-aware analysis where beneficial
     3. Metrics and traffic analysis for data-driven insights
-    4. Compliance detection across GDPR, HIPAA, SOC2, PCI-DSS
-    5. Generate automated remediation actions for Gateway policies
+    4. Generate automated remediation actions for gateway policies
+    5. Remain vendor-neutral by analyzing normalized `policy_actions`
     """
 
     def __init__(
@@ -104,7 +103,6 @@ class SecurityAgent:
             workflow.add_node("analyze_cors_policy", self._analyze_cors_policy_node)
             workflow.add_node("analyze_validation", self._analyze_validation_node)
             workflow.add_node("analyze_security_headers", self._analyze_security_headers_node)
-            workflow.add_node("analyze_compliance", self._analyze_compliance_node)
             workflow.add_node("generate_remediation_plan", self._generate_remediation_plan_node)
 
             # Define workflow edges
@@ -115,8 +113,7 @@ class SecurityAgent:
             workflow.add_edge("analyze_tls_config", "analyze_cors_policy")
             workflow.add_edge("analyze_cors_policy", "analyze_validation")
             workflow.add_edge("analyze_validation", "analyze_security_headers")
-            workflow.add_edge("analyze_security_headers", "analyze_compliance")
-            workflow.add_edge("analyze_compliance", "generate_remediation_plan")
+            workflow.add_edge("analyze_security_headers", "generate_remediation_plan")
             workflow.add_edge("generate_remediation_plan", END if END else "__end__")
 
             return workflow.compile()
@@ -148,7 +145,6 @@ class SecurityAgent:
                     "api_data": api.dict(),
                     "metrics_data": traffic_analysis,
                     "vulnerabilities": [],
-                    "compliance_issues": [],
                     "remediation_plan": {},
                     "analysis_complete": False,
                     "error": "",
@@ -160,7 +156,6 @@ class SecurityAgent:
                     "api_id": final_state["api_id"],
                     "api_name": final_state["api_name"],
                     "vulnerabilities": final_state["vulnerabilities"],
-                    "compliance_issues": final_state["compliance_issues"],
                     "remediation_plan": final_state["remediation_plan"],
                     "metrics_analyzed": len(recent_metrics),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
@@ -176,7 +171,6 @@ class SecurityAgent:
                 "api_name": api.name,
                 "error": str(e),
                 "vulnerabilities": [],
-                "compliance_issues": [],
             }
 
     async def _analyze_direct(
@@ -194,17 +188,13 @@ class SecurityAgent:
         vulnerabilities.extend(await self._check_validation(api, metrics, traffic_analysis))
         vulnerabilities.extend(await self._check_security_headers(api, metrics, traffic_analysis))
         
-        # Check compliance
-        compliance_issues = await self._check_compliance(api, vulnerabilities, traffic_analysis)
-        
         # Generate remediation plan
         remediation_plan = await self._create_remediation_plan(api, vulnerabilities)
-        
+
         return {
             "api_id": str(api.id),
             "api_name": api.name,
             "vulnerabilities": [v.dict() for v in vulnerabilities],
-            "compliance_issues": compliance_issues,
             "remediation_plan": remediation_plan,
             "metrics_analyzed": len(metrics),
             "analysis_timestamp": datetime.utcnow().isoformat(),
@@ -258,14 +248,6 @@ class SecurityAgent:
         api = API(**state["api_data"])
         vulns = await self._check_security_headers(api, [], state["metrics_data"])
         state["vulnerabilities"].extend([v.dict() for v in vulns])
-        return state
-
-    async def _analyze_compliance_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
-        """Analyze compliance requirements."""
-        api = API(**state["api_data"])
-        vulns = [Vulnerability(**v) for v in state["vulnerabilities"]]
-        compliance_issues = await self._check_compliance(api, vulns, state["metrics_data"])
-        state["compliance_issues"] = compliance_issues
         return state
 
     async def _generate_remediation_plan_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
@@ -339,14 +321,15 @@ class SecurityAgent:
         """
         if not metrics:
             return {
+                "has_traffic": False,
                 "total_requests": 0,
-                "avg_error_rate": 0,
+                "avg_error_rate": 0.0,
                 "suspicious_patterns": [],
             }
-        
+
         total_requests = sum(m.request_count for m in metrics)
-        total_errors = sum(m.error_count for m in metrics)
-        avg_error_rate = total_errors / total_requests if total_requests > 0 else 0
+        total_errors = sum(m.failure_count for m in metrics)
+        avg_error_rate = (total_errors / total_requests) * 100 if total_requests > 0 else 0.0
         
         # Detect suspicious patterns
         suspicious_patterns = []
@@ -375,6 +358,7 @@ class SecurityAgent:
             suspicious_patterns.append("high_server_error_rate")
         
         return {
+            "has_traffic": total_requests > 0,
             "total_requests": total_requests,
             "avg_error_rate": avg_error_rate,
             "auth_errors": auth_errors,
@@ -403,7 +387,7 @@ class SecurityAgent:
                     "api_name": api.name,
                     "base_path": api.base_path,
                     "endpoints": [e.path for e in api.endpoints],
-                    "is_shadow": api.is_shadow,
+                    "is_shadow": api.intelligence_metadata.is_shadow,
                     "traffic_analysis": traffic_analysis,
                 },
             )
@@ -412,6 +396,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.AUTHENTICATION,
+                cve_id=None,
                 severity=severity,
                 title=f"Missing Authentication Policy for {api.name}",
                 description=f"API {api.name} at {api.base_path} accepts requests without authentication. "
@@ -421,6 +406,13 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.AUTOMATED,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"policy_action_type": PolicyActionType.AUTHENTICATION.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -432,6 +424,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.AUTHENTICATION,
+                cve_id=None,
                 severity=VulnerabilitySeverity.MEDIUM,
                 title=f"Weak Authentication Mechanism for {api.name}",
                 description=f"API {api.name} uses Basic authentication which is less secure. "
@@ -441,6 +434,13 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.CONFIGURATION,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"authentication_type": api.authentication_type.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -453,12 +453,11 @@ class SecurityAgent:
         metrics: Optional[List[Metric]],
         traffic_analysis: Dict[str, Any]
     ) -> List[Vulnerability]:
-        """Check authorization policy coverage - check if policies exist first."""
+        """Check authorization policy coverage using policy_actions."""
         vulnerabilities = []
 
-        # First check if authorization policies exist at gateway level
-        # This would query the gateway adapter in real implementation
-        has_authorization_policy = False  # Placeholder - would check gateway
+        # Check if authorization policy exists in policy_actions
+        has_authorization_policy = self._has_policy_action(api, PolicyActionType.AUTHORIZATION)
         
         if not has_authorization_policy:
             # Use AI to analyze if authorization is needed based on API characteristics
@@ -468,22 +467,30 @@ class SecurityAgent:
 
             if needs_authorization:
                 vulnerability = Vulnerability(
-                id=uuid4(),
-                api_id=api.id,
-                vulnerability_type=VulnerabilityType.AUTHORIZATION,
-                severity=VulnerabilitySeverity.HIGH,
-                title=f"Missing Authorization Policy for {api.name}",
-                description=f"API {api.name} lacks role-based or scope-based authorization controls. "
-                f"Authenticated users may access resources beyond their permissions.",
-                affected_endpoints=[e.path for e in api.endpoints],
-                detection_method=DetectionMethod.AUTOMATED_SCAN,
-                detected_at=datetime.utcnow(),
-                status=VulnerabilityStatus.OPEN,
-                remediation_type=RemediationType.AUTOMATED,
-            )
+                    id=uuid4(),
+                    api_id=api.id,
+                    vulnerability_type=VulnerabilityType.AUTHORIZATION,
+                    cve_id=None,
+                    severity=VulnerabilitySeverity.HIGH,
+                    title=f"Missing Authorization Policy for {api.name}",
+                    description=f"API {api.name} lacks role-based or scope-based authorization controls. "
+                    f"Authenticated users may access resources beyond their permissions.",
+                    affected_endpoints=[e.path for e in api.endpoints],
+                    detection_method=DetectionMethod.AUTOMATED_SCAN,
+                    detected_at=datetime.utcnow(),
+                    status=VulnerabilityStatus.OPEN,
+                    remediation_type=RemediationType.AUTOMATED,
+                    remediation_actions=None,
+                    remediated_at=None,
+                    verification_status=None,
+                    cvss_score=None,
+                    references=None,
+                    compliance_violations=None,
+                    metadata={"policy_action_type": PolicyActionType.AUTHORIZATION.value},
+                )
 
-            vulnerabilities.append(vulnerability)
-            logger.info(f"Detected missing authorization for API: {api.name}")
+                vulnerabilities.append(vulnerability)
+                logger.info(f"Detected missing authorization for API: {api.name}")
 
         return vulnerabilities
 
@@ -493,12 +500,11 @@ class SecurityAgent:
         metrics: Optional[List[Metric]],
         traffic_analysis: Dict[str, Any]
     ) -> List[Vulnerability]:
-        """Check rate limiting policy coverage using traffic analysis."""
+        """Check rate limiting policy coverage using policy_actions and traffic analysis."""
         vulnerabilities = []
 
-        # Check if rate limiting is configured at gateway level
-        # This would query the gateway adapter in real implementation
-        has_rate_limit = False  # Would check gateway configuration
+        # Check if rate limiting policy exists in policy_actions
+        has_rate_limit = self._has_policy_action(api, PolicyActionType.RATE_LIMITING)
         
         # Analyze if rate limiting is needed based on traffic patterns
         needs_rate_limit = (
@@ -516,6 +522,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                cve_id=None,
                 severity=severity,
                 title=f"Missing Rate Limiting Policy for {api.name}",
                 description=f"API {api.name} has no rate limiting configured. "
@@ -527,6 +534,13 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.AUTOMATED,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"policy_action_type": PolicyActionType.RATE_LIMITING.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -548,6 +562,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                cve_id=None,
                 severity=VulnerabilitySeverity.HIGH,
                 title=f"Insecure HTTP Protocol for {api.name}",
                 description=f"API {api.name} accepts HTTP traffic without TLS encryption. "
@@ -557,6 +572,13 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.AUTOMATED,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"policy_action_type": PolicyActionType.TLS.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -581,6 +603,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                cve_id=None,
                 severity=VulnerabilitySeverity.MEDIUM,
                 title=f"Insecure CORS Policy for {api.name}",
                 description=f"API {api.name} has overly permissive CORS configuration. "
@@ -590,6 +613,13 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.CONFIGURATION,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"policy_action_type": PolicyActionType.CORS.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -602,11 +632,11 @@ class SecurityAgent:
         metrics: Optional[List[Metric]],
         traffic_analysis: Dict[str, Any]
     ) -> List[Vulnerability]:
-        """Check request/response validation policies using traffic analysis."""
+        """Check request/response validation policies using policy_actions and traffic analysis."""
         vulnerabilities = []
 
-        # Check for validation policies at gateway level
-        has_validation = False  # Would check gateway configuration
+        # Check for validation policy in policy_actions
+        has_validation = self._has_policy_action(api, PolicyActionType.VALIDATION)
         
         # Analyze if validation is needed based on error patterns
         needs_validation = (
@@ -622,17 +652,25 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                cve_id=None,
                 severity=VulnerabilitySeverity.MEDIUM,
                 title=f"Missing Input Validation Policy for {api.name}",
                 description=f"API {api.name} lacks input validation policies at gateway level. "
                 f"This may allow malformed or malicious requests. "
-                f"Traffic analysis shows {traffic_analysis.get('avg_error_rate', 0):.1%} error rate, "
+                f"Traffic analysis shows {traffic_analysis.get('avg_error_rate', 0):.1f}% error rate, "
                 f"suggesting validation issues.",
                 affected_endpoints=[e.path for e in api.endpoints],
                 detection_method=DetectionMethod.AUTOMATED_SCAN,
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.CONFIGURATION,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"policy_action_type": PolicyActionType.VALIDATION.value},
             )
 
             vulnerabilities.append(vulnerability)
@@ -656,6 +694,7 @@ class SecurityAgent:
                 id=uuid4(),
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                cve_id=None,
                 severity=VulnerabilitySeverity.LOW,
                 title=f"Missing Security Headers for {api.name}",
                 description=f"API {api.name} responses lack important security headers. "
@@ -666,123 +705,28 @@ class SecurityAgent:
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
                 remediation_type=RemediationType.AUTOMATED,
+                remediation_actions=None,
+                remediated_at=None,
+                verification_status=None,
+                cvss_score=None,
+                references=None,
+                compliance_violations=None,
+                metadata={"missing_headers": missing_headers},
             )
 
             vulnerabilities.append(vulnerability)
 
         return vulnerabilities
-    async def _check_compliance(
-        self,
-        api: API,
-        vulnerabilities: List[Vulnerability],
-        traffic_analysis: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Check compliance requirements (GDPR, HIPAA, SOC2, PCI-DSS)."""
-        compliance_issues = []
-        
-        # Analyze API characteristics for compliance requirements
-        api_context = {
-            "name": api.name,
-            "base_path": api.base_path,
-            "endpoints": [e.path for e in api.endpoints],
-            "authentication": api.authentication_type.value,
-            "has_tls": api.base_path.startswith("https://"),
-            "traffic_analysis": traffic_analysis,
-        }
-        
-        # Check GDPR compliance (data protection)
-        if await self._requires_gdpr_compliance(api_context):
-            gdpr_issues = []
-            
-            # Check for encryption
-            if not api_context["has_tls"]:
-                gdpr_issues.append("Data transmitted without encryption (GDPR Art. 32)")
-            
-            # Check for authentication
-            if api_context["authentication"] == "none":
-                gdpr_issues.append("No access controls for personal data (GDPR Art. 32)")
-            
-            if gdpr_issues:
-                compliance_issues.append({
-                    "standard": ComplianceStandard.GDPR.value,
-                    "issues": gdpr_issues,
-                    "severity": "high",
-                    "description": "GDPR data protection requirements not met",
-                })
-        
-        # Check HIPAA compliance (healthcare data)
-        if await self._requires_hipaa_compliance(api_context):
-            hipaa_issues = []
-            
-            if not api_context["has_tls"]:
-                hipaa_issues.append("PHI transmitted without encryption (HIPAA Security Rule)")
-            
-            if api_context["authentication"] == "none":
-                hipaa_issues.append("No access controls for PHI (HIPAA Security Rule)")
-            
-            # Check for audit logging
-            if not any(v.vulnerability_type == VulnerabilityType.CONFIGURATION for v in vulnerabilities):
-                hipaa_issues.append("Insufficient audit logging (HIPAA Security Rule)")
-            
-            if hipaa_issues:
-                compliance_issues.append({
-                    "standard": ComplianceStandard.HIPAA.value,
-                    "issues": hipaa_issues,
-                    "severity": "critical",
-                    "description": "HIPAA healthcare data protection requirements not met",
-                })
-        
-        # Check PCI-DSS compliance (payment data)
-        if await self._requires_pci_dss_compliance(api_context):
-            pci_issues = []
-            
-            if not api_context["has_tls"]:
-                pci_issues.append("Payment data transmitted without TLS 1.2+ (PCI-DSS Req. 4)")
-            
-            if api_context["authentication"] == "none":
-                pci_issues.append("No authentication for payment systems (PCI-DSS Req. 8)")
-            
-            # Check for rate limiting (DDoS protection)
-            has_rate_limit_vuln = any(
-                "rate limit" in v.title.lower()
-                for v in vulnerabilities
-            )
-            if has_rate_limit_vuln:
-                pci_issues.append("No DDoS protection (PCI-DSS Req. 6)")
-            
-            if pci_issues:
-                compliance_issues.append({
-                    "standard": ComplianceStandard.PCI_DSS.value,
-                    "issues": pci_issues,
-                    "severity": "critical",
-                    "description": "PCI-DSS payment card data protection requirements not met",
-                })
-        
-        # Check SOC2 compliance (security controls)
-        if await self._requires_soc2_compliance(api_context):
-            soc2_issues = []
-            
-            # Check security controls
-            if api_context["authentication"] == "none":
-                soc2_issues.append("Inadequate access controls (CC6.1)")
-            
-            if not api_context["has_tls"]:
-                soc2_issues.append("Data not encrypted in transit (CC6.7)")
-            
-            # Check for monitoring
-            if not traffic_analysis.get("has_traffic", False):
-                soc2_issues.append("Insufficient monitoring and logging (CC7.2)")
-            
-            if soc2_issues:
-                compliance_issues.append({
-                    "standard": ComplianceStandard.SOC2.value,
-                    "issues": soc2_issues,
-                    "severity": "high",
-                    "description": "SOC2 security and availability controls not met",
-                })
-        
-        return compliance_issues
 
+    def _has_policy_action(self, api: API, action_type: PolicyActionType) -> bool:
+        """Check whether a vendor-neutral policy action exists and is enabled."""
+        if not api.policy_actions:
+            return False
+
+        return any(
+            policy_action.action_type == action_type and policy_action.enabled
+            for policy_action in api.policy_actions
+        )
 
     # AI helper methods
     async def _determine_severity_with_ai(
@@ -918,7 +862,7 @@ API: {api.name}
 Base Path: {api.base_path}
 Endpoints: {', '.join([e.path for e in api.endpoints[:5]])}
 Authentication: {api.authentication_type.value}
-Uses HTTPS: {api.base_path.startswith('https://')}
+Uses TLS Protection: {self._has_policy_action(api, PolicyActionType.TLS)}
 Traffic: {traffic_analysis.get('total_requests', 0)} requests
 
 Common security headers:

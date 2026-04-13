@@ -26,13 +26,24 @@ class CreateGatewayRequest(BaseModel):
     name: str = Field(..., description="Gateway name")
     vendor: GatewayVendor = Field(..., description="Gateway vendor")
     version: Optional[str] = Field(None, description="Gateway version")
-    connection_url: str = Field(..., description="Gateway API endpoint URL")
+    base_url: str = Field(..., description="Gateway base URL for APIs, Policies, PolicyActions")
+    transactional_logs_url: Optional[str] = Field(None, description="Separate endpoint for transactional logs (optional)")
     connection_type: str = Field(default="rest_api", description="Connection method")
-    credential_type: str = Field(default="api_key", description="Credential type")
-    api_key: Optional[str] = Field(None, description="API key for authentication")
-    username: Optional[str] = Field(None, description="Username for authentication")
-    password: Optional[str] = Field(None, description="Password for authentication")
-    token: Optional[str] = Field(None, description="Bearer token for authentication")
+    
+    # Base URL credentials (optional)
+    base_url_credential_type: str = Field(default="none", description="Credential type for base_url")
+    base_url_username: Optional[str] = Field(None, description="Username for base_url authentication")
+    base_url_password: Optional[str] = Field(None, description="Password for base_url authentication")
+    base_url_api_key: Optional[str] = Field(None, description="API key for base_url authentication")
+    base_url_token: Optional[str] = Field(None, description="Bearer token for base_url authentication")
+    
+    # Transactional logs credentials (optional, separate from base_url)
+    transactional_logs_credential_type: Optional[str] = Field(None, description="Credential type for transactional_logs_url")
+    transactional_logs_username: Optional[str] = Field(None, description="Username for transactional logs authentication")
+    transactional_logs_password: Optional[str] = Field(None, description="Password for transactional logs authentication")
+    transactional_logs_api_key: Optional[str] = Field(None, description="API key for transactional logs authentication")
+    transactional_logs_token: Optional[str] = Field(None, description="Bearer token for transactional logs authentication")
+    
     capabilities: list[str] = Field(default_factory=list, description="Gateway capabilities")
     configuration: Optional[dict] = Field(None, description="Vendor-specific configuration")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
@@ -43,12 +54,24 @@ class UpdateGatewayRequest(BaseModel):
     
     name: Optional[str] = Field(None, description="Gateway name")
     version: Optional[str] = Field(None, description="Gateway version")
-    connection_url: Optional[str] = Field(None, description="Gateway API endpoint URL")
+    base_url: Optional[str] = Field(None, description="Gateway base URL")
+    transactional_logs_url: Optional[str] = Field(None, description="Transactional logs endpoint URL")
     connection_type: Optional[str] = Field(None, description="Connection method")
-    api_key: Optional[str] = Field(None, description="API key for authentication")
-    username: Optional[str] = Field(None, description="Username for authentication")
-    password: Optional[str] = Field(None, description="Password for authentication")
-    token: Optional[str] = Field(None, description="Bearer token for authentication")
+    
+    # Base URL credentials
+    base_url_credential_type: Optional[str] = Field(None, description="Credential type for base_url")
+    base_url_username: Optional[str] = Field(None, description="Username for base_url")
+    base_url_password: Optional[str] = Field(None, description="Password for base_url")
+    base_url_api_key: Optional[str] = Field(None, description="API key for base_url")
+    base_url_token: Optional[str] = Field(None, description="Bearer token for base_url")
+    
+    # Transactional logs credentials
+    transactional_logs_credential_type: Optional[str] = Field(None, description="Credential type for transactional logs")
+    transactional_logs_username: Optional[str] = Field(None, description="Username for transactional logs")
+    transactional_logs_password: Optional[str] = Field(None, description="Password for transactional logs")
+    transactional_logs_api_key: Optional[str] = Field(None, description="API key for transactional logs")
+    transactional_logs_token: Optional[str] = Field(None, description="Bearer token for transactional logs")
+    
     capabilities: Optional[list[str]] = Field(None, description="Gateway capabilities")
     status: Optional[GatewayStatus] = Field(None, description="Gateway status")
     configuration: Optional[dict] = Field(None, description="Vendor-specific configuration")
@@ -90,23 +113,38 @@ async def create_gateway(request: CreateGatewayRequest) -> Gateway:
         from app.models.gateway import GatewayCredentials, ConnectionType
         from pydantic import HttpUrl
         
-        # Build credentials
-        credentials = GatewayCredentials(
-            type=request.credential_type,
-            username=request.username,
-            password=request.password,
-            api_key=request.api_key,
-            token=request.token,
-        )
+        # Build base URL credentials (optional)
+        base_url_credentials = None
+        if request.base_url_credential_type and request.base_url_credential_type != "none":
+            base_url_credentials = GatewayCredentials(
+                type=request.base_url_credential_type,
+                username=request.base_url_username,
+                password=request.base_url_password,
+                api_key=request.base_url_api_key,
+                token=request.base_url_token,
+            )
+        
+        # Build transactional logs credentials (optional, separate from base_url)
+        transactional_logs_credentials = None
+        if request.transactional_logs_credential_type:
+            transactional_logs_credentials = GatewayCredentials(
+                type=request.transactional_logs_credential_type,
+                username=request.transactional_logs_username,
+                password=request.transactional_logs_password,
+                api_key=request.transactional_logs_api_key,
+                token=request.transactional_logs_token,
+            )
         
         # Create Gateway model
         gateway = Gateway(
             name=request.name,
             vendor=request.vendor,
             version=request.version,
-            connection_url=HttpUrl(request.connection_url),
+            base_url=HttpUrl(request.base_url),
+            transactional_logs_url=HttpUrl(request.transactional_logs_url) if request.transactional_logs_url else None,
             connection_type=ConnectionType(request.connection_type),
-            credentials=credentials,
+            base_url_credentials=base_url_credentials,
+            transactional_logs_credentials=transactional_logs_credentials,
             capabilities=request.capabilities if request.capabilities else ["discovery"],
             status=GatewayStatus.DISCONNECTED,  # Initial status
             last_connected_at=None,
@@ -262,25 +300,42 @@ async def update_gateway(
             updates["name"] = request.name
         if request.version is not None:
             updates["version"] = request.version
-        if request.connection_url is not None:
-            updates["connection_url"] = request.connection_url
+        if request.base_url is not None:
+            updates["base_url"] = request.base_url
+        if request.transactional_logs_url is not None:
+            updates["transactional_logs_url"] = request.transactional_logs_url
         if request.connection_type is not None:
             updates["connection_type"] = request.connection_type
         
-        # Update credentials if any credential field is provided
-        if any([request.api_key, request.username, request.password, request.token]):
+        # Update base URL credentials if any field is provided
+        if any([request.base_url_credential_type, request.base_url_api_key, request.base_url_username, request.base_url_password, request.base_url_token]):
             from app.models.gateway import GatewayCredentials
             
             # Get existing credentials or create new
-            existing_creds = existing_gateway.credentials
-            credentials = GatewayCredentials(
-                type=existing_creds.type if existing_creds else "api_key",
-                username=request.username if request.username is not None else (existing_creds.username if existing_creds else None),
-                password=request.password if request.password is not None else (existing_creds.password if existing_creds else None),
-                api_key=request.api_key if request.api_key is not None else (existing_creds.api_key if existing_creds else None),
-                token=request.token if request.token is not None else (existing_creds.token if existing_creds else None),
+            existing_creds = existing_gateway.base_url_credentials
+            base_url_credentials = GatewayCredentials(
+                type=request.base_url_credential_type if request.base_url_credential_type is not None else (existing_creds.type if existing_creds else "none"),
+                username=request.base_url_username if request.base_url_username is not None else (existing_creds.username if existing_creds else None),
+                password=request.base_url_password if request.base_url_password is not None else (existing_creds.password if existing_creds else None),
+                api_key=request.base_url_api_key if request.base_url_api_key is not None else (existing_creds.api_key if existing_creds else None),
+                token=request.base_url_token if request.base_url_token is not None else (existing_creds.token if existing_creds else None),
             )
-            updates["credentials"] = credentials.model_dump()
+            updates["base_url_credentials"] = base_url_credentials.model_dump()
+        
+        # Update transactional logs credentials if any field is provided
+        if any([request.transactional_logs_credential_type, request.transactional_logs_api_key, request.transactional_logs_username, request.transactional_logs_password, request.transactional_logs_token]):
+            from app.models.gateway import GatewayCredentials
+            
+            # Get existing credentials or create new
+            existing_creds = existing_gateway.transactional_logs_credentials
+            transactional_logs_credentials = GatewayCredentials(
+                type=request.transactional_logs_credential_type if request.transactional_logs_credential_type is not None else (existing_creds.type if existing_creds else "none"),
+                username=request.transactional_logs_username if request.transactional_logs_username is not None else (existing_creds.username if existing_creds else None),
+                password=request.transactional_logs_password if request.transactional_logs_password is not None else (existing_creds.password if existing_creds else None),
+                api_key=request.transactional_logs_api_key if request.transactional_logs_api_key is not None else (existing_creds.api_key if existing_creds else None),
+                token=request.transactional_logs_token if request.transactional_logs_token is not None else (existing_creds.token if existing_creds else None),
+            )
+            updates["transactional_logs_credentials"] = transactional_logs_credentials.model_dump()
         
         if request.capabilities is not None:
             updates["capabilities"] = request.capabilities

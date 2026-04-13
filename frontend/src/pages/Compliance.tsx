@@ -390,9 +390,9 @@ export const Compliance: React.FC = () => {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         apiViolations.length === 0
                           ? 'bg-green-100 text-green-800'
-                          : apiViolations.some(v => v.severity === 'critical')
+                          : apiViolations.some((v: { severity: string }) => v.severity === 'critical')
                           ? 'bg-red-100 text-red-800'
-                          : apiViolations.some(v => v.severity === 'high')
+                          : apiViolations.some((v: { severity: string }) => v.severity === 'high')
                           ? 'bg-orange-100 text-orange-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
@@ -403,7 +403,7 @@ export const Compliance: React.FC = () => {
 
                   {apiViolations.length > 0 && (
                     <div className="space-y-3">
-                      {apiViolations.map(violation => (
+                      {apiViolations.map((violation: ComplianceViolation) => (
                         <ComplianceViolationCard
                           key={violation.id}
                           violation={violation}

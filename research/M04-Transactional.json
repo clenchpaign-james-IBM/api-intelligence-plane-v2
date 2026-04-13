@@ -1,0 +1,61 @@
+{
+    "eventType": "Transactional",
+    "sourceGateway": "APIGateway",
+    "tenantId": "default",
+    "creationDate": 1775710369360,
+    "apiName": "Swagger Petstore - OpenAPI 3.0",
+    "apiVersion": "1.0.27",
+    "apiId": "dfe828c7-ea69-4399-8807-83e07be8ebc6",
+    "totalTime": 459,
+    "sessionId": "1ea972ca650f49819160411b4ebcec94",
+    "providerTime": 142,
+    "gatewayTime": 317,
+    "applicationName": "Unknown",
+    "applicationIp": "172.19.0.1",
+    "applicationId": "Unknown",
+    "status": "FAILURE",
+    "reqPayload": "",
+    "resPayload": "{\"Exception\":\"API Gateway encountered an error. Error Message:  Native service provider error. Reason : com.wm.app.b2b.server.ServiceException: java.io.IOException: com.wm.util.ServerException: [ISS.0139.9013] Error: keystore &apos;EncryptKey&apos; not found.. Request Details: Service - Swagger Petstore - OpenAPI 3.0, Operation - /pet/findByStatus, Invocation Time:4:52:49 AM, Date:Apr 9, 2026,  Client IP - 172.19.0.1, User - Default and Application:null\"}",
+    "totalDataSize": 459,
+    "responseCode": "500",
+    "cachedResponse": "Not-Cached",
+    "operationName": "/pet/findByStatus",
+    "httpMethod": "get",
+    "requestHeaders": {
+        "Authorization": "**************",
+        "User-Agent": "insomnia/12.5.0",
+        "Host": "192.168.88.4:5555",
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "responseHeaders": {
+        "Content-Type": "application/json"
+    },
+    "queryParameters": {},
+    "correlationID": "APIGW:2256217d-9f3e-4b35-9e22-eb4b80b10bea:907",
+    "errorOrigin": "NATIVE",
+    "nativeRequestHeaders": {
+        "Authorization": "**************",
+        "User-Agent": "insomnia/12.5.0",
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "nativeReqPayload": "",
+    "nativeResponseHeaders": {},
+    "nativeResPayload": "",
+    "nativeHttpMethod": "GET",
+    "nativeURL": "https://petstore3.swagger.io/api/v3/pet/findByStatus",
+    "serverID": "192.168.88.4:5555",
+    "externalCalls": [
+        {
+            "externalCallType": "NATIVE_SERVICE_CALL",
+            "externalURL": "https://petstore3.swagger.io/api/v3/pet/findByStatus",
+            "callStartTime": 1775710369612,
+            "callEndTime": 1775710369752,
+            "callDuration": 140,
+            "responseCode": ""
+        }
+    ],
+    "sourceGatewayNode": "172.19.0.2",
+    "callbackRequest": false
+}

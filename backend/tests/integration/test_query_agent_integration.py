@@ -21,8 +21,16 @@ from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
-from app.models.api import API, APIStatus
-from app.models.metric import Metric
+from app.models.base.api import (
+    API,
+    APIStatus,
+    AuthenticationType,
+    DiscoveryMethod,
+    Endpoint,
+    IntelligenceMetadata,
+    VersionInfo,
+)
+from app.models.base.metric import Metric, TimeBucket
 from app.models.query import QueryType
 from app.config import Settings
 
@@ -114,42 +122,53 @@ def query_service_without_agents(repositories, llm_service):
 @pytest.fixture
 def sample_api(repositories):
     """Create a sample API for testing."""
-    from app.models.api import Endpoint, CurrentMetrics, AuthenticationType, DiscoveryMethod
-    
     now = datetime.utcnow()
     api = API(
         id=uuid4(),
         gateway_id=uuid4(),
         name="test-api",
-        version="1.0.0",
+        display_name=None,
+        description=None,
+        icon=None,
+        version_info=VersionInfo(
+            current_version="1.0.0",
+            previous_version=None,
+            next_version=None,
+            version_history=None,
+        ),
+        maturity_state=None,
         base_path="/api/test",
+        api_definition=None,
         endpoints=[
             Endpoint(
                 path="/api/test",
                 method="GET",
                 description="Test endpoint",
+                connection_timeout=None,
+                read_timeout=None,
             )
         ],
         methods=["GET"],
         authentication_type=AuthenticationType.NONE,
         authentication_config=None,
+        policy_actions=None,
         ownership=None,
-        discovery_method=DiscoveryMethod.REGISTERED,
-        discovered_at=now,
-        last_seen_at=now,
-        status=APIStatus.ACTIVE,
-        health_score=95.0,
-        current_metrics=CurrentMetrics(
-            response_time_p50=50.0,
-            response_time_p95=100.0,
-            response_time_p99=150.0,
-            error_rate=0.01,
-            throughput=100.0,
-            availability=99.5,
-            last_error=None,
-            measured_at=now,
+        publishing=None,
+        deployments=None,
+        intelligence_metadata=IntelligenceMetadata(
+            is_shadow=False,
+            discovery_method=DiscoveryMethod.REGISTERED,
+            discovered_at=now,
+            last_seen_at=now,
+            health_score=95.0,
+            risk_score=0.0,
+            security_score=100.0,
+            compliance_status=None,
+            usage_trend="stable",
+            has_active_predictions=False,
         ),
-        metadata=None,
+        status=APIStatus.ACTIVE,
+        vendor_metadata=None,
         created_at=now,
         updated_at=now,
     )
@@ -164,22 +183,47 @@ def sample_metrics(repositories, sample_api):
     base_time = datetime.utcnow() - timedelta(hours=24)
     
     for i in range(100):
+        request_count = 100 + i
+        failure_count = i % 10
+        success_count = request_count - failure_count
+
         metric = Metric(
             id=uuid4(),
-            api_id=sample_api.id,
+            api_id=str(sample_api.id),
             gateway_id=sample_api.gateway_id,
+            application_id=None,
+            operation=None,
             timestamp=base_time + timedelta(minutes=i * 15),
+            time_bucket=TimeBucket.FIVE_MINUTES,
+            request_count=request_count,
+            success_count=success_count,
+            failure_count=failure_count,
+            timeout_count=0,
+            error_rate=(failure_count / request_count) * 100,
+            availability=99.0 + (i * 0.01) if i < 50 else 99.5,
+            response_time_avg=75.0 + (i * 0.75),
+            response_time_min=45.0 + (i * 0.4),
+            response_time_max=170.0 + (i * 1.5),
             response_time_p50=50.0 + (i * 0.5),
             response_time_p95=100.0 + (i * 1.0),
             response_time_p99=150.0 + (i * 1.5),
-            error_rate=0.01 + (i * 0.001),
-            error_count=i % 10,
-            request_count=100 + i,
+            gateway_time_avg=10.0 + (i * 0.1),
+            backend_time_avg=40.0 + (i * 0.4),
             throughput=10.0 + (i * 0.1),
-            availability=99.0 + (i * 0.01) if i < 50 else 99.5,
+            total_data_size=request_count * 2048,
+            avg_request_size=768.0,
+            avg_response_size=1280.0,
+            cache_hit_count=30,
+            cache_miss_count=10,
+            cache_bypass_count=5,
+            cache_hit_rate=75.0,
+            status_2xx_count=90 + i,
+            status_3xx_count=0,
+            status_4xx_count=max(failure_count - (i % 3), 0),
+            status_5xx_count=min(i % 3, failure_count),
             status_codes={"200": 90 + i, "500": i % 10},
             endpoint_metrics=None,
-            metadata=None,
+            vendor_metadata=None,
         )
         repositories["metrics"].create(metric, doc_id=str(metric.id))
         metrics.append(metric)
@@ -321,8 +365,6 @@ async def test_parallel_agent_execution(
 ):
     """Test parallel agent execution for multiple APIs."""
     # Create multiple APIs
-    from app.models.api import Endpoint, CurrentMetrics, AuthenticationType, DiscoveryMethod
-    
     apis = []
     now = datetime.utcnow()
     for i in range(5):
@@ -330,35 +372,48 @@ async def test_parallel_agent_execution(
             id=uuid4(),
             gateway_id=uuid4(),
             name=f"test-api-{i}",
-            version="1.0.0",
+            display_name=None,
+            description=None,
+            icon=None,
+            version_info=VersionInfo(
+                current_version="1.0.0",
+                previous_version=None,
+                next_version=None,
+                version_history=None,
+            ),
+            maturity_state=None,
             base_path=f"/api/test/{i}",
+            api_definition=None,
             endpoints=[
                 Endpoint(
                     path=f"/api/test/{i}",
                     method="GET",
                     description=f"Test endpoint {i}",
+                    connection_timeout=None,
+                    read_timeout=None,
                 )
             ],
             methods=["GET"],
             authentication_type=AuthenticationType.NONE,
             authentication_config=None,
+            policy_actions=None,
             ownership=None,
-            discovery_method=DiscoveryMethod.REGISTERED,
-            discovered_at=now,
-            last_seen_at=now,
-            status=APIStatus.ACTIVE,
-            health_score=95.0,
-            current_metrics=CurrentMetrics(
-                response_time_p50=50.0,
-                response_time_p95=100.0,
-                response_time_p99=150.0,
-                error_rate=0.01,
-                throughput=100.0,
-                availability=99.5,
-                last_error=None,
-                measured_at=now,
+            publishing=None,
+            deployments=None,
+            intelligence_metadata=IntelligenceMetadata(
+                is_shadow=False,
+                discovery_method=DiscoveryMethod.REGISTERED,
+                discovered_at=now,
+                last_seen_at=now,
+                health_score=95.0,
+                risk_score=0.0,
+                security_score=100.0,
+                compliance_status=None,
+                usage_trend="stable",
+                has_active_predictions=False,
             ),
-            metadata=None,
+            status=APIStatus.ACTIVE,
+            vendor_metadata=None,
             created_at=now,
             updated_at=now,
         )

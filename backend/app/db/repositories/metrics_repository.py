@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from app.db.repositories.base import BaseRepository
-from app.models.metric import Metric
+from app.models.base.metric import Metric, TimeBucket
 
 logger = logging.getLogger(__name__)
 
@@ -23,40 +23,50 @@ class MetricsRepository(BaseRepository[Metric]):
         """
         Initialize the Metrics repository.
         
-        Note: Uses monthly index pattern api-metrics-{YYYY.MM}
+        Note: Supports time-bucketed indices:
+        - api-metrics-1m-{YYYY.MM} (1-minute buckets, 24h retention)
+        - api-metrics-5m-{YYYY.MM} (5-minute buckets, 7d retention)
+        - api-metrics-1h-{YYYY.MM} (1-hour buckets, 30d retention)
+        - api-metrics-1d-{YYYY.MM} (1-day buckets, 90d retention)
         """
-        # Base index pattern - actual index determined by timestamp
+        # Base index pattern - actual index determined by timestamp and time bucket
         super().__init__(index_name="api-metrics-*", model_class=Metric)
     
-    def _get_index_name(self, timestamp: datetime) -> str:
+    def _get_index_name(self, timestamp: datetime, time_bucket: Optional[TimeBucket] = None) -> str:
         """
-        Get the index name for a specific timestamp.
+        Get the index name for a specific timestamp and time bucket.
         
         Args:
             timestamp: Timestamp to get index for
+            time_bucket: Time bucket size (1m, 5m, 1h, 1d)
             
         Returns:
-            Index name in format api-metrics-{YYYY.MM}
+            Index name in format api-metrics-{bucket}-{YYYY.MM}
         """
-        return f"api-metrics-{timestamp.strftime('%Y.%m')}"
+        bucket_suffix = f"-{time_bucket.value}" if time_bucket else ""
+        return f"api-metrics{bucket_suffix}-{timestamp.strftime('%Y.%m')}"
     
     def _get_index_pattern(
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        time_bucket: Optional[TimeBucket] = None,
     ) -> str:
         """
-        Get index pattern for a time range.
+        Get index pattern for a time range and time bucket.
         
         Args:
             start_time: Start of time range
             end_time: End of time range
+            time_bucket: Time bucket size (1m, 5m, 1h, 1d)
             
         Returns:
             Index pattern (single index, list, or wildcard)
         """
+        bucket_suffix = f"-{time_bucket.value}" if time_bucket else ""
+        
         if not start_time and not end_time:
-            return "api-metrics-*"
+            return f"api-metrics{bucket_suffix}-*"
         
         if start_time and end_time:
             # Generate list of indices for the range
@@ -65,7 +75,7 @@ class MetricsRepository(BaseRepository[Metric]):
             end = end_time.replace(day=1)
             
             while current <= end:
-                indices.append(f"api-metrics-{current.strftime('%Y.%m')}")
+                indices.append(f"api-metrics{bucket_suffix}-{current.strftime('%Y.%m')}")
                 # Move to next month
                 if current.month == 12:
                     current = current.replace(year=current.year + 1, month=1)
@@ -76,7 +86,7 @@ class MetricsRepository(BaseRepository[Metric]):
         
         # Single timestamp
         timestamp = start_time or end_time or datetime.utcnow()
-        return self._get_index_name(timestamp)
+        return self._get_index_name(timestamp, time_bucket)
     
     def create(self, document: Metric, doc_id: Optional[str] = None) -> Metric:
         """
@@ -89,9 +99,9 @@ class MetricsRepository(BaseRepository[Metric]):
         Returns:
             The created metric with ID
         """
-        # Override index name based on timestamp
+        # Override index name based on timestamp and time bucket
         original_index = self.index_name
-        self.index_name = self._get_index_name(document.timestamp)
+        self.index_name = self._get_index_name(document.timestamp, document.time_bucket)
         
         try:
             result = super().create(document, doc_id)
@@ -406,7 +416,50 @@ class MetricsRepository(BaseRepository[Metric]):
         except Exception as e:
             logger.error(f"Failed to get aggregated metrics for API {api_id}: {e}")
             raise
-    
+
+    def get_raw_logs_for_metric(
+        self,
+        metric_id: str,
+        transactional_log_repository: Any,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[Any], int]:
+        """
+        Resolve a metric document into the raw transactional logs that contributed to it.
+
+        Args:
+            metric_id: Metric document identifier
+            transactional_log_repository: Repository exposing find_logs(...)
+            limit: Number of logs to return
+            offset: Pagination offset
+
+        Returns:
+            Matching transactional logs and total count
+        """
+        metric = self.get(metric_id)
+        if metric is None:
+            return [], 0
+
+        bucket_durations = {
+            TimeBucket.ONE_MINUTE: timedelta(minutes=1),
+            TimeBucket.FIVE_MINUTES: timedelta(minutes=5),
+            TimeBucket.ONE_HOUR: timedelta(hours=1),
+            TimeBucket.ONE_DAY: timedelta(days=1),
+        }
+        bucket_window = bucket_durations.get(metric.time_bucket, timedelta(hours=1))
+        start_time = metric.timestamp
+        end_time = metric.timestamp + bucket_window
+
+        return transactional_log_repository.find_logs(
+            gateway_id=str(metric.gateway_id),
+            api_id=metric.api_id,
+            application_id=metric.application_id,
+            start_time=start_time,
+            end_time=end_time,
+            size=limit,
+            from_=offset,
+        )
+
     def bulk_create_metrics(self, metrics: List[Metric]) -> int:
         """
         Bulk create multiple metrics (handles multiple indices).
@@ -451,3 +504,127 @@ class MetricsRepository(BaseRepository[Metric]):
 
 
 # Made with Bob
+    
+    def find_by_time_bucket(
+        self,
+        api_id: UUID,
+        time_bucket: TimeBucket,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        size: int = 1000,
+        from_: int = 0,
+    ) -> tuple[List[Metric], int]:
+        """
+        Find metrics for a specific API and time bucket within a time range.
+        
+        Args:
+            api_id: API UUID
+            time_bucket: Time bucket size (1m, 5m, 1h, 1d)
+            start_time: Start of time range (default: based on bucket retention)
+            end_time: End of time range (default: now)
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of metrics, total count)
+        """
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            # Default time range based on bucket retention
+            retention_hours = {
+                TimeBucket.ONE_MINUTE: 24,
+                TimeBucket.FIVE_MINUTES: 168,  # 7 days
+                TimeBucket.ONE_HOUR: 720,  # 30 days
+                TimeBucket.ONE_DAY: 2160,  # 90 days
+            }
+            start_time = end_time - timedelta(hours=retention_hours.get(time_bucket, 24))
+        
+        query = {
+            "bool": {
+                "must": [
+                    {"term": {"api_id.keyword": str(api_id)}},
+                    {"term": {"time_bucket": time_bucket.value}},
+                    {
+                        "range": {
+                            "timestamp": {
+                                "gte": start_time.isoformat(),
+                                "lte": end_time.isoformat(),
+                            }
+                        }
+                    },
+                ]
+            }
+        }
+        
+        # Use appropriate index pattern for this time bucket
+        original_index = self.index_name
+        self.index_name = self._get_index_pattern(start_time, end_time, time_bucket)
+        
+        try:
+            sort = [{"timestamp": {"order": "desc"}}]
+            return self.search(query, size=size, from_=from_, sort=sort)
+        finally:
+            self.index_name = original_index
+    
+    def get_optimal_time_bucket(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> TimeBucket:
+        """
+        Determine the optimal time bucket for a given time range.
+        
+        Args:
+            start_time: Start of time range
+            end_time: End of time range
+            
+        Returns:
+            Optimal TimeBucket for the range
+        """
+        duration = end_time - start_time
+        hours = duration.total_seconds() / 3600
+        
+        if hours <= 2:
+            return TimeBucket.ONE_MINUTE
+        elif hours <= 24:
+            return TimeBucket.FIVE_MINUTES
+        elif hours <= 168:  # 7 days
+            return TimeBucket.ONE_HOUR
+        else:
+            return TimeBucket.ONE_DAY
+    
+    def find_by_api_with_bucket(
+        self,
+        api_id: UUID,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        time_bucket: Optional[TimeBucket] = None,
+        size: int = 1000,
+        from_: int = 0,
+    ) -> tuple[List[Metric], int]:
+        """
+        Find metrics for an API with automatic or specified time bucket selection.
+        
+        Args:
+            api_id: API UUID
+            start_time: Start of time range (default: 24 hours ago)
+            end_time: End of time range (default: now)
+            time_bucket: Time bucket size (auto-selected if None)
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of metrics, total count)
+        """
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            start_time = end_time - timedelta(hours=24)
+        
+        # Auto-select optimal time bucket if not specified
+        if not time_bucket:
+            time_bucket = self.get_optimal_time_bucket(start_time, end_time)
+            logger.info(f"Auto-selected time bucket {time_bucket.value} for range {start_time} to {end_time}")
+        
+        return self.find_by_time_bucket(api_id, time_bucket, start_time, end_time, size, from_)

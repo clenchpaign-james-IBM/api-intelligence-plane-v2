@@ -54,37 +54,24 @@ def setup_scheduler() -> AsyncIOScheduler:
     # Import job functions (will be implemented in respective modules)
     # These imports are done here to avoid circular dependencies
     try:
-        from app.scheduler.discovery_jobs import run_discovery_job
-        from app.scheduler.metrics_jobs import run_metrics_collection_job
+        from app.scheduler.apis_discovery_jobs import setup_api_discovery_jobs
+        from app.scheduler.transactional_logs_collection_jobs import setup_logs_metrics_collection_jobs
         from app.scheduler.security_jobs import setup_security_scheduler
         from app.scheduler.compliance_jobs import setup_compliance_scheduler
         from app.scheduler.prediction_jobs import run_prediction_job
         from app.scheduler.optimization_jobs import run_optimization_job
         from app.api.deps import get_security_service, get_compliance_service
+        from app.db.repositories.gateway_repository import GatewayRepository
         
-        # Add discovery job
-        scheduler.add_job(
-            run_discovery_job,
-            trigger=IntervalTrigger(minutes=settings.DISCOVERY_INTERVAL_MINUTES),
-            id="discovery_job",
-            name="API Discovery",
-            replace_existing=True,
-        )
-        logger.info(
-            f"Scheduled discovery job: every {settings.DISCOVERY_INTERVAL_MINUTES} minutes"
-        )
+        # Setup API discovery jobs - creates per-gateway jobs
+        gateway_repo = GatewayRepository()
+        setup_api_discovery_jobs(scheduler, gateway_repo)
+        logger.info("Scheduled API discovery jobs for all connected gateways")
         
-        # Add metrics collection job
-        scheduler.add_job(
-            run_metrics_collection_job,
-            trigger=IntervalTrigger(minutes=settings.METRICS_INTERVAL_MINUTES),
-            id="metrics_job",
-            name="Metrics Collection",
-            replace_existing=True,
-        )
-        logger.info(
-            f"Scheduled metrics job: every {settings.METRICS_INTERVAL_MINUTES} minutes"
-        )
+        # Setup transactional logs collection jobs - creates per-gateway jobs
+        # Note: Metrics are now aggregated from transactional logs, not collected separately
+        setup_logs_metrics_collection_jobs(scheduler, gateway_repo)
+        logger.info("Scheduled transactional logs collection jobs for all connected gateways")
         
         # Setup security scheduler - registers all 4 security jobs:
         # 1. Security scan (every 1 hour)

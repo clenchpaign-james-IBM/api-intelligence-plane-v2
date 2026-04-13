@@ -1,0 +1,218 @@
+{
+    "took": 2,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 1.0,
+        "hits": [
+            {
+                "_index": "gateway_default_analytics_1775656180637-000001",
+                "_id": "fwRbbZ0BK7p-uza4tWI9",
+                "_score": 1.0,
+                "_source": {
+                    "eventType": "Lifecycle",
+                    "sourceGateway": "APIGateway",
+                    "tenantId": "default",
+                    "creationDate": 1775656208604,
+                    "gatewayStatus": "STARTED"
+                }
+            },
+            {
+                "_index": "gateway_default_analytics_1775656180637-000001",
+                "_id": "gARhbZ0BK7p-uza4zWIQ",
+                "_score": 1.0,
+                "_source": {
+                    "eventType": "Error",
+                    "sourceGateway": "APIGateway",
+                    "tenantId": "default",
+                    "creationDate": 1775656618345,
+                    "apiName": "MtomTestAPI",
+                    "apiVersion": "1",
+                    "apiId": "531efcf8-dadf-4de0-a793-be995140e388",
+                    "applicationId": "Unknown",
+                    "applicationName": "Unknown",
+                    "applicationIp": "172.19.0.1",
+                    "sessionId": "19ba056d89e4437e955002d67d60b49e",
+                    "operationName": "getAllEmployee",
+                    "userAgent": "Axis2",
+                    "errorDesc": " Downtime exception: The service cannot be found for the endpoint reference (EPR) 127.0.0.1/ws/employee:Employee_WSD/employee_Employee_WSD_Port",
+                    "responseCode": "400",
+                    "httpMethod": "post",
+                    "correlationID": "APIGW:8488e13c-2838-4091-9ade-0bae14fc5834:817",
+                    "sourceGatewayNode": "172.19.0.3"
+                }
+            },
+            {
+                "_index": "gateway_default_analytics_1775656180637-000001",
+                "_id": "gQRhbZ0BK7p-uza4zWIQ",
+                "_score": 1.0,
+                "_ignored": [
+                    "nativeResPayload.keyword"
+                ],
+                "_source": {
+                    "eventType": "Transactional",
+                    "sourceGateway": "APIGateway",
+                    "tenantId": "default",
+                    "creationDate": 1775656610514,
+                    "apiName": "MtomTestAPI",
+                    "apiVersion": "1",
+                    "apiId": "531efcf8-dadf-4de0-a793-be995140e388",
+                    "totalTime": 7068,
+                    "sessionId": "19ba056d89e4437e955002d67d60b49e",
+                    "providerTime": 775,
+                    "gatewayTime": 6293,
+                    "applicationName": "Unknown",
+                    "applicationIp": "172.19.0.1",
+                    "applicationId": "Unknown",
+                    "status": "FAILURE",
+                    "reqPayload": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><emp1:getAllEmployee xmlns:emp1=\"http://MCSAIV01.eur.ad.sag/employee1\"/></soapenv:Body></soapenv:Envelope>",
+                    "resPayload": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><soapenv:Fault><faultcode xmlns:ns2=\"http://www.w3.org/2003/05/soap-envelope\">ns2:Receiver</faultcode><faultstring>API Gateway encountered an error. Error Message:  Downtime exception: The service cannot be found for the endpoint reference (EPR) 127.0.0.1/ws/employee:Employee_WSD/employee_Employee_WSD_Port. Request Details: Service - MtomTestAPI, Operation - getAllEmployee, Invocation Time:1:56:56 PM, Date:Apr 8, 2026,  Client IP - 172.19.0.1, User - Default and Application:null</faultstring></soapenv:Fault></soapenv:Body></soapenv:Envelope>",
+                    "totalDataSize": 2380,
+                    "responseCode": "400",
+                    "cachedResponse": "Not-Cached",
+                    "operationName": "getAllEmployee",
+                    "httpMethod": "post",
+                    "requestHeaders": {
+                        "SOAPAction": "\"employee_Employee_WSD_Binder_getAllEmployee\"",
+                        "Transfer-Encoding": "chunked",
+                        "User-Agent": "Axis2",
+                        "Connection": "Keep-Alive",
+                        "Host": "localhost",
+                        "Accept-Encoding": "gzip,deflate",
+                        "Content-Type": "multipart/related; boundary=\"MIMEBoundary_38d99e880cca462000635cdddd11ffa8da32bdf3385327c3\"; type=\"application/xop+xml\"; start=\"<0.48d99e880cca462000635cdddd11ffa8da32bdf3385327c3@apache.org>\"; start-info=\"text/xml\""
+                    },
+                    "responseHeaders": {
+                        "Connection": "close",
+                        "Content-Length": "796",
+                        "Content-Type": "text/xml; charset=UTF-8"
+                    },
+                    "queryParameters": {},
+                    "correlationID": "APIGW:8488e13c-2838-4091-9ade-0bae14fc5834:817",
+                    "errorOrigin": "NATIVE",
+                    "nativeRequestHeaders": {
+                        "SOAPAction": "\"employee_Employee_WSD_Binder_getAllEmployee\"",
+                        "Transfer-Encoding": "chunked",
+                        "User-Agent": "Axis2",
+                        "Connection": "Keep-Alive",
+                        "Accept-Encoding": "gzip,deflate",
+                        "Content-Type": "multipart/related; boundary=\"MIMEBoundary_38d99e880cca462000635cdddd11ffa8da32bdf3385327c3\"; type=\"application/xop+xml\"; start=\"<0.48d99e880cca462000635cdddd11ffa8da32bdf3385327c3@apache.org>\"; start-info=\"text/xml\""
+                    },
+                    "nativeReqPayload": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><emp1:getAllEmployee xmlns:emp1=\"http://MCSAIV01.eur.ad.sag/employee1\"/></soapenv:Body></soapenv:Envelope>",
+                    "nativeResponseHeaders": {
+                        "Connection": "close",
+                        "Content-Length": "796",
+                        "Content-Type": "text/xml; charset=UTF-8"
+                    },
+                    "nativeResPayload": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><soapenv:Fault><faultcode>soapenv:Client</faultcode><faultstring>The service cannot be found for the endpoint reference (EPR) 127.0.0.1/ws/employee:Employee_WSD/employee_Employee_WSD_Port</faultstring><faultactor>http://localhost:5555/ws</faultactor><detail><webM:exception xmlns:webM=\"http://www.webMethods.com/2001/10/soap/encoding\">\n            <webM:className>org.apache.axis2.AxisFault</webM:className>\n            <webM:message xml:lang=\"\">The service cannot be found for the endpoint reference (EPR) 127.0.0.1/ws/employee:Employee_WSD/employee_Employee_WSD_Port</webM:message>\n        </webM:exception></detail></soapenv:Fault></soapenv:Body></soapenv:Envelope>",
+                    "nativeHttpMethod": "POST",
+                    "nativeURL": "http://localhost:5555/ws/employee:Employee_WSD/employee_Employee_WSD_Port",
+                    "serverID": "localhost",
+                    "externalCalls": [
+                        {
+                            "externalCallType": "NATIVE_SERVICE_CALL",
+                            "externalURL": "http://localhost:5555/ws/employee:Employee_WSD/employee_Employee_WSD_Port",
+                            "callStartTime": 1775656615616,
+                            "callEndTime": 1775656616391,
+                            "callDuration": 775,
+                            "responseCode": "400"
+                        }
+                    ],
+                    "sourceGatewayNode": "172.19.0.3",
+                    "callbackRequest": false
+                }
+            },
+            {
+                "_index": "gateway_default_analytics_1775656180637-000001",
+                "_id": "ggRibZ0BK7p-uza4u2I-",
+                "_score": 1.0,
+                "_source": {
+                    "eventType": "Transactional",
+                    "sourceGateway": "APIGateway",
+                    "tenantId": "default",
+                    "creationDate": 1775656678939,
+                    "apiName": "archiveEvents",
+                    "apiVersion": "1.0",
+                    "apiId": "02b03485-bdfc-4d3b-8d8a-c91d03aee162",
+                    "totalTime": 240,
+                    "sessionId": "2a8677c309314eb3a13074d15a5e6a03",
+                    "providerTime": 1,
+                    "gatewayTime": 239,
+                    "applicationName": "Unknown",
+                    "applicationIp": "172.19.0.1",
+                    "applicationId": "Unknown",
+                    "status": "SUCCESS",
+                    "reqPayload": "",
+                    "resPayload": "",
+                    "responseCode": "200",
+                    "cachedResponse": "Not-Cached",
+                    "operationName": "/RestNativeService/getTimeAfterJson/{Time}",
+                    "httpMethod": "get",
+                    "requestHeaders": {},
+                    "responseHeaders": {},
+                    "queryParameters": {},
+                    "correlationID": "APIGW:48a43f8d-9434-44ec-a117-264126adf3df:817",
+                    "nativeRequestHeaders": {},
+                    "nativeReqPayload": "",
+                    "nativeResponseHeaders": {},
+                    "nativeResPayload": "",
+                    "nativeHttpMethod": "GET",
+                    "nativeURL": "http://localhost:5555/rest/RestNativeService/getTimeAfterJson/1",
+                    "serverID": "localhost:5555",
+                    "externalCalls": [],
+                    "sourceGatewayNode": "172.19.0.3",
+                    "callbackRequest": false
+                }
+            },
+            {
+                "_index": "gateway_default_analytics_1775656180637-000001",
+                "_id": "gwRibZ0BK7p-uza4u2I-",
+                "_score": 1.0,
+                "_source": {
+                    "eventType": "Transactional",
+                    "sourceGateway": "APIGateway",
+                    "tenantId": "default",
+                    "creationDate": 1775656679239,
+                    "apiName": "archiveEvents",
+                    "apiVersion": "1.0",
+                    "apiId": "02b03485-bdfc-4d3b-8d8a-c91d03aee162",
+                    "totalTime": 1,
+                    "sessionId": "34c81dde095c4fab81f1ca28056edc93",
+                    "gatewayTime": 1,
+                    "applicationName": "Unknown",
+                    "applicationIp": "172.19.0.1",
+                    "applicationId": "Unknown",
+                    "status": "SUCCESS",
+                    "reqPayload": "",
+                    "resPayload": "",
+                    "responseCode": "200",
+                    "cachedResponse": "Not-Cached",
+                    "operationName": "/RestNativeService/getTimeAfterJson/{Time}",
+                    "httpMethod": "get",
+                    "requestHeaders": {},
+                    "responseHeaders": {},
+                    "queryParameters": {},
+                    "correlationID": "APIGW:5d7d7326-0528-4266-b469-46068a2f1574:821",
+                    "nativeRequestHeaders": {},
+                    "nativeReqPayload": "",
+                    "nativeResponseHeaders": {},
+                    "nativeResPayload": "",
+                    "nativeHttpMethod": "GET",
+                    "nativeURL": "http://localhost:5555/rest/RestNativeService/getTimeAfterJson/1",
+                    "serverID": "localhost:5555",
+                    "externalCalls": [],
+                    "sourceGatewayNode": "172.19.0.3",
+                    "callbackRequest": false
+                }
+            }
+        ]
+    }
+}

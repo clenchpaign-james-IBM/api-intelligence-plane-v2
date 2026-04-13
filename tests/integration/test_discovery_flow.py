@@ -18,8 +18,17 @@ from backend.app.db.client import get_opensearch_client
 from backend.app.db.repositories.gateway_repository import GatewayRepository
 from backend.app.db.repositories.api_repository import APIRepository
 from backend.app.services.discovery_service import DiscoveryService
-from backend.app.models.gateway import Gateway, GatewayType, GatewayStatus
-from backend.app.models.api import API, APIStatus, AuthenticationType, DiscoveryMethod
+from backend.app.models.gateway import Gateway, GatewayVendor, GatewayStatus
+from backend.app.models.base.api import (
+    API,
+    APIStatus,
+    APIType,
+    AuthenticationType,
+    DiscoveryMethod,
+    IntelligenceMetadata,
+    MaturityState,
+    VersionInfo,
+)
 
 
 @pytest.fixture

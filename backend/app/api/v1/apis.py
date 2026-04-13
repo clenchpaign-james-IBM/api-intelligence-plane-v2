@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.db.repositories.api_repository import APIRepository
-from app.models.api import API, APIStatus
+from app.models.base.api import API, APIStatus, PolicyAction
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +73,8 @@ async def list_apis(
                 # Get shadow APIs
                 apis, total = repo.find_shadow_apis(size=page_size, from_=offset)
             else:
-                # Get non-shadow APIs
-                query = {"term": {"is_shadow": False}}
+                # Get non-shadow APIs - use nested path for intelligence_metadata
+                query = {"term": {"intelligence_metadata.is_shadow": False}}
                 apis, total = repo.search(query, size=page_size, from_=offset)
         elif status_filter:
             # Filter by status
@@ -139,6 +139,54 @@ async def get_api(api_id: UUID) -> API:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get API: {str(e)}",
+        )
+
+
+@router.get(
+    "/{api_id}/security-policies",
+    response_model=list[PolicyAction],
+    summary="Get API security policies",
+)
+async def get_api_security_policies(api_id: UUID) -> list[PolicyAction]:
+    """
+    Get security-related policy actions for a specific API.
+    
+    This endpoint derives security policies from the API's policy_actions field,
+    filtering for security-related action types like authentication, authorization,
+    rate limiting, TLS, validation, etc.
+    
+    Args:
+        api_id: API UUID
+        
+    Returns:
+        List of security-related PolicyAction objects
+        
+    Raises:
+        HTTPException: If API not found
+    """
+    try:
+        repo = APIRepository()
+        
+        # Get the API
+        api = repo.get(str(api_id))
+        if not api:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"API {api_id} not found",
+            )
+        
+        # Use the repository method to derive security policies
+        security_policies = repo.derive_security_policies(api)
+        
+        return security_policies
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get security policies for API {api_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get security policies: {str(e)}",
         )
 
 

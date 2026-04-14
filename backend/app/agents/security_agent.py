@@ -411,7 +411,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"policy_action_type": PolicyActionType.AUTHENTICATION.value},
             )
 
@@ -439,7 +438,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"authentication_type": api.authentication_type.value},
             )
 
@@ -485,7 +483,6 @@ class SecurityAgent:
                     verification_status=None,
                     cvss_score=None,
                     references=None,
-                    compliance_violations=None,
                     metadata={"policy_action_type": PolicyActionType.AUTHORIZATION.value},
                 )
 
@@ -539,7 +536,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"policy_action_type": PolicyActionType.RATE_LIMITING.value},
             )
 
@@ -577,7 +573,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"policy_action_type": PolicyActionType.TLS.value},
             )
 
@@ -618,7 +613,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"policy_action_type": PolicyActionType.CORS.value},
             )
 
@@ -669,7 +663,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"policy_action_type": PolicyActionType.VALIDATION.value},
             )
 
@@ -710,7 +703,6 @@ class SecurityAgent:
                 verification_status=None,
                 cvss_score=None,
                 references=None,
-                compliance_violations=None,
                 metadata={"missing_headers": missing_headers},
             )
 

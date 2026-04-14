@@ -16,6 +16,7 @@ from app.utils.logging import setup_logging
 from app.middleware.error_handler import error_handler_middleware
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.db.client import get_opensearch_client
+from app.db.init_indices import initialize_indices
 
 # Setup logging first
 setup_logging()
@@ -40,6 +41,10 @@ async def lifespan(app: FastAPI):
         os_client = get_opensearch_client()
         health = os_client.health_check()
         logger.info(f"OpenSearch connected: {health.get('status', 'unknown')}")
+        
+        # Initialize indices with proper schemas
+        initialize_indices(os_client.client)
+        logger.info("OpenSearch indices initialized")
     except Exception as e:
         logger.error(f"Failed to connect to OpenSearch: {e}")
         if settings.is_production:
@@ -148,12 +153,11 @@ async def root():
 
 
 # API v1 routes
-from app.api.v1 import analytics, gateways, apis, metrics, predictions, optimization, rate_limits, query, security, compliance
+from app.api.v1 import gateways, apis, metrics, predictions, optimization, rate_limits, query, security, compliance
 
 app.include_router(gateways.router, prefix="/api/v1", tags=["Gateways"])
 app.include_router(apis.router, prefix="/api/v1", tags=["APIs"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
-app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(predictions.router, prefix="/api/v1", tags=["Predictions"])
 app.include_router(optimization.router, prefix="/api/v1", tags=["Optimization"])
 app.include_router(rate_limits.router, prefix="/api/v1", tags=["Rate Limiting"])

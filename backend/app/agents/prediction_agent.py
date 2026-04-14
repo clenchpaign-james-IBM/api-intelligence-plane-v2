@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 class PredictionState(TypedDict):
     """State for prediction generation workflow."""
     
+    gateway_id: str
     api_id: str
     api_name: str
     metrics: List[Any]
@@ -95,6 +96,7 @@ class PredictionAgent:
     
     async def generate_enhanced_predictions(
         self,
+        gateway_id: UUID,
         api_id: UUID,
         api_name: str,
         metrics: List[Metric],
@@ -103,6 +105,7 @@ class PredictionAgent:
         Generate enhanced predictions with LLM analysis.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             api_name: API name
             metrics: Historical metrics
@@ -115,6 +118,7 @@ class PredictionAgent:
         # Initialize state
         initial_state: PredictionState = {
             "api_id": str(api_id),
+            "gateway_id": str(gateway_id),
             "api_name": api_name,
             "metrics": metrics,
             "analysis": "",
@@ -225,7 +229,9 @@ Provide a detailed analysis of trends, risks, and health status."""
         try:
             # Use prediction service to generate ML-based predictions
             api_id = UUID(state["api_id"]) if isinstance(state["api_id"], str) else state["api_id"]
+            gateway_id = UUID(state["gateway_id"]) if isinstance(state["gateway_id"], str) else state["gateway_id"]
             predictions = self.prediction_service.generate_predictions_for_api(
+                gateway_id=gateway_id,
                 api_id=api_id,
                 min_confidence=0.7,
             )

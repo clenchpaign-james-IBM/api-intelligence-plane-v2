@@ -22,6 +22,17 @@ from app.models.base.api import (
     PolicyActionType,
     VersionInfo,
 )
+from app.models.base.policy_configs import (
+    AuthenticationConfig,
+    AuthorizationConfig,
+    CachingConfig,
+    CompressionConfig,
+    CorsConfig,
+    DataMaskingConfig,
+    RateLimitConfig,
+    TlsConfig,
+    ValidationConfig,
+)
 
 
 def create_sample_api(
@@ -111,7 +122,7 @@ def create_sample_api(
                 stage="request",
                 name="Authentication Policy",
                 description="Bearer token authentication",
-                config={"scheme": "bearer"},
+                config=AuthenticationConfig(auth_type="bearer"),
                 vendor_config={},
             ),
             PolicyAction(
@@ -120,7 +131,7 @@ def create_sample_api(
                 stage="request",
                 name="Rate Limiting Policy",
                 description="Request rate limiting",
-                config={"requests_per_minute": 1000},
+                config=RateLimitConfig(requests_per_minute=1000),
                 vendor_config={},
             ),
         ],
@@ -192,7 +203,7 @@ def create_api_with_security_policies(
                 stage="request",
                 name="Authentication",
                 description="Bearer authentication",
-                config={"scheme": "bearer"},
+                config=AuthenticationConfig(auth_type="bearer"),
                 vendor_config={},
             ),
             PolicyAction(
@@ -201,7 +212,7 @@ def create_api_with_security_policies(
                 stage="request",
                 name="Authorization",
                 description="Role-based authorization",
-                config={"roles": ["admin", "user"]},
+                config=AuthorizationConfig(allowed_roles=["admin", "user"]),
                 vendor_config={},
             ),
             PolicyAction(
@@ -210,7 +221,7 @@ def create_api_with_security_policies(
                 stage="transport",
                 name="TLS Enforcement",
                 description="TLS 1.2+ enforcement",
-                config={"min_version": "1.2"},
+                config=TlsConfig(min_tls_version="1.2"),
                 vendor_config={},
             ),
             PolicyAction(
@@ -219,7 +230,7 @@ def create_api_with_security_policies(
                 stage="response",
                 name="CORS Policy",
                 description="Cross-origin resource sharing",
-                config={"allowed_origins": ["https://example.com"]},
+                config=CorsConfig(allowed_origins=["https://example.com"]),
                 vendor_config={},
             ),
             PolicyAction(
@@ -228,7 +239,7 @@ def create_api_with_security_policies(
                 stage="request",
                 name="Request Validation",
                 description="OpenAPI schema validation",
-                config={"schema": "openapi"},
+                config=ValidationConfig(),
                 vendor_config={},
             ),
             PolicyAction(
@@ -237,7 +248,12 @@ def create_api_with_security_policies(
                 stage="response",
                 name="Data Masking",
                 description="Sensitive data masking",
-                config={"fields": ["ssn", "credit_card"]},
+                config=DataMaskingConfig(
+                    masking_rules=[
+                        {"field_path": "$.ssn", "mask_type": "full"},
+                        {"field_path": "$.credit_card", "mask_type": "partial", "partial_mask_start": 4, "partial_mask_end": 4}
+                    ]
+                ),
                 vendor_config={},
             ),
         ],
@@ -274,7 +290,7 @@ def create_api_with_performance_policies(
                 stage="response",
                 name="Response Caching",
                 description="Cache responses for 5 minutes",
-                config={"ttl": 300, "cache_key": "url"},
+                config=CachingConfig(ttl_seconds=300, cache_key_strategy="url"),
                 vendor_config={},
             ),
             PolicyAction(
@@ -283,7 +299,7 @@ def create_api_with_performance_policies(
                 stage="response",
                 name="Response Compression",
                 description="GZIP compression for responses",
-                config={"algorithm": "gzip", "min_size": 1024},
+                config=CompressionConfig(algorithms=["gzip"], min_size_bytes=1024),
                 vendor_config={},
             ),
             PolicyAction(
@@ -292,7 +308,7 @@ def create_api_with_performance_policies(
                 stage="request",
                 name="Rate Limiting",
                 description="Limit requests per minute",
-                config={"requests_per_minute": 5000, "burst": 100},
+                config=RateLimitConfig(requests_per_minute=5000, burst_allowance=100),
                 vendor_config={},
             ),
         ],

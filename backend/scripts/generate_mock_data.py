@@ -191,22 +191,52 @@ class MockDataGenerator:
                     "last_policy_update": (datetime.utcnow() - timedelta(days=random.randint(1, 30))).isoformat()
                 }
                 
+                # Required version_info field
+                version_info = {
+                    "current_version": f"v{random.randint(1, 3)}",
+                    "system_version": 1,
+                    "previous_version": None,
+                    "next_version": None,
+                    "version_history": None
+                }
+                
+                # Required intelligence_metadata field with ALL required fields
+                # These will be computed by intelligence jobs
+                discovered_time = datetime.utcnow() - timedelta(days=random.randint(1, 90))
+                intelligence_metadata = {
+                    # Required discovery fields
+                    "is_shadow": random.random() < 0.1,  # 10% shadow APIs
+                    "discovery_method": "registered",  # Valid enum value
+                    "discovered_at": discovered_time.isoformat(),
+                    "last_seen_at": datetime.utcnow().isoformat(),
+                    
+                    # Required health score
+                    "health_score": 0.0,  # Will be computed by jobs
+                    
+                    # Optional fields
+                    "risk_score": None,
+                    "security_score": None,
+                    "compliance_status": None,  # Dict or None, not string
+                    "usage_trend": None,
+                    "has_active_predictions": False
+                }
+                
                 api = {
                     "id": api_id,
                     "gateway_id": gateway_id,
                     "name": name,
                     "base_path": base_path,
-                    "version": f"v{random.randint(1, 3)}",
+                    "version_info": version_info,  # REQUIRED field
                     "status": random.choice(statuses),
                     "methods": ["GET", "POST", "PUT", "DELETE"],
                     "authentication_type": random.choice(auth_types),
                     "authentication_config": {"required": True},
                     "discovery_method": "registered",  # Use valid enum value
                     "is_shadow": random.random() < 0.1,  # 10% shadow APIs
-                    "health_score": round(random.uniform(0.7, 1.0), 2),
                     "endpoints": endpoints,
                     "tags": [name.split()[0].lower(), "service", "api"],
                     "ownership": {"team": "platform", "contact": "platform@example.com"},
+                    "intelligence_metadata": intelligence_metadata,  # REQUIRED field
                     "current_metrics": {
                         "response_time_p50": p50,
                         "response_time_p95": p95,

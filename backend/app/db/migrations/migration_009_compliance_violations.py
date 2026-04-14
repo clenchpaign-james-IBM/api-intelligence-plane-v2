@@ -31,6 +31,7 @@ def create_compliance_violations_index(client: OpenSearch):
         "mappings": {
             "properties": {
                 "id": {"type": "keyword"},
+                "gateway_id": {"type": "keyword"},
                 "api_id": {"type": "keyword"},
                 "compliance_standard": {"type": "keyword"},
                 "violation_type": {"type": "keyword"},

@@ -31,6 +31,7 @@ def create_security_findings_index(client: OpenSearch):
         "mappings": {
             "properties": {
                 "id": {"type": "keyword"},
+                "gateway_id": {"type": "keyword"},
                 "api_id": {"type": "keyword"},
                 "vulnerability_type": {"type": "keyword"},
                 "cve_id": {"type": "keyword"},

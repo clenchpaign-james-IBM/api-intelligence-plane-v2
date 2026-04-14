@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import APIList from '../components/apis/APIList';
 import APIDetail from '../components/apis/APIDetail';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import GatewaySelector from '../components/common/GatewaySelector';
 import { api } from '../services/api';
 import type { API } from '../types';
 
@@ -18,13 +19,24 @@ import type { API } from '../types';
  * - Metrics visualization
  */
 const APIs = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedAPI, setSelectedAPI] = useState<API | null>(null);
   const [searchParams] = useSearchParams();
 
-  // Fetch APIs
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
+
+  // Fetch APIs (filtered by gateway if selected)
   const { data, isLoading, error } = useQuery({
-    queryKey: ['apis'],
-    queryFn: () => api.apis.list(),
+    queryKey: ['apis', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return api.apis.list(params);
+    },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -66,17 +78,26 @@ const APIs = () => {
   const apis = data?.items || [];
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       {!selectedAPI ? (
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">API Inventory</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Browse and manage all discovered APIs across your gateways
-          </p>
-        </div>
+        <>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">API Inventory</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Browse and manage all discovered APIs across your gateways
+            </p>
+          </div>
+          
+          {/* Gateway Selector */}
+          <GatewaySelector
+            selectedGatewayId={selectedGatewayId}
+            onGatewayChange={handleGatewayChange}
+            showAllOption={true}
+          />
+        </>
       ) : (
-        <div className="mb-6">
+        <div>
           <button
             onClick={handleBack}
             className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"

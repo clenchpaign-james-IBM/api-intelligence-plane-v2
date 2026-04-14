@@ -1507,7 +1507,7 @@ This is a distributed web application with microservices architecture:
 
 **Goal**: Receive advance warnings of potential API failures 24-48 hours before they occur
 
-**Architecture**: Hybrid approach combining rule-based predictions (fast, deterministic) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement automatically triggered based on prediction confidence (≥80% default) and system configuration.
+**Architecture**: Single scheduler-driven hybrid approach combining rule-based predictions (fast, deterministic) followed by AI-enhanced analysis (deep insights, natural language explanations) for every generated prediction. Prediction generation is not triggered from the frontend.
 
 **Contributing Factors**: 13 strongly-typed categories across Performance (7), Availability (2), Capacity (1), Dependencies (1), and Traffic (1) patterns.
 
@@ -1516,19 +1516,19 @@ This is a distributed web application with microservices architecture:
 ### Backend - Prediction Service
 
 - [X] T095 [P] [US2] Create Prediction repository in backend/app/db/repositories/prediction_repository.py with CRUD and query operations
-- [X] T096 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with hybrid prediction logic (rule-based + AI-enhanced)
+- [X] T096 [US2] Implement Prediction Service in backend/app/services/prediction_service.py with single-flow hybrid prediction logic (rule-based followed by AI-enhanced for every prediction)
 - [X] T097 [US2] Create Prediction Agent in backend/app/agents/prediction_agent.py using LangChain/LangGraph
 - [X] T098 [US2] Implement prediction generation workflow in backend/app/agents/prediction_agent.py with contributing factors analysis
-- [X] T099 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes)
+- [X] T099 [US2] Create prediction scheduler job in backend/app/scheduler/prediction_jobs.py (runs every 15 minutes and is the only generation entry point)
 - [X] T100 [US2] Implement prediction accuracy tracking in backend/app/services/prediction_service.py
 - [X] T100a [US2] Add ContributingFactorType enum to backend/app/models/prediction.py with 13 strongly-typed categories
-- [X] T100b [US2] Implement _should_use_ai_enhancement() method in backend/app/services/prediction_service.py for intelligent AI triggering
-- [X] T100c [US2] Add PREDICTION_AI_ENABLED and PREDICTION_AI_THRESHOLD configuration to backend/app/config.py
+- [X] T100b [US2] Removed dual-mode prediction selection - prediction flow always uses rule-based generation followed by AI enhancement
+- [X] T100c [US2] Removed frontend-triggered prediction generation paths - scheduler job is the only generation entry point
 - [X] T100d [US2] Update all contributing factor references to use ContributingFactorType enum across codebase
 
 ### Backend - REST API Endpoints
 
-- [X] T101 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id})
+- [X] T101 [P] [US2] Implement Prediction endpoints in backend/app/api/v1/predictions.py per backend-api.yaml (GET /predictions, GET /predictions/{id}) and keep generation out of frontend-facing REST endpoints
 
 ### MCP - Optimization Server (Predictions)
 

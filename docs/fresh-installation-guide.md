@@ -1,20 +1,41 @@
 # Fresh Installation Guide: API Intelligence Plane
 
-**Version**: 2.0.0  
-**Last Updated**: 2026-04-11  
-**Architecture**: Vendor-Neutral with Time-Bucketed Metrics
+**Version**: 2.0.0
+**Last Updated**: 2026-04-14
+**Architecture**: Gateway-First with Vendor-Neutral Data Models
 
 ## Overview
 
-This guide provides step-by-step instructions for installing the API Intelligence Plane with the new vendor-neutral architecture. This is a **fresh installation guide** - no data migration is required as the system starts with clean, empty indices.
+This guide provides step-by-step instructions for installing the API Intelligence Plane with the **gateway-first architecture**. This is a **fresh installation guide** - no data migration is required as the system starts with clean, empty indices.
 
 ### What's New in Version 2.0
 
+- **Gateway-First Architecture**: All features use Gateway as primary scope, API as secondary
 - **Vendor-Neutral Data Models**: All data stored in vendor-neutral format
 - **Time-Bucketed Metrics**: Metrics stored separately in time-bucketed indices (1m, 5m, 1h, 1d)
 - **Adapter Pattern**: Gateway-specific adapters transform vendor data to vendor-neutral models
+- **Multi-Gateway Support**: Proper isolation and scoping for multi-gateway deployments
 - **Separated Intelligence**: Intelligence fields in `intelligence_metadata` wrapper
 - **WebMethods-First**: Initial implementation focuses on webMethods API Gateway
+
+### Gateway-First Architecture
+
+The platform follows a **Gateway-First, API-Secondary** hierarchy:
+
+```
+Gateway (Primary Dimension)
+  └── API (Secondary Dimension)
+      └── Endpoint (Tertiary Dimension)
+          └── Operation (Quaternary Dimension)
+```
+
+**Key Implications for Installation**:
+- You must register at least one Gateway before discovering APIs
+- All APIs are scoped to their parent Gateway
+- Multi-gateway deployments have proper data isolation
+- Dashboard and analytics default to gateway-level views
+
+📖 **See [Gateway-Scoped Development Guide](gateway-scoped-development-guide.md) for development details.**
 
 ## Prerequisites
 
@@ -90,8 +111,7 @@ SECURITY_SCAN_INTERVAL=60  # minutes
 PREDICTION_INTERVAL=15     # minutes
 
 # Feature Flags
-PREDICTION_AI_ENABLED=true
-PREDICTION_AI_THRESHOLD=0.8
+# Note: Predictions now use hybrid mode (rule-based + AI) by default
 ```
 
 ### Step 3: Start Services with Docker Compose
@@ -134,7 +154,9 @@ docker-compose exec backend python scripts/init_opensearch.py
 # ✓ Created index: query-history
 ```
 
-### Step 5: Register API Gateway
+### Step 5: Register API Gateway (REQUIRED)
+
+**IMPORTANT**: You must register at least one Gateway before the system can discover and manage APIs. The gateway-first architecture requires gateway context for all operations.
 
 Register your first API Gateway through the UI or API:
 
@@ -144,11 +166,19 @@ Register your first API Gateway through the UI or API:
 2. Go to "Gateways" page
 3. Click "Add Gateway"
 4. Fill in the form:
-   - **Name**: Production Gateway
+   - **Name**: Production Gateway (e.g., "Production webMethods Gateway")
    - **Vendor**: webmethods
    - **Base URL**: http://your-gateway:5555
    - **Credentials**: Basic auth (username/password)
    - **Transactional Logs URL**: http://your-opensearch:9200
+   - **Description**: Optional description of this gateway instance
+5. Click "Save"
+
+**Why Gateway Registration is Required**:
+- All APIs are discovered and scoped to their parent Gateway
+- Metrics, predictions, and security findings are gateway-scoped
+- Multi-gateway deployments require proper gateway isolation
+- Dashboard views default to gateway-level aggregation
    - **Transactional Logs Credentials**: Basic auth for OpenSearch
 
 **Option B: Using the API**

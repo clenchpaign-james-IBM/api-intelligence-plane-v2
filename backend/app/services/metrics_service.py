@@ -50,6 +50,7 @@ class MetricsService:
         start_time: datetime,
         end_time: datetime,
         time_bucket: str = "1m",
+        generate_all_buckets: bool = True,
     ) -> None:
         """
         Collect transactional logs from a gateway and aggregate into metrics.
@@ -57,7 +58,7 @@ class MetricsService:
         This method:
         1. Fetches transactional logs from the gateway adapter for the time range
         2. Stores logs via TransactionalLogRepository (daily indices)
-        3. Aggregates logs into time-bucketed metrics
+        3. Aggregates logs into time-bucketed metrics (all buckets if generate_all_buckets=True)
         4. Stores metrics via MetricsRepository (time-bucketed indices)
         5. Logs results (no return value)
         
@@ -65,7 +66,8 @@ class MetricsService:
             gateway_id: UUID of the gateway to collect logs from
             start_time: Start of time range for log collection
             end_time: End of time range for log collection
-            time_bucket: Time bucket for metrics aggregation (1m, 5m, 1h, 1d)
+            time_bucket: Primary time bucket for metrics aggregation (1m, 5m, 1h, 1d)
+            generate_all_buckets: If True, generates metrics for all time buckets (default: True)
         """
         from app.db.repositories.transactional_log_repository import TransactionalLogRepository
         from app.models.base.transaction import TransactionalLog
@@ -101,21 +103,46 @@ class MetricsService:
             stored_count = log_repo.bulk_create(logs)
             logger.info(f"Stored {stored_count} transactional logs for gateway {gateway_id}")
             
-            # Aggregate logs into metrics
-            metrics = self._aggregate_logs_to_metrics(
-                logs=logs,
-                gateway_id=gateway_id,
-                time_bucket=TimeBucket(time_bucket),
-            )
+            # Aggregate logs into metrics for all time buckets
+            if generate_all_buckets:
+                # Generate metrics for all time buckets
+                time_buckets = [
+                    TimeBucket.ONE_MINUTE,
+                    TimeBucket.FIVE_MINUTES,
+                    TimeBucket.ONE_HOUR,
+                    TimeBucket.ONE_DAY,
+                ]
+            else:
+                # Generate metrics for specified bucket only
+                time_buckets = [TimeBucket(time_bucket)]
             
-            # Store metrics in repository
-            if metrics:
-                for metric in metrics:
-                    self.metrics_repo.create(metric)
-                logger.info(
-                    f"Created {len(metrics)} metrics from {len(logs)} logs "
-                    f"for gateway {gateway_id} (bucket: {time_bucket})"
+            total_metrics_created = 0
+            for bucket in time_buckets:
+                metrics = self._aggregate_logs_to_metrics(
+                    logs=logs,
+                    gateway_id=gateway_id,
+                    time_bucket=bucket,
                 )
+                
+                # Store metrics using bulk operation for performance
+                if metrics:
+                    try:
+                        stored_count = self.metrics_repo.bulk_create_metrics(metrics)
+                        total_metrics_created += stored_count
+                        logger.info(
+                            f"Bulk created {stored_count}/{len(metrics)} metrics "
+                            f"for gateway {gateway_id} (bucket: {bucket.value})"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to bulk create metrics for bucket {bucket.value}: {e}",
+                            exc_info=True
+                        )
+            
+            logger.info(
+                f"Total: Created {total_metrics_created} metrics from {len(logs)} logs "
+                f"for gateway {gateway_id} across {len(time_buckets)} time buckets"
+            )
             
             await adapter.disconnect()
             
@@ -629,6 +656,218 @@ class MetricsService:
             end_time=end_time,
             size=limit,
         )
+    
+    def get_api_metrics_auto_bucket(
+        self,
+        api_id: UUID,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """
+        Get time-bucketed metrics with automatic bucket selection.
+        
+        Automatically selects the optimal time bucket based on the time range:
+        - <= 2 hours: 1m bucket (high granularity)
+        - <= 24 hours: 5m bucket (medium granularity)
+        - <= 7 days: 1h bucket (lower granularity)
+        - > 7 days: 1d bucket (lowest granularity)
+        
+        Args:
+            api_id: API UUID
+            start_time: Start of time range (default: 24 hours ago)
+            end_time: End of time range (default: now)
+            limit: Maximum number of data points to return
+            
+        Returns:
+            Dictionary containing time-series, aggregated metrics, and selected bucket info
+        """
+        # Set default time range if not provided
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            start_time = end_time - timedelta(hours=24)
+        
+        # Automatically select optimal time bucket
+        time_bucket = self.metrics_repo.get_optimal_time_bucket(start_time, end_time)
+        
+        logger.info(
+            f"Auto-selected time bucket {time_bucket.value} for range "
+            f"{start_time.isoformat()} to {end_time.isoformat()}"
+        )
+        
+        # Get metrics with the selected bucket
+        result = self.get_api_metrics_with_aggregation(
+            api_id=api_id,
+            time_bucket=time_bucket,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        
+        # Add bucket selection info to result
+        result["selected_bucket"] = time_bucket.value
+        result["bucket_selection_reason"] = self._get_bucket_selection_reason(start_time, end_time)
+        
+        return result
+    
+    def _get_bucket_selection_reason(self, start_time: datetime, end_time: datetime) -> str:
+        """Get human-readable reason for bucket selection."""
+        duration = end_time - start_time
+        hours = duration.total_seconds() / 3600
+        
+        if hours <= 2:
+            return "High granularity (1m) for short time range (<= 2 hours)"
+        elif hours <= 24:
+            return "Medium granularity (5m) for daily time range (<= 24 hours)"
+        elif hours <= 168:
+            return "Lower granularity (1h) for weekly time range (<= 7 days)"
+        else:
+            return "Lowest granularity (1d) for long time range (> 7 days)"
+    
+    def get_api_metrics_with_aggregation(
+        self,
+        api_id: UUID,
+        time_bucket: Optional[TimeBucket] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """
+        Get time-bucketed metrics for an API with aggregated statistics.
+        
+        This method retrieves metrics from time-bucketed indices and calculates:
+        - Time-series data points
+        - Aggregated metrics (total requests, success rate, avg response time, etc.)
+        - Cache metrics (hit rate, hits, misses, bypasses)
+        - Timing breakdown (gateway vs backend time)
+        - HTTP status code distribution
+        
+        Args:
+            api_id: API UUID
+            time_bucket: Time bucket granularity (1m, 5m, 1h, 1d). If None, auto-selects optimal bucket.
+            start_time: Start of time range (default: 24 hours ago)
+            end_time: End of time range (default: now)
+            limit: Maximum number of data points to return
+            
+        Returns:
+            Dictionary containing time-series, aggregated metrics, and breakdowns
+        """
+        # Set default time range if not provided
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            start_time = end_time - timedelta(hours=24)
+        
+        # Auto-select time bucket if not provided
+        if time_bucket is None:
+            time_bucket = self.metrics_repo.get_optimal_time_bucket(start_time, end_time)
+            logger.info(f"Auto-selected time bucket: {time_bucket.value}")
+        
+        # Query metrics from the time-bucketed index
+        metrics, total = self.metrics_repo.find_by_time_bucket(
+            api_id=api_id,
+            time_bucket=time_bucket,
+            start_time=start_time,
+            end_time=end_time,
+            size=limit,
+        )
+        
+        # Convert metrics to time-series format
+        time_series = [
+            {
+                "timestamp": m.timestamp.isoformat(),
+                "request_count": m.request_count,
+                "success_count": m.success_count,
+                "failure_count": m.failure_count,
+                "response_time_avg": m.response_time_avg,
+                "response_time_p50": m.response_time_p50,
+                "response_time_p95": m.response_time_p95,
+                "response_time_p99": m.response_time_p99,
+                "cache_hit_rate": m.cache_hit_rate,
+                "gateway_time_avg": m.gateway_time_avg,
+                "backend_time_avg": m.backend_time_avg,
+            }
+            for m in metrics
+        ]
+        
+        # Calculate aggregated metrics
+        if metrics:
+            total_requests = sum(m.request_count for m in metrics)
+            total_success = sum(m.success_count for m in metrics)
+            total_failures = sum(m.failure_count for m in metrics)
+            
+            aggregated = {
+                "total_requests": total_requests,
+                "success_rate": (total_success / total_requests * 100) if total_requests > 0 else 0,
+                "failure_rate": (total_failures / total_requests * 100) if total_requests > 0 else 0,
+                "avg_response_time": sum(m.response_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
+                "p95_response_time": max(m.response_time_p95 for m in metrics) if metrics else 0,
+                "p99_response_time": max(m.response_time_p99 for m in metrics) if metrics else 0,
+            }
+            
+            # Cache metrics aggregation
+            cache_metrics = {
+                "avg_hit_rate": sum(m.cache_hit_rate for m in metrics) / len(metrics) if metrics else 0,
+                "total_hits": sum(m.cache_hit_count for m in metrics),
+                "total_misses": sum(m.cache_miss_count for m in metrics),
+                "total_bypasses": sum(m.cache_bypass_count for m in metrics),
+            }
+            
+            # Timing breakdown aggregation
+            timing_breakdown = {
+                "avg_gateway_time": sum(m.gateway_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
+                "avg_backend_time": sum(m.backend_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
+                "gateway_overhead_pct": 0,  # Will calculate below
+            }
+            if timing_breakdown["avg_gateway_time"] + timing_breakdown["avg_backend_time"] > 0:
+                timing_breakdown["gateway_overhead_pct"] = (
+                    timing_breakdown["avg_gateway_time"] /
+                    (timing_breakdown["avg_gateway_time"] + timing_breakdown["avg_backend_time"]) * 100
+                )
+            
+            # HTTP status breakdown aggregation
+            status_breakdown = {
+                "2xx": sum(m.status_2xx_count for m in metrics),
+                "3xx": sum(m.status_3xx_count for m in metrics),
+                "4xx": sum(m.status_4xx_count for m in metrics),
+                "5xx": sum(m.status_5xx_count for m in metrics),
+            }
+        else:
+            aggregated = {
+                "total_requests": 0,
+                "success_rate": 0,
+                "failure_rate": 0,
+                "avg_response_time": 0,
+                "p95_response_time": 0,
+                "p99_response_time": 0,
+            }
+            cache_metrics = {
+                "avg_hit_rate": 0,
+                "total_hits": 0,
+                "total_misses": 0,
+                "total_bypasses": 0,
+            }
+            timing_breakdown = {
+                "avg_gateway_time": 0,
+                "avg_backend_time": 0,
+                "gateway_overhead_pct": 0,
+            }
+            status_breakdown = {
+                "2xx": 0,
+                "3xx": 0,
+                "4xx": 0,
+                "5xx": 0,
+            }
+        
+        return {
+            "time_series": time_series,
+            "aggregated": aggregated,
+            "cache_metrics": cache_metrics,
+            "timing_breakdown": timing_breakdown,
+            "status_breakdown": status_breakdown,
+            "total_data_points": len(time_series),
+        }
     
     def get_gateway_metrics(
         self,

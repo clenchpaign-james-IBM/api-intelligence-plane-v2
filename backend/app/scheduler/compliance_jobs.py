@@ -83,28 +83,54 @@ class ComplianceScheduler:
         logger.info("Compliance scheduler jobs registered")
 
     async def _run_compliance_scan(self) -> Dict[str, Any]:
-        """Run compliance scan for all APIs.
+        """Run compliance scan for all APIs across all gateways.
 
         Returns:
             Scan results summary
         """
         try:
-            logger.info("Starting scheduled compliance scan")
+            logger.info("Starting scheduled compliance scan (gateway-scoped)")
             start_time = datetime.utcnow()
 
-            # Scan all APIs for compliance violations
-            result = await self.compliance_service.scan_all_apis()
+            # Get all gateways
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateways, _ = gateway_repo.list_all(size=1000)
+            
+            # Aggregate results across all gateways
+            total_apis_scanned = 0
+            total_violations = 0
+            all_scan_results = []
+            
+            for gateway in gateways:
+                try:
+                    logger.info(f"Scanning gateway {gateway.id} ({gateway.name}) for compliance")
+                    gateway_result = await self.compliance_service.scan_gateway_apis(gateway.id)
+                    total_apis_scanned += gateway_result["apis_scanned"]
+                    total_violations += gateway_result["total_violations"]
+                    all_scan_results.extend(gateway_result.get("scan_results", []))
+                except Exception as e:
+                    logger.error(f"Failed to scan gateway {gateway.id}: {e}")
+            
+            result = {
+                "total_gateways": len(gateways),
+                "apis_scanned": total_apis_scanned,
+                "total_violations": total_violations,
+                "scan_results": all_scan_results,
+            }
 
             duration = (datetime.utcnow() - start_time).total_seconds()
             logger.info(
                 f"Compliance scan completed in {duration:.2f}s. "
-                f"Scanned {result['apis_scanned']} APIs, "
+                f"Scanned {result['total_gateways']} gateways, "
+                f"{result['apis_scanned']} APIs, "
                 f"found {result['total_violations']} violations"
             )
 
             return {
                 "status": "success",
-                "scan_completed_at": result["scan_completed_at"],
+                "scan_completed_at": datetime.utcnow().isoformat(),
+                "total_gateways": result["total_gateways"],
                 "apis_scanned": result["apis_scanned"],
                 "total_violations": result["total_violations"],
                 "duration_seconds": duration,

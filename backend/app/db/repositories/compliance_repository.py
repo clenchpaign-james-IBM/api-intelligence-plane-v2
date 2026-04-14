@@ -26,6 +26,7 @@ class ComplianceRepository(BaseRepository[ComplianceViolation]):
     async def find_by_api_id(
         self,
         api_id: UUID,
+        gateway_id: Optional[UUID] = None,
         status: Optional[ComplianceStatus] = None,
         limit: int = 100,
     ) -> list[ComplianceViolation]:
@@ -33,17 +34,21 @@ class ComplianceRepository(BaseRepository[ComplianceViolation]):
 
         Args:
             api_id: API identifier
+            gateway_id: Optional Gateway ID filter (primary dimension)
             status: Optional status filter
             limit: Maximum results to return
 
         Returns:
             List of compliance violations
         """
+        must_clauses = [{"term": {"api_id": str(api_id)}}]
+        
+        if gateway_id:
+            must_clauses.append({"term": {"gateway_id": str(gateway_id)}})
+        
         query: dict[str, Any] = {
             "bool": {
-                "must": [
-                    {"term": {"api_id": str(api_id)}},
-                ]
+                "must": must_clauses
             }
         }
 

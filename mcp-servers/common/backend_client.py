@@ -103,21 +103,23 @@ class BackendClient:
     
     async def list_apis(
         self,
+        gateway_id: str,
         page: int = 1,
         page_size: int = 100,
-        gateway_id: Optional[str] = None,
         status: Optional[str] = None,
         is_shadow: Optional[bool] = None,
+        health_score_min: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
-        List all discovered APIs.
+        List all discovered APIs for a gateway.
         
         Args:
+            gateway_id: Gateway UUID (required)
             page: Page number (1-based)
             page_size: Number of items per page
-            gateway_id: Filter by gateway ID
             status: Filter by status
             is_shadow: Filter shadow APIs
+            health_score_min: Minimum health score filter (0.0-1.0)
             
         Returns:
             API list response with items, total, page, page_size
@@ -127,31 +129,66 @@ class BackendClient:
             "page_size": page_size,
         }
         
-        if gateway_id:
-            params["gateway_id"] = gateway_id
         if status:
             params["status"] = status
         if is_shadow is not None:
             params["is_shadow"] = is_shadow
+        if health_score_min is not None:
+            params["health_score_min"] = health_score_min
         
-        return await self._request("GET", "/apis", params=params)
+        return await self._request("GET", f"/gateways/{gateway_id}/apis", params=params)
     
-    async def get_api(self, api_id: str) -> Dict[str, Any]:
+    async def get_api(self, gateway_id: str, api_id: str) -> Dict[str, Any]:
         """
         Get details of a specific API.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             
         Returns:
             API details
         """
-        return await self._request("GET", f"/apis/{api_id}")
+        return await self._request("GET", f"/gateways/{gateway_id}/apis/{api_id}")
+    
+    async def search_apis(
+        self,
+        gateway_id: str,
+        query: str,
+        limit: int = 100,
+        status: Optional[str] = None,
+        is_shadow: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search APIs using backend's full-text search within a gateway.
+        
+        Args:
+            gateway_id: Gateway UUID
+            query: Search query string
+            limit: Maximum results (default: 100, max: 1000)
+            status: Optional status filter
+            is_shadow: Optional shadow API filter
+            
+        Returns:
+            Search results with relevance scoring
+        """
+        params: Dict[str, Any] = {
+            "q": query,
+            "limit": limit,
+        }
+        
+        if status:
+            params["status"] = status
+        if is_shadow is not None:
+            params["is_shadow"] = is_shadow
+        
+        return await self._request("GET", f"/gateways/{gateway_id}/apis/search", params=params)
     
     # Metrics Endpoints
     
     async def get_api_metrics(
         self,
+        gateway_id: str,
         api_id: str,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
@@ -161,6 +198,7 @@ class BackendClient:
         Get metrics for a specific API.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             start_time: Start time (ISO 8601)
             end_time: End time (ISO 8601)
@@ -176,12 +214,13 @@ class BackendClient:
         if end_time:
             params["end_time"] = end_time
         
-        return await self._request("GET", f"/apis/{api_id}/metrics", params=params)
+        return await self._request("GET", f"/gateways/{gateway_id}/apis/{api_id}/metrics", params=params)
     
     # Prediction Endpoints
     
     async def list_predictions(
         self,
+        gateway_id: str,
         api_id: Optional[str] = None,
         severity: Optional[str] = None,
         status: Optional[str] = None,
@@ -189,9 +228,10 @@ class BackendClient:
         page_size: int = 100,
     ) -> Dict[str, Any]:
         """
-        List failure predictions.
+        List failure predictions for a gateway.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: Filter by API ID
             severity: Filter by severity
             status: Filter by status
@@ -213,19 +253,82 @@ class BackendClient:
         if status:
             params["status"] = status
         
-        return await self._request("GET", "/predictions", params=params)
+        return await self._request("GET", f"/gateways/{gateway_id}/predictions", params=params)
+    
+    async def get_prediction(self, gateway_id: str, prediction_id: str) -> Dict[str, Any]:
+        """
+        Get details of a specific prediction.
+        
+        Args:
+            gateway_id: Gateway UUID
+            prediction_id: Prediction UUID
+            
+        Returns:
+            Prediction details
+        """
+        return await self._request("GET", f"/gateways/{gateway_id}/predictions/{prediction_id}")
+    
+    async def get_prediction_explanation(
+        self,
+        gateway_id: str,
+        prediction_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Get AI explanation for a specific prediction.
+        
+        Args:
+            gateway_id: Gateway UUID
+            prediction_id: Prediction UUID
+            
+        Returns:
+            AI explanation payload
+        """
+        return await self._request(
+            "GET",
+            f"/gateways/{gateway_id}/predictions/{prediction_id}/explanation",
+        )
+    
+    async def get_prediction_accuracy_stats(
+        self,
+        gateway_id: str,
+        api_id: Optional[str] = None,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Get prediction accuracy statistics for a gateway.
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: Optional API UUID filter
+            days: Number of days to analyze
+            
+        Returns:
+            Accuracy statistics response
+        """
+        params: Dict[str, Any] = {"days": days}
+        
+        if api_id:
+            params["api_id"] = api_id
+        
+        return await self._request(
+            "GET",
+            f"/gateways/{gateway_id}/predictions/stats/accuracy",
+            params=params,
+        )
     
     async def generate_predictions(
         self,
+        gateway_id: str,
         api_id: Optional[str] = None,
         min_confidence: float = 0.7,
         use_ai: bool = False,
     ) -> Dict[str, Any]:
         """
-        Trigger prediction generation.
+        Trigger prediction generation for a gateway.
         
         Args:
-            api_id: Optional API ID (generates for all if not provided)
+            gateway_id: Gateway UUID
+            api_id: Optional API ID (generates for all APIs in gateway if not provided)
             min_confidence: Minimum confidence threshold
             use_ai: Use AI-enhanced generation
             
@@ -240,12 +343,13 @@ class BackendClient:
         if api_id:
             params["api_id"] = api_id
         
-        return await self._request("POST", "/predictions/generate", params=params)
+        return await self._request("POST", f"/gateways/{gateway_id}/predictions/generate", params=params)
     
     # Optimization Endpoints
     
     async def list_recommendations(
         self,
+        gateway_id: str,
         api_id: Optional[str] = None,
         priority: Optional[str] = None,
         status: Optional[str] = None,
@@ -254,9 +358,10 @@ class BackendClient:
         page_size: int = 100,
     ) -> Dict[str, Any]:
         """
-        List optimization recommendations.
+        List optimization recommendations for a gateway.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: Filter by API ID
             priority: Filter by priority
             status: Filter by status
@@ -281,10 +386,11 @@ class BackendClient:
         if recommendation_type:
             params["recommendation_type"] = recommendation_type
         
-        return await self._request("GET", "/recommendations", params=params)
+        return await self._request("GET", f"/gateways/{gateway_id}/optimization/recommendations", params=params)
     
     async def generate_recommendations(
         self,
+        gateway_id: str,
         api_id: str,
         min_impact: float = 10.0,
         use_ai: bool = False,
@@ -293,6 +399,7 @@ class BackendClient:
         Generate optimization recommendations for an API.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             min_impact: Minimum expected improvement percentage
             use_ai: Use AI-enhanced generation
@@ -306,21 +413,23 @@ class BackendClient:
             "use_ai": use_ai,
         }
         
-        return await self._request("POST", "/recommendations/generate", params=params)
+        return await self._request("POST", f"/gateways/{gateway_id}/optimization/recommendations/generate", params=params)
     
     # Rate Limiting Endpoints
     
     async def list_rate_limit_policies(
         self,
+        gateway_id: str,
         api_id: Optional[str] = None,
         status: Optional[str] = None,
         page: int = 1,
         page_size: int = 100,
     ) -> Dict[str, Any]:
         """
-        List rate limit policies.
+        List rate limit policies for a gateway.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: Filter by API ID
             status: Filter by status
             page: Page number
@@ -339,10 +448,11 @@ class BackendClient:
         if status:
             params["status"] = status
         
-        return await self._request("GET", "/rate-limits", params=params)
+        return await self._request("GET", f"/gateways/{gateway_id}/rate-limits", params=params)
     
     async def create_rate_limit_policy(
         self,
+        gateway_id: str,
         api_id: str,
         policy_name: str,
         policy_type: str,
@@ -354,6 +464,7 @@ class BackendClient:
         Create a rate limit policy.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             policy_name: Policy name
             policy_type: Policy type (fixed, adaptive, priority_based, burst_allowance)
@@ -365,6 +476,7 @@ class BackendClient:
             Created policy
         """
         json_data = {
+            "gateway_id": gateway_id,
             "api_id": api_id,
             "policy_name": policy_name,
             "policy_type": policy_type,
@@ -373,10 +485,11 @@ class BackendClient:
             **kwargs,
         }
         
-        return await self._request("POST", "/rate-limits", json=json_data)
+        return await self._request("POST", f"/gateways/{gateway_id}/rate-limits", json=json_data)
     
     async def analyze_rate_limit_effectiveness(
         self,
+        gateway_id: str,
         policy_id: str,
         analysis_period_hours: int = 24,
     ) -> Dict[str, Any]:
@@ -384,6 +497,7 @@ class BackendClient:
         Analyze rate limit policy effectiveness.
         
         Args:
+            gateway_id: Gateway UUID
             policy_id: Policy UUID
             analysis_period_hours: Analysis period in hours
             
@@ -394,9 +508,134 @@ class BackendClient:
         
         return await self._request(
             "GET",
-            f"/rate-limits/{policy_id}/effectiveness",
+            f"/gateways/{gateway_id}/rate-limits/{policy_id}/effectiveness",
             params=params,
         )
+    # Compliance Endpoints
+    
+    async def scan_api_compliance(
+        self,
+        gateway_id: str,
+        api_id: str,
+        standards: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Scan API for compliance violations.
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: API UUID to scan
+            standards: Optional list of specific standards to check
+                      Valid values: ["GDPR", "HIPAA", "SOC2", "PCI_DSS", "ISO_27001"]
+            
+        Returns:
+            Scan results with violations and evidence
+        """
+        payload: Dict[str, Any] = {
+            "gateway_id": gateway_id,
+            "api_id": api_id
+        }
+        if standards:
+            payload["standards"] = standards
+        
+        return await self._request("POST", f"/gateways/{gateway_id}/compliance/scan", json=payload)
+    
+    async def get_compliance_violations(
+        self,
+        gateway_id: str,
+        api_id: Optional[str] = None,
+        standard: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        """
+        Get compliance violations with optional filters for a gateway.
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: Optional API UUID filter
+            standard: Optional compliance standard filter
+            severity: Optional severity filter
+            status: Optional status filter
+            limit: Maximum results
+            
+        Returns:
+            List of compliance violations
+        """
+        params: Dict[str, Any] = {"limit": limit}
+        
+        if api_id:
+            params["api_id"] = api_id
+        if standard:
+            params["standard"] = standard
+        if severity:
+            params["severity"] = severity
+        if status:
+            params["status"] = status
+        
+        return await self._request("GET", f"/gateways/{gateway_id}/compliance/violations", params=params)
+    
+    async def get_compliance_posture(
+        self,
+        gateway_id: str,
+        api_id: Optional[str] = None,
+        standard: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get compliance posture metrics for a gateway.
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: Optional API UUID filter
+            standard: Optional compliance standard filter
+            
+        Returns:
+            Compliance posture metrics and scores
+        """
+        params: Dict[str, Any] = {}
+        
+        if api_id:
+            params["api_id"] = api_id
+        if standard:
+            params["standard"] = standard
+        
+        return await self._request("GET", f"/gateways/{gateway_id}/compliance/posture", params=params)
+    
+    async def generate_audit_report(
+        self,
+        gateway_id: str,
+        api_id: Optional[str] = None,
+        standard: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate comprehensive audit report for a gateway.
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: Optional API UUID filter
+            standard: Optional compliance standard filter
+            start_date: Report start date (ISO format)
+            end_date: Report end date (ISO format)
+            
+        Returns:
+            Comprehensive audit report with evidence
+        """
+        payload: Dict[str, Any] = {}
+        
+        if api_id:
+            payload["api_id"] = api_id
+        if standard:
+            payload["standard"] = standard
+        if start_date:
+            payload["start_date"] = start_date
+        if end_date:
+            payload["end_date"] = end_date
+        
+        return await self._request("POST", f"/gateways/{gateway_id}/compliance/reports/audit", json=payload)
+
 
 
 # Made with Bob

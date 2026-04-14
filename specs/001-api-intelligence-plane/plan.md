@@ -25,7 +25,7 @@ API Intelligence Plane is an AI-driven API management application that transform
 - MCP: FastMCP for server/client implementation with Streamable HTTP transport
 - Demo Gateway: Spring Boot, OpenSearch Java client
 
-**Prediction Architecture**: Hybrid approach combining rule-based predictions (fast, deterministic baseline) with optional AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is automatically triggered based on prediction confidence thresholds (default: ≥80%) and system configuration (PREDICTION_AI_ENABLED, PREDICTION_AI_THRESHOLD).
+**Prediction Architecture**: Single hybrid approach combining rule-based predictions (fast, deterministic baseline) followed by AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is always applied to all predictions produced by the scheduler-driven prediction workflow, with graceful fallback metadata retained on each prediction if AI enhancement fails.
 
 **Security Architecture**: Hybrid approach combining rule-based security checks with AI-enhanced analysis. Uses multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection. Real remediation via Gateway adapter with 6 security policy types: authentication, authorization, TLS, CORS, validation, and security headers. Focuses on immediate threat response.
 

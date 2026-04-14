@@ -1,8 +1,9 @@
 """
 Optimization Agent
 
-AI agent for enhanced optimization recommendation generation using LangChain/LangGraph.
-Provides LLM-powered analysis of performance patterns and recommendation prioritization.
+AI agent for hybrid optimization recommendation generation using LangChain/LangGraph.
+Provides LLM-powered analysis of performance patterns, recommendation enrichment,
+and prioritization.
 """
 
 import logging
@@ -30,19 +31,19 @@ logger = logging.getLogger(__name__)
 class OptimizationState(TypedDict):
     """State for optimization recommendation workflow."""
     
+    gateway_id: str
     api_id: str
     api_name: str
     metrics: List[Any]
     performance_analysis: str
     recommendations: List[Any]
-    enhanced_recommendations: List[Dict[str, Any]]
     prioritization: str
     error: str
 
 
 class OptimizationAgent:
     """
-    AI agent for enhanced optimization recommendation generation.
+    AI agent for hybrid optimization recommendation generation.
     
     Uses LangChain for LLM integration and LangGraph for workflow orchestration.
     """
@@ -96,35 +97,41 @@ class OptimizationAgent:
             logger.error(f"Failed to build LangGraph workflow: {e}")
             return None
     
-    async def generate_enhanced_recommendations(
+    async def generate_hybrid_recommendations(
         self,
+        gateway_id: UUID,
         api_id: UUID,
         api_name: str,
         metrics: List[Metric],
         focus_areas: Optional[List[RecommendationType]] = None,
+        min_impact: float = 10.0,
     ) -> Dict[str, Any]:
         """
-        Generate enhanced optimization recommendations with LLM analysis.
-        
+        Generate hybrid optimization recommendations with LLM analysis.
+
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             api_name: API name
             metrics: Historical metrics
             focus_areas: Specific optimization types to focus on
-            
+            min_impact: Minimum expected improvement percentage
+
         Returns:
-            Dict with recommendations and analysis
+            Dict with normalized recommendations and AI analysis
         """
-        logger.info(f"Generating enhanced optimization recommendations for API {api_name}")
+        logger.info(f"Generating hybrid optimization recommendations for API {api_name}")
         
         # Initialize state
+        self._current_min_impact = min_impact
+
         initial_state: OptimizationState = {
+            "gateway_id": str(gateway_id),
             "api_id": str(api_id),
             "api_name": api_name,
             "metrics": metrics,
             "performance_analysis": "",
             "recommendations": [],
-            "enhanced_recommendations": [],
             "prioritization": "",
             "error": "",
         }
@@ -145,7 +152,7 @@ class OptimizationAgent:
                 "api_id": str(api_id),
                 "api_name": api_name,
                 "performance_analysis": final_state.get("performance_analysis"),
-                "recommendations": final_state.get("enhanced_recommendations", []),
+                "recommendations": final_state.get("recommendations", []),
                 "prioritization": final_state.get("prioritization"),
                 "metrics_analyzed": len(metrics),
             }
@@ -234,11 +241,14 @@ Identify the top optimization opportunities and their potential impact."""
         logger.info(f"Generating recommendations for API {state['api_name']}")
         
         try:
-            # Generate recommendations using optimization service
+            # Generate baseline recommendations using rule-based service logic
+            gateway_id = UUID(state["gateway_id"]) if isinstance(state["gateway_id"], str) else state["gateway_id"]
             api_id = UUID(state["api_id"]) if isinstance(state["api_id"], str) else state["api_id"]
-            recommendations = self.optimization_service.generate_recommendations_for_api(
+            recommendations = self.optimization_service._generate_rule_based_recommendations(
+                gateway_id=gateway_id,
                 api_id=api_id,
-                min_impact=10.0,
+                metrics=state["metrics"],
+                min_impact=getattr(self, "_current_min_impact", 10.0),
             )
             
             logger.info(
@@ -258,19 +268,19 @@ Identify the top optimization opportunities and their potential impact."""
         self, state: OptimizationState
     ) -> OptimizationState:
         """
-        Enhance recommendations with LLM-generated insights and explanations.
+        Enrich recommendations with LLM-generated insights and explanations.
         
         Args:
             state: Current workflow state
             
         Returns:
-            Updated state with enhanced recommendations
+            Updated state with normalized recommendations
         """
-        logger.info(f"Enhancing recommendations for API {state['api_name']}")
+        logger.info(f"Enriching recommendations for API {state['api_name']}")
         
         recommendations = state.get("recommendations", [])
         if not recommendations:
-            state["enhanced_recommendations"] = []
+            state["recommendations"] = []
             return state
         
         enhanced = []
@@ -309,7 +319,7 @@ Provide enhanced implementation guidance and success metrics."""
                 
                 enhancement = response.get("content", "")
                 
-                # Create enhanced recommendation dict
+                # Merge AI enrichment into a normalized recommendation dict
                 enhanced_rec = {
                     "id": str(rec.id),
                     "api_id": str(rec.api_id),
@@ -352,9 +362,9 @@ Provide enhanced implementation guidance and success metrics."""
                     "error": f"Enhancement failed: {str(e)}",
                 })
         
-        logger.info(f"Enhanced {len(enhanced)} recommendations for API {state['api_name']}")
+        logger.info(f"Enriched {len(enhanced)} recommendations for API {state['api_name']}")
         
-        state["enhanced_recommendations"] = enhanced
+        state["recommendations"] = enhanced
         return state
     
     async def _prioritize_recommendations_node(
@@ -371,7 +381,7 @@ Provide enhanced implementation guidance and success metrics."""
         """
         logger.info(f"Prioritizing recommendations for API {state['api_name']}")
         
-        enhanced_recs = state.get("enhanced_recommendations", [])
+        enhanced_recs = state.get("recommendations", [])
         if not enhanced_recs:
             state["prioritization"] = "No recommendations to prioritize"
             return state

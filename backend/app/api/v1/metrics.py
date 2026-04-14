@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query
+from fastapi import status as http_status
 from pydantic import BaseModel
 
 from app.db.repositories.api_repository import APIRepository
@@ -39,20 +40,22 @@ class MetricsResponse(BaseModel):
 
 
 @router.get(
-    "/apis/{api_id}/metrics",
+    "/gateways/{gateway_id}/apis/{api_id}/metrics",
     response_model=MetricsResponse,
     summary="Get API metrics",
 )
-async def get_api_metrics(
+async def get_gateway_api_metrics(
+    gateway_id: UUID,
     api_id: UUID,
     start_time: Optional[datetime] = Query(None, description="Start time (ISO 8601)"),
     end_time: Optional[datetime] = Query(None, description="End time (ISO 8601)"),
     time_bucket: str = Query("5m", description="Time bucket granularity", regex="^(1m|5m|1h|1d)$"),
 ) -> MetricsResponse:
     """
-    Get time-bucketed metrics for a specific API.
+    Get time-bucketed metrics for a specific API within a gateway.
     
     Args:
+        gateway_id: Gateway UUID (required)
         api_id: API UUID
         start_time: Start of time range (default: 24 hours ago)
         end_time: End of time range (default: now)
@@ -62,22 +65,38 @@ async def get_api_metrics(
         API metrics with time-series, cache metrics, timing breakdown, and status breakdown
         
     Raises:
-        HTTPException: If API not found or metrics retrieval fails
+        HTTPException: If gateway or API not found or metrics retrieval fails
     """
     try:
+        # Verify gateway exists
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
         # Verify API exists
         api_repo = APIRepository()
         api = api_repo.get(str(api_id))
         
         if not api:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"API {api_id} not found",
+            )
+        
+        # Verify API belongs to the gateway
+        if str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"API {api_id} not found in gateway {gateway_id}",
             )
         
         # Initialize metrics service
         metrics_repo = MetricsRepository()
-        gateway_repo = GatewayRepository()
         adapter_factory = GatewayAdapterFactory()
         
         metrics_service = MetricsService(
@@ -87,120 +106,27 @@ async def get_api_metrics(
             adapter_factory=adapter_factory,
         )
         
-        # Set default time range if not provided
-        if not end_time:
-            end_time = datetime.utcnow()
-        if not start_time:
-            start_time = end_time - timedelta(hours=24)
-        
         # Convert time_bucket string to TimeBucket enum
         bucket_enum = TimeBucket(time_bucket)
         
-        # Query metrics from the time-bucketed index
-        metrics, total = metrics_repo.find_by_time_bucket(
+        # Get metrics with aggregation from service layer
+        result = metrics_service.get_api_metrics_with_aggregation(
             api_id=api_id,
             time_bucket=bucket_enum,
             start_time=start_time,
             end_time=end_time,
-            size=1000,  # Get up to 1000 data points
+            limit=1000,
         )
-        
-        # Convert metrics to time-series format
-        time_series = [
-            {
-                "timestamp": m.timestamp.isoformat(),
-                "request_count": m.request_count,
-                "success_count": m.success_count,
-                "failure_count": m.failure_count,
-                "response_time_avg": m.response_time_avg,
-                "response_time_p50": m.response_time_p50,
-                "response_time_p95": m.response_time_p95,
-                "response_time_p99": m.response_time_p99,
-                "cache_hit_rate": m.cache_hit_rate,
-                "gateway_time_avg": m.gateway_time_avg,
-                "backend_time_avg": m.backend_time_avg,
-            }
-            for m in metrics
-        ]
-        
-        # Calculate aggregated metrics
-        if metrics:
-            total_requests = sum(m.request_count for m in metrics)
-            total_success = sum(m.success_count for m in metrics)
-            total_failures = sum(m.failure_count for m in metrics)
-            
-            aggregated = {
-                "total_requests": total_requests,
-                "success_rate": (total_success / total_requests * 100) if total_requests > 0 else 0,
-                "failure_rate": (total_failures / total_requests * 100) if total_requests > 0 else 0,
-                "avg_response_time": sum(m.response_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
-                "p95_response_time": max(m.response_time_p95 for m in metrics) if metrics else 0,
-                "p99_response_time": max(m.response_time_p99 for m in metrics) if metrics else 0,
-            }
-            
-            # Cache metrics aggregation
-            cache_metrics = {
-                "avg_hit_rate": sum(m.cache_hit_rate for m in metrics) / len(metrics) if metrics else 0,
-                "total_hits": sum(m.cache_hit_count for m in metrics),
-                "total_misses": sum(m.cache_miss_count for m in metrics),
-                "total_bypasses": sum(m.cache_bypass_count for m in metrics),
-            }
-            
-            # Timing breakdown aggregation
-            timing_breakdown = {
-                "avg_gateway_time": sum(m.gateway_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
-                "avg_backend_time": sum(m.backend_time_avg * m.request_count for m in metrics) / total_requests if total_requests > 0 else 0,
-                "gateway_overhead_pct": 0,  # Will calculate below
-            }
-            if timing_breakdown["avg_gateway_time"] + timing_breakdown["avg_backend_time"] > 0:
-                timing_breakdown["gateway_overhead_pct"] = (
-                    timing_breakdown["avg_gateway_time"] /
-                    (timing_breakdown["avg_gateway_time"] + timing_breakdown["avg_backend_time"]) * 100
-                )
-            
-            # HTTP status breakdown aggregation
-            status_breakdown = {
-                "2xx": sum(m.status_2xx_count for m in metrics),
-                "3xx": sum(m.status_3xx_count for m in metrics),
-                "4xx": sum(m.status_4xx_count for m in metrics),
-                "5xx": sum(m.status_5xx_count for m in metrics),
-            }
-        else:
-            aggregated = {
-                "total_requests": 0,
-                "success_rate": 0,
-                "failure_rate": 0,
-                "avg_response_time": 0,
-                "p95_response_time": 0,
-                "p99_response_time": 0,
-            }
-            cache_metrics = {
-                "avg_hit_rate": 0,
-                "total_hits": 0,
-                "total_misses": 0,
-                "total_bypasses": 0,
-            }
-            timing_breakdown = {
-                "avg_gateway_time": 0,
-                "avg_backend_time": 0,
-                "gateway_overhead_pct": 0,
-            }
-            status_breakdown = {
-                "2xx": 0,
-                "3xx": 0,
-                "4xx": 0,
-                "5xx": 0,
-            }
         
         return MetricsResponse(
             api_id=str(api_id),
             time_bucket=time_bucket,
-            time_series=time_series,
-            aggregated=aggregated,
-            cache_metrics=cache_metrics,
-            timing_breakdown=timing_breakdown,
-            status_breakdown=status_breakdown,
-            total_data_points=len(time_series),
+            time_series=result["time_series"],
+            aggregated=result["aggregated"],
+            cache_metrics=result["cache_metrics"],
+            timing_breakdown=result["timing_breakdown"],
+            status_breakdown=result["status_breakdown"],
+            total_data_points=result["total_data_points"],
         )
         
     except HTTPException:
@@ -208,27 +134,29 @@ async def get_api_metrics(
     except Exception as e:
         logger.error(f"Failed to get metrics for API {api_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get metrics: {str(e)}",
         )
 
 
 @router.get(
-    "/metrics/{metric_id}/logs",
+    "/gateways/{gateway_id}/metrics/{metric_id}/logs",
     summary="Drill down to transactional logs",
 )
-async def drill_down_to_logs(
+async def drill_down_to_gateway_logs(
+    gateway_id: UUID,
     metric_id: str,
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of logs to return"),
 ):
     """
-    Drill down from a metric to its source transactional logs.
+    Drill down from a metric to its source transactional logs within a gateway.
     
     This endpoint allows you to trace a specific metric back to the individual
     transactional logs that were aggregated to create it. Useful for debugging
     performance issues or investigating specific time periods.
     
     Args:
+        gateway_id: Gateway UUID (required)
         metric_id: ID of the metric to drill down from
         limit: Maximum number of logs to return (1-1000)
         
@@ -236,13 +164,22 @@ async def drill_down_to_logs(
         Metric context and associated transactional logs
         
     Raises:
-        HTTPException: If metric not found or drill-down fails
+        HTTPException: If gateway or metric not found or drill-down fails
     """
     try:
+        # Verify gateway exists
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
         # Initialize metrics service
         metrics_repo = MetricsRepository()
         api_repo = APIRepository()
-        gateway_repo = GatewayRepository()
         adapter_factory = GatewayAdapterFactory()
         
         metrics_service = MetricsService(
@@ -261,7 +198,7 @@ async def drill_down_to_logs(
         # Check if metric was found
         if result.get("error"):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=result["error"],
             )
         
@@ -305,8 +242,151 @@ async def drill_down_to_logs(
     except Exception as e:
         logger.error(f"Failed to drill down for metric {metric_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to drill down to logs: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/metrics/summary",
+    summary="Get metrics summary for gateway APIs",
+)
+async def get_gateway_metrics_summary(
+    gateway_id: UUID,
+    status: Optional[str] = Query(None, description="Filter by API status"),
+    start_time: Optional[datetime] = Query(None, description="Start time (ISO 8601)"),
+    end_time: Optional[datetime] = Query(None, description="End time (ISO 8601)"),
+) -> dict:
+    """
+    Get aggregated metrics summary for all APIs within a gateway.
+    
+    Args:
+        gateway_id: Gateway UUID (required)
+        status: Optional API status filter
+        start_time: Start of time range (default: 24 hours ago)
+        end_time: End of time range (default: now)
+        
+    Returns:
+        Summary statistics including avg response time, error rate, throughput, etc.
+        
+    Raises:
+        HTTPException: If gateway not found or summary retrieval fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Set default time range if not provided
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            start_time = end_time - timedelta(hours=24)
+        
+        # Initialize repositories
+        api_repo = APIRepository()
+        metrics_repo = MetricsRepository()
+        
+        # Get all APIs for this gateway
+        apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+        
+        # Apply status filter if provided
+        if status:
+            apis = [api for api in apis if api.status == status]
+        
+        if not apis:
+            return {
+                "total_apis": 0,
+                "total_requests_24h": 0,
+                "avg_response_time": 0,
+                "avg_error_rate": 0,
+                "avg_throughput": 0,
+                "avg_availability": 0,
+                "avg_health_score": 0,
+            }
+        
+        # Aggregate metrics across all APIs
+        total_requests = 0
+        total_response_time_weighted = 0
+        total_errors = 0
+        total_throughput = 0
+        total_availability = 0
+        total_health_score = 0
+        apis_with_metrics = 0
+        
+        for api in apis:
+            try:
+                # Get metrics for this API
+                metrics, _ = metrics_repo.find_by_api(
+                    api_id=api.id,
+                    start_time=start_time,
+                    end_time=end_time,
+                    size=1000,
+                )
+                
+                if metrics:
+                    apis_with_metrics += 1
+                    api_total_requests = sum(m.request_count for m in metrics)
+                    api_total_errors = sum(m.failure_count for m in metrics)
+                    
+                    total_requests += api_total_requests
+                    total_errors += api_total_errors
+                    
+                    # Weighted average response time
+                    if api_total_requests > 0:
+                        total_response_time_weighted += sum(
+                            m.response_time_avg * m.request_count for m in metrics
+                        )
+                    
+                    # Average throughput
+                    total_throughput += sum(m.throughput for m in metrics) / len(metrics) if metrics else 0
+                    
+                    # Average availability (if available)
+                    availabilities = [m.availability for m in metrics if hasattr(m, 'availability') and m.availability is not None]
+                    if availabilities:
+                        total_availability += sum(availabilities) / len(availabilities)
+                
+                # Add health score from API metadata
+                if api.intelligence_metadata and api.intelligence_metadata.health_score:
+                    total_health_score += api.intelligence_metadata.health_score
+                    
+            except Exception as e:
+                logger.warning(f"Failed to get metrics for API {api.id}: {e}")
+                continue
+        
+        # Calculate averages
+        avg_response_time = (
+            total_response_time_weighted / total_requests if total_requests > 0 else 0
+        )
+        avg_error_rate = (
+            (total_errors / total_requests * 100) if total_requests > 0 else 0
+        )
+        avg_throughput = total_throughput / apis_with_metrics if apis_with_metrics > 0 else 0
+        avg_availability = total_availability / apis_with_metrics if apis_with_metrics > 0 else 0
+        avg_health_score = total_health_score / len(apis) if apis else 0
+        
+        return {
+            "total_apis": len(apis),
+            "total_requests_24h": total_requests,
+            "avg_response_time": round(avg_response_time, 2),
+            "avg_error_rate": round(avg_error_rate, 2),
+            "avg_throughput": round(avg_throughput, 2),
+            "avg_availability": round(avg_availability, 2),
+            "avg_health_score": round(avg_health_score, 2),
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get metrics summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get metrics summary: {str(e)}",
         )
 
 

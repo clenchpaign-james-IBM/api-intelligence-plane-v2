@@ -462,7 +462,10 @@ class MetricsRepository(BaseRepository[Metric]):
 
     def bulk_create_metrics(self, metrics: List[Metric]) -> int:
         """
-        Bulk create multiple metrics (handles multiple indices).
+        Bulk create multiple metrics with duplicate prevention (handles multiple indices).
+        
+        Uses composite document IDs to prevent duplicates for the same:
+        (api_id, gateway_id, timestamp, time_bucket)
         
         Args:
             metrics: List of Metric instances
@@ -477,29 +480,55 @@ class MetricsRepository(BaseRepository[Metric]):
             for metric in metrics:
                 doc_dict = metric.model_dump(mode="json", exclude_none=True)
                 
-                action = {
-                    "_index": self._get_index_name(metric.timestamp),
-                    "_source": doc_dict,
-                }
+                # Generate composite ID for duplicate prevention
+                # Format: {api_id}_{gateway_id}_{timestamp_iso}_{bucket}
+                timestamp_str = metric.timestamp.strftime('%Y%m%d%H%M%S')
+                composite_id = f"{metric.api_id}_{metric.gateway_id}_{timestamp_str}_{metric.time_bucket.value}"
                 
-                if metric.id:
-                    action["_id"] = str(metric.id)
+                action = {
+                    "_index": self._get_index_name(metric.timestamp, metric.time_bucket),
+                    "_id": composite_id,  # Use composite ID for upsert behavior
+                    "_source": doc_dict,
+                    "_op_type": "index",  # Use index (upsert) instead of create
+                }
                 
                 actions.append(action)
             
-            success, failed = helpers.bulk(
+            # Bulk operation with error tracking
+            success_count = 0
+            error_count = 0
+            errors = []
+            
+            for ok, result in helpers.streaming_bulk(
                 self.client,
                 actions,
                 refresh=True,
-            )
+                raise_on_error=False,  # Don't fail entire batch on single error
+                raise_on_exception=False,
+            ):
+                if ok:
+                    success_count += 1
+                else:
+                    error_count += 1
+                    # Log first 10 errors for debugging
+                    if len(errors) < 10:
+                        errors.append(result)
             
-            logger.info(
-                f"Bulk created {success} metrics, {failed} failed"
-            )
-            return success
+            if errors:
+                logger.warning(
+                    f"Bulk create metrics completed with errors: "
+                    f"{success_count} succeeded, {error_count} failed. "
+                    f"First errors: {errors[:3]}"
+                )
+            else:
+                logger.info(
+                    f"Bulk created {success_count} metrics successfully"
+                )
+            
+            return success_count
             
         except Exception as e:
-            logger.error(f"Bulk create metrics failed: {e}")
+            logger.error(f"Bulk create metrics failed: {e}", exc_info=True)
             raise
 
 

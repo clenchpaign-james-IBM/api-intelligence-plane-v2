@@ -1,10 +1,10 @@
 # API Reference: API Intelligence Plane
 
 **Version**: 2.0.0
-**Last Updated**: 2026-04-11
+**Last Updated**: 2026-04-14
 **Base URL**: `http://localhost:8000` (Development) | `https://api.yourdomain.com` (Production)
 
-**Architecture**: Vendor-Neutral with Time-Bucketed Metrics
+**Architecture**: Gateway-First with Vendor-Neutral Data Models
 
 ## Table of Contents
 
@@ -28,17 +28,34 @@
 
 ## Overview
 
-The API Intelligence Plane provides a RESTful API for managing **vendor-neutral** API discovery, monitoring, predictions, security, optimization, and natural language queries. The system uses vendor-neutral data models with vendor-specific adapters, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
+The API Intelligence Plane provides a RESTful API for managing **gateway-first, vendor-neutral** API discovery, monitoring, predictions, security, optimization, and natural language queries. The system uses vendor-neutral data models with vendor-specific adapters, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
 
 ### Key Architecture Features
 
+- **Gateway-First Design**: All operations use Gateway as primary scope dimension, API as secondary
 - **Vendor-Neutral Models**: All API data stored in vendor-neutral format with vendor-specific fields in `vendor_metadata`
 - **Time-Bucketed Metrics**: Metrics stored separately from API entities in time-bucketed indices (1m, 5m, 1h, 1d)
 - **Separated Intelligence**: Intelligence fields (`health_score`, `risk_score`, `security_score`) in `intelligence_metadata` wrapper
 - **Policy Actions**: Vendor-neutral policy representation with `vendor_config` for vendor-specific settings
 - **Drill-Down Pattern**: Query aggregated metrics, then drill down to raw transactional logs
+- **Multi-Gateway Support**: Proper isolation and scoping for multi-gateway deployments
 
 All endpoints return JSON responses and follow REST conventions.
+
+### Gateway-First Query Pattern
+
+**IMPORTANT**: Most endpoints require `gateway_id` as a query parameter (primary dimension). This ensures proper data scoping in multi-gateway deployments.
+
+```http
+# Correct: Gateway-scoped query
+GET /api/v1/apis?gateway_id=<uuid>
+
+# Correct: Gateway and API scoped query
+GET /api/v1/metrics?gateway_id=<uuid>&api_id=<uuid>
+
+# Incorrect: Missing gateway context
+GET /api/v1/apis?api_id=<uuid>
+```
 
 ### API Versioning
 
@@ -85,11 +102,15 @@ List endpoints support pagination with the following query parameters:
 
 ### Filtering
 
-Many list endpoints support filtering via query parameters:
+Many list endpoints support filtering via query parameters. **Gateway-scoped filtering is required** for most endpoints:
 
 ```http
-GET /api/v1/apis?status=active&is_shadow=false
-GET /api/v1/predictions?severity=critical&status=active
+# Gateway-scoped filtering (required)
+GET /api/v1/apis?gateway_id=<uuid>&status=active&is_shadow=false
+GET /api/v1/predictions?gateway_id=<uuid>&severity=critical&status=active
+
+# Cross-gateway filtering (explicit)
+GET /api/v1/metrics/cross-gateway?gateway_ids=<uuid1>&gateway_ids=<uuid2>
 ```
 
 ### Timestamps

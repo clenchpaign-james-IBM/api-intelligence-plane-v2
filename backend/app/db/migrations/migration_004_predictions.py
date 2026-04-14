@@ -31,6 +31,7 @@ def create_predictions_index(client: OpenSearch):
         "mappings": {
             "properties": {
                 "id": {"type": "keyword"},
+                "gateway_id": {"type": "keyword"},
                 "api_id": {"type": "keyword"},
                 "prediction_type": {"type": "keyword"},
                 "predicted_at": {"type": "date"},

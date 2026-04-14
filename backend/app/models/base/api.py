@@ -9,7 +9,23 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# Import structured policy configurations
+from .policy_configs import (
+    RateLimitConfig,
+    AuthenticationConfig,
+    AuthorizationConfig,
+    CachingConfig,
+    CorsConfig,
+    ValidationConfig,
+    DataMaskingConfig,
+    TransformationConfig,
+    LoggingConfig,
+    TlsConfig,
+    CompressionConfig,
+    PolicyConfigType,
+)
 
 
 # ============================================================================
@@ -157,7 +173,21 @@ class Endpoint(BaseModel):
 class PolicyAction(BaseModel):
     """
     Vendor-neutral policy action configuration.
-    Supports extension via vendor_config for gateway-specific settings.
+    
+    Uses structured type-safe configurations (PolicyConfigType) for all policy actions.
+    Dict-based configurations are no longer supported.
+    
+    Examples:
+        # Structured config (required)
+        PolicyAction(
+            action_type=PolicyActionType.RATE_LIMITING,
+            config=RateLimitConfig(requests_per_minute=1000)
+        )
+        
+        PolicyAction(
+            action_type=PolicyActionType.AUTHENTICATION,
+            config=AuthenticationConfig(auth_type="oauth2")
+        )
     """
 
     action_type: PolicyActionType = Field(..., description="Type of policy action")
@@ -166,9 +196,10 @@ class PolicyAction(BaseModel):
         None, description="Execution stage (request, response, error)"
     )
 
-    # Common configuration
-    config: Optional[dict[str, Any]] = Field(
-        None, description="Policy-specific configuration"
+    # Policy configuration - structured configs only
+    config: Optional[PolicyConfigType] = Field(
+        None,
+        description="Policy-specific configuration (structured config required)"
     )
 
     # Vendor-specific configuration
@@ -179,6 +210,60 @@ class PolicyAction(BaseModel):
     # Metadata
     name: Optional[str] = Field(None, description="Policy action name")
     description: Optional[str] = Field(None, description="Policy action description")
+    
+    @model_validator(mode='before')
+    @classmethod
+    def validate_no_dict_config(cls, data: Any) -> Any:
+        """
+        Validate that config is not a dict before Pydantic tries to convert it.
+        This runs before field validation, catching dicts before auto-conversion.
+        """
+        if isinstance(data, dict):
+            config = data.get("config")
+            if config is not None and isinstance(config, dict):
+                action_type = data.get("action_type", "unknown")
+                raise ValueError(
+                    f"Dict-based config is no longer supported for PolicyAction. "
+                    f"For action_type '{action_type}', use the corresponding structured config class "
+                    f"(e.g., RateLimitConfig, AuthenticationConfig, etc.). "
+                    f"See migration guide in docs/vendor-neutral-policy-configuration-analysis.md"
+                )
+        return data
+    
+    @field_validator("config")
+    @classmethod
+    def validate_config_type(cls, v, info):
+        """
+        Validate config matches action_type.
+        Only structured configs are allowed.
+        """
+        if v is None:
+            return v
+        
+        # Validate type matches action_type
+        action_type = info.data.get("action_type")
+        config_type_map = {
+            PolicyActionType.RATE_LIMITING: RateLimitConfig,
+            PolicyActionType.AUTHENTICATION: AuthenticationConfig,
+            PolicyActionType.AUTHORIZATION: AuthorizationConfig,
+            PolicyActionType.CACHING: CachingConfig,
+            PolicyActionType.CORS: CorsConfig,
+            PolicyActionType.VALIDATION: ValidationConfig,
+            PolicyActionType.DATA_MASKING: DataMaskingConfig,
+            PolicyActionType.TRANSFORMATION: TransformationConfig,
+            PolicyActionType.LOGGING: LoggingConfig,
+            PolicyActionType.TLS: TlsConfig,
+            PolicyActionType.COMPRESSION: CompressionConfig,
+        }
+        
+        expected_type = config_type_map.get(action_type)
+        if expected_type and not isinstance(v, expected_type):
+            raise ValueError(
+                f"Config type {type(v).__name__} does not match "
+                f"action_type {action_type}. Expected {expected_type.__name__}"
+            )
+        
+        return v
 
 
 # ============================================================================

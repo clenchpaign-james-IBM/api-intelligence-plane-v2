@@ -5,7 +5,8 @@ REST API endpoints for managing API Gateways.
 """
 
 import logging
-from typing import Optional
+from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -490,6 +491,230 @@ async def sync_gateway(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync gateway: {str(e)}",
+        )
+
+
+@router.post(
+    "/test-connection",
+    summary="Test gateway connection without saving",
+)
+async def test_gateway_connection(request: CreateGatewayRequest) -> dict:
+    """
+    Test gateway connection without saving to database.
+    
+    This endpoint allows users to validate their gateway configuration
+    before saving it. It creates a temporary adapter and tests connectivity.
+    
+    Args:
+        request: Gateway configuration to test
+        
+    Returns:
+        Connection test result with status and details
+        
+    Raises:
+        HTTPException: If test fails with error details
+    """
+    try:
+        from app.adapters.factory import GatewayAdapterFactory
+        from app.models.gateway import GatewayCredentials, ConnectionType
+        from pydantic import HttpUrl
+        import time
+        
+        # Build temporary gateway configuration
+        base_url_credentials = None
+        if request.base_url_credential_type and request.base_url_credential_type != "none":
+            base_url_credentials = GatewayCredentials(
+                type=request.base_url_credential_type,
+                username=request.base_url_username,
+                password=request.base_url_password,
+                api_key=request.base_url_api_key,
+                token=request.base_url_token,
+            )
+        
+        transactional_logs_credentials = None
+        if request.transactional_logs_credential_type:
+            transactional_logs_credentials = GatewayCredentials(
+                type=request.transactional_logs_credential_type,
+                username=request.transactional_logs_username,
+                password=request.transactional_logs_password,
+                api_key=request.transactional_logs_api_key,
+                token=request.transactional_logs_token,
+            )
+        
+        # Create temporary gateway object (not saved to DB)
+        temp_gateway = Gateway(
+            name=request.name,
+            vendor=request.vendor,
+            version=request.version,
+            base_url=HttpUrl(request.base_url),
+            transactional_logs_url=HttpUrl(request.transactional_logs_url) if request.transactional_logs_url else None,
+            connection_type=ConnectionType(request.connection_type),
+            base_url_credentials=base_url_credentials,
+            transactional_logs_credentials=transactional_logs_credentials,
+            capabilities=request.capabilities if request.capabilities else ["discovery"],
+            status=GatewayStatus.DISCONNECTED,
+            last_connected_at=None,
+            last_error=None,
+            configuration=request.configuration,
+            metadata=request.metadata,
+        )
+        
+        # Create adapter and test connection
+        adapter_factory = GatewayAdapterFactory()
+        adapter = adapter_factory.create_adapter(temp_gateway)
+        
+        # Measure connection time
+        start_time = time.time()
+        test_result = await adapter.test_connection()
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Enhance result with latency
+        test_result["latency_ms"] = round(latency_ms, 2)
+        test_result["gateway_name"] = request.name
+        test_result["gateway_vendor"] = request.vendor
+        
+        logger.info(f"Connection test for {request.name}: {'SUCCESS' if test_result.get('connected') else 'FAILED'}")
+        
+        return test_result
+        
+    except Exception as e:
+        logger.error(f"Connection test failed: {e}", exc_info=True)
+        return {
+            "connected": False,
+            "error": str(e),
+            "gateway_name": request.name,
+            "gateway_vendor": request.vendor,
+        }
+
+
+@router.post(
+    "/bulk-sync",
+    summary="Sync multiple gateways in parallel",
+)
+async def bulk_sync_gateways(
+    gateway_ids: List[UUID],
+    force_refresh: bool = Query(False, description="Force refresh even if recently synced"),
+) -> dict:
+    """
+    Trigger API discovery/sync for multiple gateways in parallel.
+    
+    This endpoint allows efficient bulk synchronization of multiple gateways.
+    Each gateway is synced independently, and results are aggregated.
+    
+    Args:
+        gateway_ids: List of gateway UUIDs to sync
+        force_refresh: Force refresh even if recently synced
+        
+    Returns:
+        Bulk sync results with per-gateway status and aggregated statistics
+        
+    Raises:
+        HTTPException: If bulk sync fails
+    """
+    try:
+        from app.services.discovery_service import DiscoveryService
+        from app.db.repositories.api_repository import APIRepository
+        from app.adapters.factory import GatewayAdapterFactory
+        import asyncio
+        
+        if not gateway_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No gateway IDs provided",
+            )
+        
+        if len(gateway_ids) > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 50 gateways can be synced at once",
+            )
+        
+        # Initialize services
+        api_repo = APIRepository()
+        gateway_repo = GatewayRepository()
+        adapter_factory = GatewayAdapterFactory()
+        discovery_service = DiscoveryService(api_repo, gateway_repo, adapter_factory)
+        
+        # Verify all gateways exist
+        gateways = []
+        for gateway_id in gateway_ids:
+            gateway = gateway_repo.get(str(gateway_id))
+            if not gateway:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Gateway {gateway_id} not found",
+                )
+            gateways.append(gateway)
+        
+        logger.info(f"Starting bulk sync for {len(gateway_ids)} gateways (force_refresh={force_refresh})")
+        
+        # Sync all gateways in parallel
+        async def sync_single_gateway(gw_id: UUID) -> dict:
+            try:
+                result = await discovery_service.discover_gateway_apis(
+                    gateway_id=gw_id,
+                    force_refresh=force_refresh,
+                )
+                return {
+                    "gateway_id": str(gw_id),
+                    "success": True,
+                    "apis_discovered": result["apis_discovered"],
+                    "new_apis": result["new_apis"],
+                    "updated_apis": result["updated_apis"],
+                    "shadow_apis_found": result["shadow_apis_found"],
+                    "error": None,
+                }
+            except Exception as e:
+                logger.error(f"Failed to sync gateway {gw_id}: {e}")
+                return {
+                    "gateway_id": str(gw_id),
+                    "success": False,
+                    "apis_discovered": 0,
+                    "new_apis": 0,
+                    "updated_apis": 0,
+                    "shadow_apis_found": 0,
+                    "error": str(e),
+                }
+        
+        # Execute all syncs in parallel
+        results = await asyncio.gather(
+            *[sync_single_gateway(gw_id) for gw_id in gateway_ids],
+            return_exceptions=False
+        )
+        
+        # Aggregate statistics
+        total_apis_discovered = sum(r["apis_discovered"] for r in results)
+        total_new_apis = sum(r["new_apis"] for r in results)
+        total_updated_apis = sum(r["updated_apis"] for r in results)
+        total_shadow_apis = sum(r["shadow_apis_found"] for r in results)
+        successful_syncs = sum(1 for r in results if r["success"])
+        failed_syncs = len(results) - successful_syncs
+        
+        logger.info(
+            f"Bulk sync complete: {successful_syncs}/{len(gateway_ids)} successful, "
+            f"{total_apis_discovered} APIs discovered"
+        )
+        
+        return {
+            "message": "Bulk sync completed",
+            "total_gateways": len(gateway_ids),
+            "successful_syncs": successful_syncs,
+            "failed_syncs": failed_syncs,
+            "total_apis_discovered": total_apis_discovered,
+            "total_new_apis": total_new_apis,
+            "total_updated_apis": total_updated_apis,
+            "total_shadow_apis_found": total_shadow_apis,
+            "results": results,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk sync failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bulk sync failed: {str(e)}",
         )
 
 

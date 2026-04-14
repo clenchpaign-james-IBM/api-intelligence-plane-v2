@@ -119,17 +119,28 @@ function App() {
           {/* Main content */}
           <main>
             <Routes>
+              {/* Gateway-first routes */}
               <Route path="/" element={<Dashboard />} />
-              <Route path="/apis" element={<APIs />} />
               <Route path="/gateways" element={<Gateways />} />
               <Route path="/gateways/:gatewayId" element={<Gateways />} />
-              <Route path="/metrics" element={<Metrics />} />
+              
+              {/* Feature routes - support optional gateway context */}
+              <Route path="/apis" element={<APIs />} />
+              <Route path="/apis/:gatewayId" element={<APIs />} />
               <Route path="/predictions" element={<Predictions />} />
+              <Route path="/predictions/:gatewayId" element={<Predictions />} />
               <Route path="/optimization" element={<Optimization />} />
+              <Route path="/optimization/:gatewayId" element={<Optimization />} />
               <Route path="/security" element={<Security />} />
+              <Route path="/security/:gatewayId" element={<Security />} />
               <Route path="/compliance" element={<Compliance />} />
+              <Route path="/compliance/:gatewayId" element={<Compliance />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/analytics/:gatewayId" element={<Analytics />} />
               <Route path="/query" element={<Query />} />
+              <Route path="/metrics" element={<Metrics />} />
+              
+              {/* Error routes */}
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>

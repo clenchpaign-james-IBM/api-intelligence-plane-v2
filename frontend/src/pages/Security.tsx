@@ -7,40 +7,54 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import type { API, Vulnerability, SecurityPosture, VulnerabilitySeverity, VulnerabilityStatus } from '../types';
-import { getVulnerabilities, getSecurityPosture } from '../services/security';
+import { securityService, getSecurityPosture } from '../services/security';
 import { api } from '../services/api';
 import { APISecurityCard } from '../components/security/APISecurityCard';
 import { SecurityDashboard } from '../components/security/SecurityDashboard';
+import GatewaySelector from '../components/common/GatewaySelector';
 
 export const Security: React.FC = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedTab, setSelectedTab] = useState<'by-api' | 'overview'>('overview');
   const [severityFilter, setSeverityFilter] = useState<VulnerabilitySeverity | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<VulnerabilityStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<string | 'all'>('all');
   const [sortBy, setSortBy] = useState<'risk' | 'name' | 'vulnerabilities'>('risk');
 
-  // Fetch APIs
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
+
+  // Fetch APIs (filtered by gateway if selected)
   const {
     data: apisData,
     isLoading: apisLoading,
     error: apisError,
   } = useQuery({
-    queryKey: ['apis'],
-    queryFn: () => api.apis.list(),
+    queryKey: ['apis', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return api.apis.list(params);
+    },
     refetchInterval: 30000,
   });
 
-  // Fetch all vulnerabilities
+  // Fetch all vulnerabilities (filtered by gateway if selected)
   const {
     data: vulnerabilities,
     isLoading: vulnerabilitiesLoading,
     error: vulnerabilitiesError,
     refetch: refetchVulnerabilities,
   } = useQuery<Vulnerability[]>({
-    queryKey: ['vulnerabilities', severityFilter, statusFilter, typeFilter],
+    queryKey: ['vulnerabilities', severityFilter, statusFilter, typeFilter, selectedGatewayId],
     queryFn: () =>
-      getVulnerabilities({
+      securityService.getVulnerabilities({
+        gateway_id: selectedGatewayId || undefined,
         severity: severityFilter !== 'all' ? severityFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         limit: 1000,
@@ -54,8 +68,8 @@ export const Security: React.FC = () => {
     isLoading: postureLoading,
     refetch: refetchPosture,
   } = useQuery<SecurityPosture>({
-    queryKey: ['security-posture'],
-    queryFn: () => getSecurityPosture(),
+    queryKey: ['security-posture', selectedGatewayId],
+    queryFn: () => getSecurityPosture({ gateway_id: selectedGatewayId || undefined }),
     refetchInterval: 30000,
   });
 
@@ -156,6 +170,15 @@ export const Security: React.FC = () => {
           Monitor security vulnerabilities across all APIs and track automated remediation
         </p>
       </div>
+      {/* Gateway Selector */}
+      <div className="mb-6">
+        <GatewaySelector
+          selectedGatewayId={selectedGatewayId}
+          onGatewayChange={handleGatewayChange}
+          showAllOption={true}
+        />
+      </div>
+
 
       {/* Tabs */}
       <div className="mb-6 border-b border-gray-200">

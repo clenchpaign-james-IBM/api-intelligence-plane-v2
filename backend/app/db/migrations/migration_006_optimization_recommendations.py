@@ -31,6 +31,7 @@ def create_optimization_recommendations_index(client: OpenSearch):
         "mappings": {
             "properties": {
                 "id": {"type": "keyword"},
+                "gateway_id": {"type": "keyword"},
                 "api_id": {"type": "keyword"},
                 "recommendation_type": {"type": "keyword"},
                 "title": {

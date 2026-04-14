@@ -23,13 +23,14 @@ from app.services.compliance_service import ComplianceService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/compliance", tags=["compliance"])
+router = APIRouter(tags=["compliance"])
 
 
 # Request/Response Models
 class ComplianceScanRequest(BaseModel):
     """Request model for compliance scan."""
 
+    gateway_id: UUID = Field(..., description="Gateway containing the API")
     api_id: UUID = Field(..., description="API to scan")
     standards: Optional[List[ComplianceStandard]] = Field(
         None, description="Specific standards to check (default: all 5)"
@@ -100,17 +101,18 @@ class CompliancePostureResponse(BaseModel):
 
 # API Endpoints
 @router.post(
-    "/scan",
+    "/gateways/{gateway_id}/compliance/scan",
     response_model=ComplianceScanResponse,
     status_code=status.HTTP_200_OK,
     summary="Scan API for compliance violations",
-    description="Perform compliance scan on a specific API using AI-driven analysis for 5 regulatory standards",
+    description="Perform compliance scan on a specific API within a gateway using AI-driven analysis for 5 regulatory standards",
 )
-async def scan_api_compliance(
+async def scan_gateway_api_compliance(
+    gateway_id: UUID,
     request: ComplianceScanRequest,
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ) -> ComplianceScanResponse:
-    """Scan API for compliance violations across regulatory standards.
+    """Scan API for compliance violations across regulatory standards within a gateway.
 
     Checks compliance with:
     - GDPR (General Data Protection Regulation)
@@ -120,20 +122,57 @@ async def scan_api_compliance(
     - ISO 27001 (Information Security Management)
 
     Args:
-        request: Scan request with API ID and optional standards filter
+        gateway_id: Gateway UUID (required, must match request.gateway_id)
+        request: Scan request with gateway_id, API ID and optional standards filter
         compliance_service: Compliance service dependency
 
     Returns:
         Scan results with violations and audit evidence
 
     Raises:
-        HTTPException: If API not found or scan fails
+        HTTPException: If gateway or API not found or scan fails
     """
     try:
-        logger.info(f"Scanning API {request.api_id} for compliance violations")
+        # Verify gateway_id matches path parameter
+        if str(request.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Gateway ID in request body must match path parameter",
+            )
+        
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Verify API belongs to gateway
+        from app.db.repositories.api_repository import APIRepository
+        api_repo = APIRepository()
+        api = api_repo.get(str(request.api_id))
+        
+        if not api:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"API {request.api_id} not found",
+            )
+        
+        if str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"API {request.api_id} not found in gateway {gateway_id}",
+            )
+        
+        logger.info(f"Scanning API {request.api_id} in gateway {gateway_id} for compliance violations")
 
         result = await compliance_service.scan_api_compliance(
             api_id=request.api_id,
+            gateway_id=gateway_id,
             standards=request.standards,
         )
 
@@ -153,14 +192,15 @@ async def scan_api_compliance(
 
 
 @router.get(
-    "/violations",
+    "/gateways/{gateway_id}/compliance/violations",
     response_model=List[ComplianceViolation],
     status_code=status.HTTP_200_OK,
-    summary="Get compliance violations",
-    description="Retrieve compliance violations with optional filters",
+    summary="Get compliance violations for a gateway",
+    description="Retrieve compliance violations for APIs within a gateway with optional filters",
 )
-async def get_violations(
-    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+async def get_gateway_violations(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID within gateway"),
     standard: Optional[ComplianceStandard] = Query(
         None, description="Filter by compliance standard"
     ),
@@ -173,10 +213,11 @@ async def get_violations(
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ) -> List[ComplianceViolation]:
-    """Get compliance violations with optional filters.
+    """Get compliance violations for APIs within a gateway with optional filters.
 
     Args:
-        api_id: Optional API filter
+        gateway_id: Gateway UUID (required)
+        api_id: Optional API filter within gateway
         standard: Optional compliance standard filter
         severity: Optional severity filter
         status_filter: Optional status filter
@@ -187,9 +228,31 @@ async def get_violations(
         List of compliance violations
 
     Raises:
-        HTTPException: If query fails
+        HTTPException: If gateway not found or query fails
     """
     try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
         from app.db.repositories.compliance_repository import ComplianceRepository
 
         compliance_repo = ComplianceRepository()
@@ -210,6 +273,18 @@ async def get_violations(
         else:
             # Get all open violations by default
             violations = await compliance_repo.find_open_violations(limit=limit)
+        
+        # Filter violations to only include those from APIs in this gateway
+        if not api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            violations = [
+                v for v in violations
+                if str(v.api_id) in gateway_api_ids
+            ]
 
         # Apply limit if needed
         if len(violations) > limit:
@@ -226,23 +301,25 @@ async def get_violations(
 
 
 @router.get(
-    "/posture",
+    "/gateways/{gateway_id}/compliance/posture",
     response_model=CompliancePostureResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get compliance posture",
-    description="Get overall compliance posture metrics and scores",
+    summary="Get compliance posture for a gateway",
+    description="Get compliance posture metrics and scores for a gateway's APIs",
 )
-async def get_compliance_posture(
-    api_id: Optional[UUID] = Query(None, description="Optional API filter"),
+async def get_gateway_compliance_posture(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Optional API filter within gateway"),
     standard: Optional[ComplianceStandard] = Query(
         None, description="Optional standard filter"
     ),
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ) -> CompliancePostureResponse:
-    """Get compliance posture metrics.
+    """Get compliance posture metrics for a gateway's APIs.
 
     Args:
-        api_id: Optional API filter
+        gateway_id: Gateway UUID (required)
+        api_id: Optional API filter within gateway
         standard: Optional compliance standard filter
         compliance_service: Compliance service dependency
 
@@ -250,10 +327,32 @@ async def get_compliance_posture(
         Compliance posture metrics and scores
 
     Raises:
-        HTTPException: If query fails
+        HTTPException: If gateway not found or query fails
     """
     try:
-        logger.info("Getting compliance posture")
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        logger.info(f"Getting compliance posture for gateway {gateway_id}")
 
         posture = await compliance_service.get_compliance_posture(
             api_id=api_id,
@@ -271,17 +370,18 @@ async def get_compliance_posture(
 
 
 @router.post(
-    "/reports/audit",
+    "/gateways/{gateway_id}/compliance/reports/audit",
     response_model=AuditReportResponse,
     status_code=status.HTTP_200_OK,
-    summary="Generate audit report",
-    description="Generate comprehensive audit report with evidence and recommendations",
+    summary="Generate audit report for a gateway",
+    description="Generate comprehensive audit report for a gateway's APIs with evidence and recommendations",
 )
-async def generate_audit_report(
+async def generate_gateway_audit_report(
+    gateway_id: UUID,
     request: AuditReportRequest,
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ) -> AuditReportResponse:
-    """Generate comprehensive audit report.
+    """Generate comprehensive audit report for a gateway's APIs.
 
     Includes:
     - AI-generated executive summary
@@ -293,6 +393,7 @@ async def generate_audit_report(
     - Actionable recommendations
 
     Args:
+        gateway_id: Gateway UUID (required)
         request: Audit report request with optional filters
         compliance_service: Compliance service dependency
 
@@ -300,10 +401,32 @@ async def generate_audit_report(
         Comprehensive audit report
 
     Raises:
-        HTTPException: If report generation fails
+        HTTPException: If gateway not found or report generation fails
     """
     try:
-        logger.info("Generating audit report")
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if request.api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            api = api_repo.get(str(request.api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {request.api_id} not found in gateway {gateway_id}",
+                )
+        
+        logger.info(f"Generating audit report for gateway {gateway_id}")
 
         report = await compliance_service.generate_audit_report(
             api_id=request.api_id,
@@ -323,19 +446,21 @@ async def generate_audit_report(
 
 
 @router.get(
-    "/violations/{violation_id}",
+    "/gateways/{gateway_id}/compliance/violations/{violation_id}",
     response_model=ComplianceViolation,
     status_code=status.HTTP_200_OK,
     summary="Get violation by ID",
-    description="Retrieve a specific compliance violation by ID",
+    description="Retrieve a specific compliance violation within a gateway by ID",
 )
-async def get_violation(
+async def get_gateway_violation(
+    gateway_id: UUID,
     violation_id: UUID,
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ) -> ComplianceViolation:
-    """Get a specific compliance violation by ID.
+    """Get a specific compliance violation by ID within a gateway.
 
     Args:
+        gateway_id: Gateway UUID (required)
         violation_id: Violation identifier
         compliance_service: Compliance service dependency
 
@@ -343,9 +468,20 @@ async def get_violation(
         Compliance violation details
 
     Raises:
-        HTTPException: If violation not found
+        HTTPException: If gateway or violation not found
     """
     try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
         from app.db.repositories.compliance_repository import ComplianceRepository
 
         compliance_repo = ComplianceRepository()
@@ -355,6 +491,16 @@ async def get_violation(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Violation not found: {violation_id}",
+            )
+        
+        # Verify violation's API belongs to the gateway
+        from app.db.repositories.api_repository import APIRepository
+        api_repo = APIRepository()
+        api = api_repo.get(str(violation.api_id))
+        if not api or str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Violation {violation_id} not found in gateway {gateway_id}",
             )
 
         return violation

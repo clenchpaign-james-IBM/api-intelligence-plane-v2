@@ -20,13 +20,15 @@ API Intelligence Plane is an intelligent companion to existing API Gateways, pro
 
 ## Architecture
 
-The API Intelligence Plane is a microservices-based platform with **vendor-neutral data models** and **vendor-specific gateway adapters**, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
+The API Intelligence Plane is a microservices-based platform with **gateway-first architecture**, **vendor-neutral data models**, and **vendor-specific gateway adapters**, ensuring consistent intelligence capabilities regardless of the underlying API Gateway vendor.
 
 ### Architecture Highlights
 
+- **Gateway-First Design**: All features use Gateway as primary scope dimension, API as secondary
 - **Vendor-Neutral Models**: All data stored in vendor-neutral format (`API`, `Metric`, `TransactionalLog`)
 - **Adapter Pattern**: Gateway-specific adapters transform vendor data to vendor-neutral models
 - **Time-Bucketed Metrics**: Metrics stored separately in time-bucketed indices (1m, 5m, 1h, 1d)
+- **Multi-Gateway Support**: Proper isolation and scoping for multi-gateway deployments
 - **WebMethods-First**: Initial implementation focuses on webMethods API Gateway
 - **Future-Ready**: Easy addition of Kong, Apigee, and other gateway vendors
 
@@ -43,6 +45,25 @@ MCP servers are **optional** components for external AI agents (Bob IDE, Claude 
 **Note**: MCP servers are NOT required for core functionality. They only enable external AI agents to interact with the platform programmatically.
 
 📖 **See [Architecture Documentation](docs/architecture.md) for detailed system design and [MCP Architecture](docs/mcp-architecture.md) for AI agent integration.**
+
+### Gateway-First Architecture
+
+The platform follows a **Gateway-First, API-Secondary** architecture:
+
+```
+Gateway (Primary Dimension)
+  └── API (Secondary Dimension)
+      └── Endpoint (Tertiary Dimension)
+          └── Operation (Quaternary Dimension)
+```
+
+**Key Principles**:
+- All data operations start with gateway context
+- APIs exist within gateway context (never standalone)
+- Multi-gateway deployments have proper isolation
+- Cross-gateway views require explicit user selection
+
+📖 **See [Gateway-Scoped Development Guide](docs/gateway-scoped-development-guide.md) for implementation details.**
 
 ### Positioning in API management platform
 
@@ -76,8 +97,10 @@ MCP servers are **optional** components for external AI agents (Bob IDE, Claude 
    ```bash
    docker-compose up -d
    ```
+   
+   **Note**: The `init-metrics` service automatically runs on startup to initialize ILM policies and index templates for time-bucketed metrics storage. This is a one-time setup that ensures proper metrics infrastructure before the backend starts.
 
-4. **Initialize OpenSearch indices**
+4. **Initialize OpenSearch indices** (if not already done)
    ```bash
    docker-compose exec backend python scripts/init_opensearch.py
    ```
@@ -314,6 +337,7 @@ See [`.env.example`](.env.example) for all configuration options.
 ### Core Documentation
 
 - [Architecture Documentation](docs/architecture.md) - Vendor-neutral architecture, adapter pattern, and time-bucketed metrics
+- [Gateway-Scoped Development Guide](docs/gateway-scoped-development-guide.md) - **NEW**: Complete guide for gateway-first development
 - [API Reference](docs/api-reference.md) - Complete REST API documentation with vendor-neutral structures
 - [Fresh Installation Guide](docs/fresh-installation-guide.md) - Step-by-step installation for new deployments
 - [Deployment Guide](docs/deployment.md) - Local, Docker, and Kubernetes deployment instructions

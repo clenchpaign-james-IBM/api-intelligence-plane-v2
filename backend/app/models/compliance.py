@@ -171,6 +171,7 @@ class ComplianceViolation(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
+    gateway_id: UUID = Field(..., description="Gateway where API is deployed")
     api_id: UUID = Field(..., description="Affected API (Gateway proxy endpoint)")
     compliance_standard: ComplianceStandard = Field(
         ..., description="Compliance standard violated"
@@ -250,6 +251,7 @@ class ComplianceViolation(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440005",
+                "gateway_id": "550e8400-e29b-41d4-a716-446655440000",
                 "api_id": "550e8400-e29b-41d4-a716-446655440001",
                 "compliance_standard": "hipaa",
                 "violation_type": "hipaa_transmission_security",

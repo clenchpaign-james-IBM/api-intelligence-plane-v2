@@ -211,8 +211,11 @@ export const metricsService = {
   async getSummary(params?: {
     gateway_id?: string;
     status?: string;
+    start_time?: string;
+    end_time?: string;
   }): Promise<{
     total_apis: number;
+    total_requests_24h: number;
     avg_response_time: number;
     avg_error_rate: number;
     avg_throughput: number;
@@ -222,6 +225,8 @@ export const metricsService = {
     const queryParams = new URLSearchParams();
     if (params?.gateway_id) queryParams.append('gateway_id', params.gateway_id);
     if (params?.status) queryParams.append('status', params.status);
+    if (params?.start_time) queryParams.append('start_time', params.start_time);
+    if (params?.end_time) queryParams.append('end_time', params.end_time);
 
     const url = `${API_BASE_URL}/api/v1/metrics/summary${queryParams.toString() ? `?${queryParams}` : ''}`;
     const response = await fetch(url);

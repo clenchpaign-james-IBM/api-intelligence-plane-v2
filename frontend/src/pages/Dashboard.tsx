@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Activity, AlertTriangle, Server, Zap, Plus } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import GatewaySelector from '../components/common/GatewaySelector';
 import AddGatewayForm from '../components/gateways/AddGatewayForm';
+import TimeRangeSelector, { type TimeRangeValue } from '../components/common/TimeRangeSelector';
+import MetricsDrillDownModal from '../components/dashboard/MetricsDrillDownModal';
 import { api } from '../services/api';
+import { metricsService } from '../services/metrics';
+import { securityService } from '../services/security';
+import { optimizationService } from '../services/optimization';
 import type { DashboardStats, API, Gateway } from '../types';
 
 /**
@@ -19,17 +25,77 @@ import type { DashboardStats, API, Gateway } from '../types';
  * - Recent alerts and recommendations
  */
 const Dashboard = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const navigate = useNavigate();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [showAddGatewayForm, setShowAddGatewayForm] = useState(false);
+  const [selectedApiForDrillDown, setSelectedApiForDrillDown] = useState<{ id: string; name: string } | null>(null);
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>({
+    range: '24h',
+    start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    end: new Date(),
+  });
 
-  // Fetch dashboard data
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+    // Update URL if needed (optional - can navigate to gateway-specific route)
+    // if (newGatewayId) {
+    //   navigate(`/?gateway=${newGatewayId}`);
+    // } else {
+    //   navigate('/');
+    // }
+  };
+
+  // Fetch dashboard data (filtered by gateway if selected)
   const { data: apis, isLoading: apisLoading, error: apisError } = useQuery({
-    queryKey: ['apis'],
-    queryFn: () => api.apis.list(),
+    queryKey: ['apis', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return api.apis.list(params);
+    },
   });
 
   const { data: gateways, isLoading: gatewaysLoading, error: gatewaysError, refetch: refetchGateways } = useQuery({
     queryKey: ['gateways'],
     queryFn: () => api.gateways.list(),
+  });
+
+  // Fetch metrics summary (filtered by gateway if selected)
+  const { data: metricsSummary, isLoading: metricsLoading } = useQuery({
+    queryKey: ['metrics-summary', timeRange, selectedGatewayId],
+    queryFn: () => {
+      const params: any = {
+        start_time: timeRange.start?.toISOString(),
+        end_time: timeRange.end?.toISOString(),
+      };
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return metricsService.getSummary(params);
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch security summary (filtered by gateway if selected)
+  const { data: securitySummary, isLoading: securityLoading } = useQuery({
+    queryKey: ['security-summary', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return securityService.getSummary(params);
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Fetch optimization summary (filtered by gateway if selected)
+  const { data: optimizationSummary, isLoading: optimizationLoading } = useQuery({
+    queryKey: ['optimization-summary', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return optimizationService.getSummary(params);
+    },
+    refetchInterval: 60000, // Refresh every minute
   });
 
   // Calculate dashboard statistics
@@ -42,15 +108,15 @@ const Dashboard = () => {
     avg_health_score: apis?.items?.length
       ? apis.items.reduce((sum: number, a: API) => sum + (a.intelligence_metadata?.health_score ?? 0), 0) / apis.items.length
       : 0,
-    avg_response_time: 0,
-    total_requests_24h: 0, // Would come from metrics aggregation
-    error_rate_24h: 0, // Would come from metrics aggregation
-    critical_vulnerabilities: 0, // Would come from security scan
-    high_priority_recommendations: 0, // Would come from recommendations
+    avg_response_time: metricsSummary?.avg_response_time || 0,
+    total_requests_24h: metricsSummary?.total_requests_24h || 0,
+    error_rate_24h: metricsSummary?.avg_error_rate || 0,
+    critical_vulnerabilities: securitySummary?.critical_vulnerabilities || 0,
+    high_priority_recommendations: optimizationSummary?.high_priority_recommendations || 0,
   };
 
   // Loading state
-  if (apisLoading || gatewaysLoading) {
+  if (apisLoading || gatewaysLoading || metricsLoading || securityLoading || optimizationLoading) {
     return (
       <div className="p-6">
         <Loading message="Loading dashboard..." />
@@ -73,11 +139,21 @@ const Dashboard = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Page Header */}
-      <div>
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-2 text-sm text-gray-600">
           Overview of your API infrastructure and health metrics
         </p>
+      </div>
+
+      {/* Gateway and Time Range Selectors */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GatewaySelector
+          selectedGatewayId={selectedGatewayId}
+          onGatewayChange={handleGatewayChange}
+          showAllOption={true}
+        />
+        <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
       {/* Key Metrics Grid */}

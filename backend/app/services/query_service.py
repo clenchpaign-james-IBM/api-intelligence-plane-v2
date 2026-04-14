@@ -7,7 +7,7 @@ generation, and response generation using LLM.
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -110,6 +110,33 @@ class QueryService:
         # Cache for agent analysis results (5-minute TTL)
         self._agent_cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 300  # 5 minutes in seconds
+    
+    def _determine_time_bucket(self, time_range: Optional[TimeRange]) -> TimeBucket:
+        """
+        Determine the appropriate time bucket based on query time range.
+        
+        Args:
+            time_range: Optional time range from query intent
+            
+        Returns:
+            Appropriate time bucket for the query
+        """
+        if not time_range:
+            # Default to 5-minute bucket for recent data
+            return TimeBucket.FIVE_MINUTES
+        
+        # Calculate time range duration
+        duration = time_range.end - time_range.start
+        
+        # Select bucket based on duration
+        if duration <= timedelta(hours=24):
+            return TimeBucket.ONE_MINUTE  # 1m bucket for last 24 hours
+        elif duration <= timedelta(days=7):
+            return TimeBucket.FIVE_MINUTES  # 5m bucket for last 7 days
+        elif duration <= timedelta(days=30):
+            return TimeBucket.ONE_HOUR  # 1h bucket for last 30 days
+        else:
+            return TimeBucket.ONE_DAY  # 1d bucket for longer periods
 
     async def process_query(
         self,
@@ -455,17 +482,42 @@ Respond in JSON format:
                 # Get API details
                 api_id = result.get("id")
                 api_name = result.get("name", "Unknown")
+                gateway_id = result.get("gateway_id")
                 
-                # Fetch recent metrics for this API
-                # TODO: Add time_bucket parameter in Phase 0.6 (Repository Layer Updates)
-                # Will query appropriate time bucket based on query time range
-                metrics, _ = self.metrics_repo.search(
-                    {"term": {"api_id": api_id}},
-                    size=100,
-                )
+                if not gateway_id:
+                    logger.warning(f"No gateway_id found for API {api_id}, skipping prediction enhancement")
+                    enhanced_results.append(result)
+                    continue
+                
+                # Fetch recent metrics for this API with appropriate time bucket
+                time_bucket = self._determine_time_bucket(intent.time_range)
+                
+                # Build query with time bucket filter
+                query = {
+                    "bool": {
+                        "must": [
+                            {"term": {"api_id": api_id}},
+                            {"term": {"time_bucket": time_bucket.value}}
+                        ]
+                    }
+                }
+                
+                # Add time range if specified
+                if intent.time_range:
+                    query["bool"]["must"].append({
+                        "range": {
+                            "timestamp": {
+                                "gte": intent.time_range.start.isoformat(),
+                                "lte": intent.time_range.end.isoformat(),
+                            }
+                        }
+                    })
+                
+                metrics, _ = self.metrics_repo.search(query, size=100)
                 
                 # Generate enhanced predictions
                 agent_result = await self.prediction_agent.generate_enhanced_predictions(
+                    gateway_id=gateway_id,
                     api_id=api_id,
                     api_name=api_name,
                     metrics=metrics,
@@ -527,13 +579,31 @@ Respond in JSON format:
                 api_id = result.get("id")
                 api_name = result.get("name", "Unknown")
                 
-                # Fetch recent metrics for this API
-                # TODO: Add time_bucket parameter in Phase 0.6 (Repository Layer Updates)
-                # Will query appropriate time bucket based on query time range
-                metrics, _ = self.metrics_repo.search(
-                    {"term": {"api_id": api_id}},
-                    size=100,
-                )
+                # Fetch recent metrics for this API with appropriate time bucket
+                time_bucket = self._determine_time_bucket(intent.time_range)
+                
+                # Build query with time bucket filter
+                query = {
+                    "bool": {
+                        "must": [
+                            {"term": {"api_id": api_id}},
+                            {"term": {"time_bucket": time_bucket.value}}
+                        ]
+                    }
+                }
+                
+                # Add time range if specified
+                if intent.time_range:
+                    query["bool"]["must"].append({
+                        "range": {
+                            "timestamp": {
+                                "gte": intent.time_range.start.isoformat(),
+                                "lte": intent.time_range.end.isoformat(),
+                            }
+                        }
+                    })
+                
+                metrics, _ = self.metrics_repo.search(query, size=100)
                 
                 # Generate enhanced recommendations
                 agent_result = await self.optimization_agent.generate_enhanced_recommendations(

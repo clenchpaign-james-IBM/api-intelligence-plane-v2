@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { X, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { api } from '../../services/api';
 import Button from '../common/Button';
 import Card from '../common/Card';
@@ -39,6 +39,11 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [connectionTest, setConnectionTest] = useState<{
+    status: 'idle' | 'testing' | 'success' | 'error';
+    message?: string;
+    latency?: number;
+  }>({ status: 'idle' });
 
   // Create gateway mutation
   const createMutation = useMutation({
@@ -53,6 +58,48 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
       setErrors({ submit: error.message || 'Failed to create gateway' });
     },
   });
+
+  // Test connection mutation
+  const testConnectionMutation = useMutation({
+    mutationFn: (data: any) => api.gateways.testConnection(data),
+    onSuccess: (response: any) => {
+      setConnectionTest({
+        status: 'success',
+        message: response.message || 'Connection successful',
+        latency: response.latency_ms,
+      });
+    },
+    onError: (error: any) => {
+      setConnectionTest({
+        status: 'error',
+        message: error.response?.data?.detail || error.message || 'Connection failed',
+      });
+    },
+  });
+
+  const handleTestConnection = () => {
+    // Validate required fields before testing
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.base_url.trim()) newErrors.base_url = 'Base URL is required';
+    
+    // Validate base URL credentials based on type
+    if (formData.base_url_credential_type === 'api_key' && !formData.base_url_api_key.trim()) {
+      newErrors.base_url_api_key = 'API Key is required for base URL';
+    } else if (formData.base_url_credential_type === 'basic' && (!formData.base_url_username.trim() || !formData.base_url_password.trim())) {
+      newErrors.base_url_credentials = 'Username and password are required for base URL';
+    } else if (formData.base_url_credential_type === 'bearer' && !formData.base_url_token.trim()) {
+      newErrors.base_url_token = 'Bearer token is required for base URL';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setConnectionTest({ status: 'testing' });
+    testConnectionMutation.mutate(formData);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -399,6 +446,46 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             </div>
           )}
 
+          {/* Connection Test Status */}
+          {connectionTest.status !== 'idle' && (
+            <div className={`p-4 border rounded-lg ${
+              connectionTest.status === 'success' ? 'bg-green-50 border-green-200' :
+              connectionTest.status === 'error' ? 'bg-red-50 border-red-200' :
+              'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {connectionTest.status === 'testing' && <Loader className="w-5 h-5 text-blue-600 animate-spin" />}
+                {connectionTest.status === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {connectionTest.status === 'error' && <XCircle className="w-5 h-5 text-red-600" />}
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    connectionTest.status === 'success' ? 'text-green-800' :
+                    connectionTest.status === 'error' ? 'text-red-800' :
+                    'text-blue-800'
+                  }`}>
+                    {connectionTest.status === 'testing' ? 'Testing connection...' :
+                     connectionTest.status === 'success' ? 'Connection successful!' :
+                     'Connection failed'}
+                  </p>
+                  {connectionTest.message && (
+                    <p className={`text-xs mt-1 ${
+                      connectionTest.status === 'success' ? 'text-green-700' :
+                      connectionTest.status === 'error' ? 'text-red-700' :
+                      'text-blue-700'
+                    }`}>
+                      {connectionTest.message}
+                    </p>
+                  )}
+                  {connectionTest.latency && (
+                    <p className="text-xs mt-1 text-green-700">
+                      Latency: {connectionTest.latency}ms
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Submit Error */}
           {errors.submit && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -411,6 +498,15 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             <Button
               type="button"
               variant="secondary"
+              onClick={handleTestConnection}
+              disabled={testConnectionMutation.isPending}
+              className="flex-1"
+            >
+              {testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               onClick={onClose}
               className="flex-1"
             >
@@ -419,7 +515,7 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             <Button
               type="submit"
               variant="primary"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || connectionTest.status === 'testing'}
               className="flex-1"
             >
               {createMutation.isPending ? 'Adding...' : 'Add Gateway'}

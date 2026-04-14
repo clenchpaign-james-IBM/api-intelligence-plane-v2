@@ -143,81 +143,80 @@ export const api = {
     update: (id: string, data: any) => api.put(`/api/v1/gateways/${id}`, data),
     delete: (id: string) => api.delete(`/api/v1/gateways/${id}`),
     sync: (id: string) => api.post(`/api/v1/gateways/${id}/sync`),
+    testConnection: (data: any) => api.post('/api/v1/gateways/test-connection', data),
+    bulkSync: (gatewayIds: string[], forceRefresh: boolean = false) => {
+      const queryParams = new URLSearchParams();
+      if (forceRefresh) queryParams.append('force_refresh', 'true');
+      return api.post(`/api/v1/gateways/bulk-sync?${queryParams.toString()}`, gatewayIds);
+    },
   },
 
-  // API endpoints
+  // API endpoints (gateway-scoped)
   apis: {
     list: (params?: any) => api.get('/api/v1/apis', params),
     get: (id: string) => api.get(`/api/v1/apis/${id}`),
-    search: (query: string) => api.get('/api/v1/apis/search', { query }),
+    search: (query: string, gatewayId?: string) => {
+      const params: any = { query };
+      if (gatewayId) params.gateway_id = gatewayId;
+      return api.get('/api/v1/apis/search', params);
+    },
     // Get security policies for an API (derived from policy_actions)
     getSecurityPolicies: (id: string) => api.get(`/api/v1/apis/${id}/security-policies`),
   },
 
-  // Metrics endpoints
+  // Metrics endpoints (gateway-scoped)
   metrics: {
     list: (params?: any) => api.get('/api/v1/metrics', params),
     get: (id: string) => api.get(`/api/v1/metrics/${id}`),
     aggregate: (params: any) => api.post('/api/v1/metrics/aggregate', params),
   },
 
-  // Predictions endpoints
+  // Predictions endpoints (gateway-scoped)
   predictions: {
     list: (params?: any) => api.get('/api/v1/predictions', params),
     get: (id: string) => api.get(`/api/v1/predictions/${id}`),
     create: (data: any) => api.post('/api/v1/predictions', data),
-    generate: (params?: any) => {
-      // Convert params object to query string
-      const queryParams = new URLSearchParams();
-      if (params?.api_id) queryParams.append('api_id', params.api_id);
-      if (params?.min_confidence !== undefined) queryParams.append('min_confidence', params.min_confidence.toString());
-      if (params?.use_ai !== undefined) queryParams.append('use_ai', params.use_ai.toString());
-      
-      const queryString = queryParams.toString();
-      return api.post(`/api/v1/predictions/generate${queryString ? `?${queryString}` : ''}`);
-    },
-    // AI-enhanced endpoints
-    generateAiEnhanced: (apiId: string, minConfidence?: number) => {
-      const queryParams = new URLSearchParams();
-      queryParams.append('api_id', apiId);
-      if (minConfidence !== undefined) queryParams.append('min_confidence', minConfidence.toString());
-      return api.post(`/api/v1/predictions/ai-enhanced?${queryParams.toString()}`);
-    },
     getExplanation: (id: string) => api.get(`/api/v1/predictions/${id}/explanation`),
   },
 
-  // Security endpoints
+  // Security endpoints (gateway-scoped)
   security: {
     vulnerabilities: {
       list: (params?: any) => api.get('/api/v1/security/vulnerabilities', params),
       get: (id: string) => api.get(`/api/v1/security/vulnerabilities/${id}`),
-      scan: (apiId: string) => api.post(`/api/v1/security/scan/${apiId}`),
+      scan: (apiId: string, gatewayId?: string) => {
+        const params: any = {};
+        if (gatewayId) params.gateway_id = gatewayId;
+        return api.post(`/api/v1/security/scan/${apiId}`, params);
+      },
     },
   },
 
-  // Optimization recommendations endpoints
+  // Optimization recommendations endpoints (gateway-scoped)
   recommendations: {
     list: (params?: any) => api.get('/api/v1/recommendations', params),
     get: (id: string) => api.get(`/api/v1/recommendations/${id}`),
-    generate: (apiId: string, minImpact?: number, useAi?: boolean) => {
+    generate: (apiId: string, minImpact?: number, useAi?: boolean, gatewayId?: string) => {
       const params: any = { api_id: apiId };
       if (minImpact !== undefined) params.min_impact = minImpact;
       if (useAi !== undefined) params.use_ai = useAi;
+      if (gatewayId) params.gateway_id = gatewayId;
       return api.post('/api/v1/recommendations/generate', params);
     },
     stats: (params?: any) => api.get('/api/v1/recommendations/stats', params),
     // Apply recommendation policy to Gateway
     apply: (id: string) => api.post(`/api/v1/recommendations/${id}/apply`),
     // AI-enhanced endpoints
-    generateAiEnhanced: (apiId: string, minImpact?: number) => {
+    generateAiEnhanced: (apiId: string, minImpact?: number, gatewayId?: string) => {
       const params: any = { api_id: apiId };
       if (minImpact !== undefined) params.min_impact = minImpact;
+      if (gatewayId) params.gateway_id = gatewayId;
       return api.post('/api/v1/optimization/ai-enhanced', params);
     },
     getInsights: (id: string) => api.get(`/api/v1/optimization/${id}/insights`),
   },
 
-  // Rate limit endpoints
+  // Rate limit endpoints (gateway-scoped)
   rateLimits: {
     list: (params?: any) => api.get('/api/v1/rate-limits', params),
     get: (id: string) => api.get(`/api/v1/rate-limits/${id}`),
@@ -225,7 +224,11 @@ export const api = {
     activate: (id: string) => api.post(`/api/v1/rate-limits/${id}/activate`),
     deactivate: (id: string) => api.post(`/api/v1/rate-limits/${id}/deactivate`),
     apply: (id: string) => api.post(`/api/v1/rate-limits/${id}/apply`),
-    suggest: (apiId: string) => api.get(`/api/v1/rate-limits/suggest/${apiId}`),
+    suggest: (apiId: string, gatewayId?: string) => {
+      const params: any = {};
+      if (gatewayId) params.gateway_id = gatewayId;
+      return api.get(`/api/v1/rate-limits/suggest/${apiId}`, params);
+    },
     effectiveness: (id: string) => api.get(`/api/v1/rate-limits/${id}/effectiveness`),
   },
 

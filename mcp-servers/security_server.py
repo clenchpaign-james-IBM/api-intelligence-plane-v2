@@ -170,10 +170,7 @@ class SecurityMCPServer(BaseMCPServer):
                 response = await self.backend_client._request(
                     "POST",
                     "/security/scan",
-                    json={
-                        "api_id": api_id,
-                        "use_ai_enhancement": True,  # Backend always uses hybrid approach
-                    },
+                    json={"api_id": api_id},
                 )
                 
                 logger.info(

@@ -13,7 +13,15 @@ from app.config import Settings
 from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.gateway_repository import GatewayRepository
 from app.db.repositories.vulnerability_repository import VulnerabilityRepository
-from app.models.base.api import API, PolicyActionType
+from app.models.base.api import API, PolicyAction, PolicyActionType
+from app.models.base.policy_configs import (
+    AuthenticationConfig,
+    AuthorizationConfig,
+    CorsConfig,
+    RateLimitConfig,
+    TlsConfig,
+    ValidationConfig,
+)
 from app.models.vulnerability import (
     Vulnerability,
     VulnerabilityStatus,
@@ -82,23 +90,29 @@ class SecurityService:
 
     async def scan_api_security(
         self,
+        gateway_id: UUID,
         api_id: UUID,
     ) -> Dict[str, Any]:
         """Scan API for security policy coverage issues using hybrid approach.
 
         Args:
-            api_id: API to scan
+            gateway_id: Gateway UUID (primary scope dimension)
+            api_id: API to scan (secondary scope dimension)
 
         Returns:
             Scan results with vulnerabilities, compliance issues, and remediation plan
         """
         try:
-            logger.info(f"Starting hybrid security scan for API: {api_id}")
+            logger.info(f"Starting hybrid security scan for API {api_id} in gateway {gateway_id}")
 
             # Get API details
             api = self.api_repository.get(str(api_id))
             if not api:
                 raise ValueError(f"API not found: {api_id}")
+            
+            # Verify API belongs to gateway
+            if api.gateway_id != gateway_id:
+                raise ValueError(f"API {api_id} does not belong to gateway {gateway_id}")
 
             # Perform hybrid security analysis (always uses both rule-based and AI)
             analysis_result = await self.security_agent.analyze_api_security(api)
@@ -122,6 +136,7 @@ class SecurityService:
 
             return {
                 "scan_id": str(UUID(int=0)),  # Generate proper scan ID
+                "gateway_id": str(gateway_id),
                 "api_id": str(api_id),
                 "api_name": api.name,
                 "scan_completed_at": datetime.utcnow().isoformat(),
@@ -139,31 +154,27 @@ class SecurityService:
             logger.error(f"Security scan failed for API {api_id}: {str(e)}")
             raise
 
-    async def scan_all_apis(self) -> Dict[str, Any]:
-        """Scan all active APIs for security issues.
+    async def scan_gateway_apis(self, gateway_id: UUID) -> Dict[str, Any]:
+        """Scan all APIs within a specific gateway for security issues.
 
+        Args:
+            gateway_id: Gateway UUID (primary scope dimension)
 
         Returns:
-            Aggregated scan results
+            Aggregated scan results for the gateway
         """
         try:
-            logger.info("Starting security scan for all APIs")
+            logger.info(f"Starting security scan for all APIs in gateway {gateway_id}")
 
-            # Get all active APIs
-            # Use search with match_all query
-            from opensearchpy import OpenSearch
-            response = self.api_repository.client.search(
-                index=self.api_repository.index_name,
-                body={"query": {"match_all": {}}, "size": 1000}
-            )
-            apis = [self.api_repository.model_class(**hit["_source"]) for hit in response["hits"]["hits"]]
+            # Get all APIs for this gateway
+            apis, _ = self.api_repository.find_by_gateway(gateway_id, size=1000)
             
             scan_results = []
             total_vulnerabilities = 0
 
             for api in apis:
                 try:
-                    result = await self.scan_api_security(api.id)
+                    result = await self.scan_api_security(gateway_id, api.id)
                     scan_results.append(result)
                     total_vulnerabilities += result["vulnerabilities_found"]
                 except Exception as e:
@@ -176,6 +187,7 @@ class SecurityService:
             )
 
             return {
+                "gateway_id": str(gateway_id),
                 "scan_completed_at": datetime.utcnow().isoformat(),
                 "apis_scanned": len(scan_results),
                 "total_vulnerabilities": total_vulnerabilities,
@@ -420,12 +432,28 @@ class SecurityService:
         try:
             # Apply remediation based on vulnerability type
             if vulnerability.vulnerability_type == VulnerabilityType.AUTHENTICATION:
-                policy = {
-                    "auth_type": "oauth2",
-                    "provider": "default",
-                    "scopes": ["read", "write"],
-                    "validation_rules": {"require_valid_token": True}
-                }
+                policy = PolicyAction(
+                    action_type=PolicyActionType.AUTHENTICATION,
+                    enabled=True,
+                    stage="request",
+                    config=AuthenticationConfig(
+                        auth_type="oauth2",
+                        oauth_provider="default",
+                        oauth_scopes=["read", "write"],
+                        oauth_token_endpoint=None,
+                        jwt_issuer=None,
+                        jwt_audience=None,
+                        jwt_public_key_url=None,
+                        api_key_header=None,
+                        api_key_query_param=None,
+                        allow_anonymous=False,
+                        cache_credentials=True,
+                        cache_ttl_seconds=300,
+                    ),
+                    vendor_config={},
+                    name=f"Authentication Policy for {api.name}",
+                    description=f"Security remediation for vulnerability {vulnerability.id}",
+                )
                 success = await self.gateway_adapter.apply_authentication_policy(
                     str(api.id), policy
                 )
@@ -442,12 +470,36 @@ class SecurityService:
                 )
                 
             elif vulnerability.vulnerability_type == VulnerabilityType.AUTHORIZATION:
-                policy = {
-                    "policy_type": "rbac",
-                    "roles": ["user", "admin"],
-                    "permissions": {"user": ["read"], "admin": ["read", "write", "delete"]},
-                    "rules": []
-                }
+                policy = PolicyAction(
+                    action_type=PolicyActionType.AUTHORIZATION,
+                    enabled=True,
+                    stage="request",
+                    config=AuthorizationConfig(
+                        allowed_users=None,
+                        denied_users=None,
+                        allowed_groups=None,
+                        denied_groups=None,
+                        allowed_roles=["user", "admin"],
+                        denied_roles=None,
+                        allowed_access_profiles=None,
+                        required_permissions=None,
+                        any_permissions=["read", "write", "delete"],
+                        required_scopes=None,
+                        any_scopes=None,
+                        required_claims=None,
+                        allowed_ip_ranges=None,
+                        denied_ip_ranges=None,
+                        allowed_time_windows=None,
+                        timezone=None,
+                        authorization_mode="any",
+                        custom_authorization_expression=None,
+                        unauthorized_status_code=403,
+                        unauthorized_message=None,
+                    ),
+                    vendor_config={},
+                    name=f"Authorization Policy for {api.name}",
+                    description=f"Security remediation for vulnerability {vulnerability.id}",
+                )
                 success = await self.gateway_adapter.apply_authorization_policy(
                     str(api.id), policy
                 )
@@ -465,11 +517,27 @@ class SecurityService:
                 
             elif vulnerability.vulnerability_type == VulnerabilityType.CONFIGURATION:
                 if "rate limit" in vulnerability.title.lower():
-                    policy = {
-                        "requests_per_minute": 100,
-                        "burst_size": 20,
-                        "key_strategy": "ip_address"
-                    }
+                    policy = PolicyAction(
+                        action_type=PolicyActionType.RATE_LIMITING,
+                        enabled=True,
+                        stage="request",
+                        config=RateLimitConfig(
+                            requests_per_second=None,
+                            requests_per_minute=100,
+                            requests_per_hour=None,
+                            requests_per_day=None,
+                            concurrent_requests=None,
+                            burst_allowance=20,
+                            rate_limit_key="ip",
+                            custom_key_header=None,
+                            enforcement_action="reject",
+                            include_rate_limit_headers=True,
+                            consumer_tiers=None,
+                        ),
+                        vendor_config={},
+                        name=f"Rate Limit Policy for {api.name}",
+                        description=f"Security remediation for vulnerability {vulnerability.id}",
+                    )
                     success = await self.gateway_adapter.apply_rate_limit_policy(
                         str(api.id), policy
                     )
@@ -486,12 +554,25 @@ class SecurityService:
                     )
                     
                 elif "tls" in vulnerability.title.lower() or "https" in vulnerability.title.lower():
-                    policy = {
-                        "enforce_https": True,
-                        "min_tls_version": "1.2",
-                        "cipher_suites": ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384"],
-                        "hsts_enabled": True
-                    }
+                    policy = PolicyAction(
+                        action_type=PolicyActionType.TLS,
+                        enabled=True,
+                        stage="request",
+                        config=TlsConfig(
+                            enforce_tls=True,
+                            min_tls_version="1.2",
+                            allowed_cipher_suites=[
+                                "TLS_AES_128_GCM_SHA256",
+                                "TLS_AES_256_GCM_SHA384",
+                            ],
+                            require_client_certificate=False,
+                            trusted_ca_certificates=None,
+                            verify_backend_certificate=True,
+                        ),
+                        vendor_config={"hsts_enabled": True},
+                        name=f"TLS Policy for {api.name}",
+                        description=f"Security remediation for vulnerability {vulnerability.id}",
+                    )
                     success = await self.gateway_adapter.apply_tls_policy(
                         str(api.id), policy
                     )
@@ -510,14 +591,22 @@ class SecurityService:
                 elif "cors" in vulnerability.title.lower():
                     # Get base_path from API (now a top-level field)
                     base_path = api.base_path if hasattr(api, 'base_path') else "/"
-                    policy = {
-                        "allowed_origins": [base_path],
-                        "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
-                        "allowed_headers": ["Content-Type", "Authorization"],
-                        "expose_headers": [],
-                        "max_age": 3600,
-                        "allow_credentials": True
-                    }
+                    policy = PolicyAction(
+                        action_type=PolicyActionType.CORS,
+                        enabled=True,
+                        stage="request",
+                        config=CorsConfig(
+                            allowed_origins=[base_path],
+                            allowed_methods=["GET", "POST", "PUT", "DELETE"],
+                            allowed_headers=["Content-Type", "Authorization"],
+                            exposed_headers=[],
+                            allow_credentials=True,
+                            max_age_seconds=3600,
+                        ),
+                        vendor_config={},
+                        name=f"CORS Policy for {api.name}",
+                        description=f"Security remediation for vulnerability {vulnerability.id}",
+                    )
                     success = await self.gateway_adapter.apply_cors_policy(
                         str(api.id), policy
                     )
@@ -534,12 +623,28 @@ class SecurityService:
                     )
                     
                 elif "validation" in vulnerability.title.lower():
-                    policy = {
-                        "schema_validation": True,
-                        "content_type_validation": True,
-                        "size_limits": {"request": 10485760, "response": 10485760},
-                        "sanitization_rules": ["strip_html", "escape_sql"]
-                    }
+                    policy = PolicyAction(
+                        action_type=PolicyActionType.VALIDATION,
+                        enabled=True,
+                        stage="request",
+                        config=ValidationConfig(
+                            validate_request_schema=True,
+                            validate_response_schema=False,
+                            validate_query_params=True,
+                            validate_path_params=True,
+                            validate_headers=True,
+                            validate_content_type=True,
+                            allowed_content_types=None,
+                            strict_mode=False,
+                            return_validation_errors=True,
+                        ),
+                        vendor_config={
+                            "size_limits": {"request": 10485760, "response": 10485760},
+                            "sanitization_rules": ["strip_html", "escape_sql"],
+                        },
+                        name=f"Validation Policy for {api.name}",
+                        description=f"Security remediation for vulnerability {vulnerability.id}",
+                    )
                     success = await self.gateway_adapter.apply_validation_policy(
                         str(api.id), policy
                     )
@@ -556,13 +661,25 @@ class SecurityService:
                     )
                     
                 elif "security header" in vulnerability.title.lower():
-                    policy = {
-                        "hsts": "max-age=31536000; includeSubDomains",
-                        "x_frame_options": "DENY",
-                        "x_content_type_options": "nosniff",
-                        "csp": "default-src 'self'",
-                        "x_xss_protection": "1; mode=block"
-                    }
+                    from app.models.base.policy_configs import TransformationConfig
+                    policy = PolicyAction(
+                        action_type=PolicyActionType.TRANSFORMATION,
+                        enabled=True,
+                        stage="response",
+                        config=TransformationConfig(
+                            transform_response=True,
+                            add_headers={
+                                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+                                "X-Frame-Options": "DENY",
+                                "X-Content-Type-Options": "nosniff",
+                                "Content-Security-Policy": "default-src 'self'",
+                                "X-XSS-Protection": "1; mode=block",
+                            }
+                        ),
+                        vendor_config={},
+                        name=f"Security Headers Policy for {api.name}",
+                        description=f"Security remediation for vulnerability {vulnerability.id}",
+                    )
                     success = await self.gateway_adapter.apply_security_headers_policy(
                         str(api.id), policy
                     )

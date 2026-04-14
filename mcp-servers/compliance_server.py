@@ -14,7 +14,7 @@ Compliance Standards Supported:
 - PCI-DSS (Payment Card Industry Data Security Standard)
 - ISO 27001 (Information Security Management)
 
-Port: 8004
+Port: 8005
 Transport: Streamable HTTP
 """
 
@@ -76,8 +76,9 @@ class ComplianceMCPServer(BaseMCPServer):
                 dict: Health status including backend connectivity
             """
             try:
-                # Test backend connectivity using compliance posture endpoint
-                response = await self.backend_client._request("GET", "/compliance/posture")
+                # Test backend connectivity by making a simple request to gateways endpoint
+                response = await self.backend_client.client.get("/gateways", params={"page": 1, "page_size": 1})
+                response.raise_for_status()
                 backend_status = "connected"
             except Exception as e:
                 logger.error(f"Backend health check failed: {e}")
@@ -127,6 +128,7 @@ class ComplianceMCPServer(BaseMCPServer):
         # T128l: scan_api_compliance tool
         @self.tool(description="Scan an API for compliance violations across regulatory standards")
         async def scan_api_compliance(
+            gateway_id: str,
             api_id: str,
             standards: Optional[list[str]] = None,
         ) -> dict[str, Any]:
@@ -146,6 +148,7 @@ class ComplianceMCPServer(BaseMCPServer):
             - ISO 27001: Access control, cryptography, operations security
             
             Args:
+                gateway_id: UUID of the gateway
                 api_id: UUID of the API to scan
                 standards: Optional list of specific standards to check
                           (default: all 5 standards)
@@ -165,24 +168,20 @@ class ComplianceMCPServer(BaseMCPServer):
             
             Example:
                 >>> result = await scan_api_compliance(
-                ...     api_id="550e8400-e29b-41d4-a716-446655440000",
+                ...     gateway_id="550e8400-e29b-41d4-a716-446655440000",
+                ...     api_id="550e8400-e29b-41d4-a716-446655440001",
                 ...     standards=["GDPR", "HIPAA"]
                 ... )
                 >>> print(f"Found {result['violations_found']} violations")
             """
             try:
-                logger.info(f"Scanning API {api_id} for compliance violations")
+                logger.info(f"Scanning API {api_id} in gateway {gateway_id} for compliance violations")
                 
-                # Prepare request payload
-                payload: dict[str, Any] = {"api_id": api_id}
-                if standards:
-                    payload["standards"] = standards
-                
-                # Call backend API
-                response = await self.backend_client._request(
-                    "POST",
-                    "/compliance/scan",
-                    json=payload
+                # Call backend API using dedicated method
+                response = await self.backend_client.scan_api_compliance(
+                    gateway_id=gateway_id,
+                    api_id=api_id,
+                    standards=standards
                 )
                 
                 logger.info(
@@ -203,12 +202,13 @@ class ComplianceMCPServer(BaseMCPServer):
         # T128m: generate_audit_report tool
         @self.tool(description="Generate comprehensive audit report with evidence and recommendations")
         async def generate_audit_report(
+            gateway_id: str,
             api_id: Optional[str] = None,
             standard: Optional[str] = None,
             start_date: Optional[str] = None,
             end_date: Optional[str] = None,
         ) -> dict[str, Any]:
-            """Generate comprehensive audit report.
+            """Generate comprehensive audit report for a gateway.
             
             Creates a detailed audit report suitable for external auditors with:
             - AI-generated executive summary
@@ -220,6 +220,7 @@ class ComplianceMCPServer(BaseMCPServer):
             - Actionable recommendations
             
             Args:
+                gateway_id: Gateway UUID (required)
                 api_id: Optional API filter (UUID string)
                 standard: Optional compliance standard filter
                          Valid values: ["GDPR", "HIPAA", "SOC2", "PCI_DSS", "ISO_27001"]
@@ -242,6 +243,7 @@ class ComplianceMCPServer(BaseMCPServer):
             
             Example:
                 >>> report = await generate_audit_report(
+                ...     gateway_id="550e8400-e29b-41d4-a716-446655440000",
                 ...     standard="GDPR",
                 ...     start_date="2026-01-01T00:00:00Z",
                 ...     end_date="2026-03-31T23:59:59Z"
@@ -249,24 +251,15 @@ class ComplianceMCPServer(BaseMCPServer):
                 >>> print(report['executive_summary'])
             """
             try:
-                logger.info("Generating audit report")
+                logger.info(f"Generating audit report for gateway {gateway_id}")
                 
-                # Prepare request payload
-                payload = {}
-                if api_id:
-                    payload["api_id"] = api_id
-                if standard:
-                    payload["standard"] = standard
-                if start_date:
-                    payload["start_date"] = start_date
-                if end_date:
-                    payload["end_date"] = end_date
-                
-                # Call backend API
-                response = await self.backend_client._request(
-                    "POST",
-                    "/compliance/reports/audit",
-                    json=payload
+                # Call backend API using dedicated method
+                response = await self.backend_client.generate_audit_report(
+                    gateway_id=gateway_id,
+                    api_id=api_id,
+                    standard=standard,
+                    start_date=start_date,
+                    end_date=end_date
                 )
                 
                 logger.info(f"Audit report generated: {response.get('report_id')}")
@@ -283,10 +276,11 @@ class ComplianceMCPServer(BaseMCPServer):
         # T128n: get_compliance_posture tool
         @self.tool(description="Get overall compliance posture metrics and scores")
         async def get_compliance_posture(
+            gateway_id: str,
             api_id: Optional[str] = None,
             standard: Optional[str] = None,
         ) -> dict[str, Any]:
-            """Get compliance posture metrics.
+            """Get compliance posture metrics for a gateway.
             
             Provides real-time compliance health metrics including:
             - Total violations count
@@ -297,6 +291,7 @@ class ComplianceMCPServer(BaseMCPServer):
             - Next recommended audit date
             
             Args:
+                gateway_id: Gateway UUID (required)
                 api_id: Optional API filter (UUID string)
                 standard: Optional compliance standard filter
                          Valid values: ["GDPR", "HIPAA", "SOC2", "PCI_DSS", "ISO_27001"]
@@ -313,25 +308,21 @@ class ComplianceMCPServer(BaseMCPServer):
                     - next_audit_date: Next recommended audit date
             
             Example:
-                >>> posture = await get_compliance_posture(standard="HIPAA")
+                >>> posture = await get_compliance_posture(
+                ...     gateway_id="550e8400-e29b-41d4-a716-446655440000",
+                ...     standard="HIPAA"
+                ... )
                 >>> print(f"Compliance score: {posture['compliance_score']}")
                 >>> print(f"Remediation rate: {posture['remediation_rate']}%")
             """
             try:
                 logger.info("Getting compliance posture")
                 
-                # Prepare query parameters
-                params = {}
-                if api_id:
-                    params["api_id"] = api_id
-                if standard:
-                    params["standard"] = standard
-                
-                # Call backend API
-                response = await self.backend_client._request(
-                    "GET",
-                    "/compliance/posture",
-                    params=params
+                # Call backend API using dedicated method
+                response = await self.backend_client.get_compliance_posture(
+                    gateway_id=gateway_id,
+                    api_id=api_id,
+                    standard=standard
                 )
                 
                 logger.info(
@@ -360,7 +351,7 @@ def main():
     # Create server
     server = ComplianceMCPServer()
     
-    # Run MCP server on port 8004 (Compliance server port)
+    # Run MCP server on port 8000 (Compliance server port)
     # FastMCP's built-in server will handle both MCP and health endpoints
     server.run(transport="streamable-http", port=8000)
 

@@ -1,9 +1,10 @@
 """
-Utility module for normalizing webMethods policy actions to vendor-neutral format.
+Policy Normalizer for webMethods Gateway
 
-This module provides conversion functions to transform webMethods-specific policy action
-models (EntryProtocolPolicy, EvaluatePolicy, etc.) into the vendor-neutral PolicyAction
-format used by the API Intelligence Plane.
+Converts webMethods-specific policy actions to vendor-neutral structured configs.
+This is the SINGLE SOURCE OF TRUTH for webMethods → vendor-neutral conversion.
+
+Enhanced to produce structured policy configurations for type safety and validation.
 
 IBM Confidential - Copyright 2024 IBM Corp.
 """
@@ -11,6 +12,18 @@ IBM Confidential - Copyright 2024 IBM Corp.
 from typing import Any, Dict, Optional, Union
 
 from ...models.base.api import PolicyAction, PolicyActionType
+from ...models.base.policy_configs import (
+    TlsConfig,
+    AuthenticationConfig,
+    AuthorizationConfig,
+    LoggingConfig,
+    RateLimitConfig,
+    CachingConfig,
+    ValidationConfig,
+    DataMaskingConfig,
+    MaskingRule,
+    CorsConfig,
+)
 from ...models.webmethods.wm_policy_action import (
     EntryProtocolPolicy,
     EvaluatePolicy,
@@ -27,13 +40,13 @@ from ...models.webmethods.wm_policy_action import (
 
 def normalize_entry_protocol_policy(policy: EntryProtocolPolicy) -> PolicyAction:
     """
-    Normalize EntryProtocolPolicy to vendor-neutral PolicyAction.
+    Normalize EntryProtocolPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The EntryProtocolPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with TlsConfig.
 
     Example:
         >>> policy = EntryProtocolPolicy(protocol=Protocol.HTTPS)
@@ -41,18 +54,27 @@ def normalize_entry_protocol_policy(policy: EntryProtocolPolicy) -> PolicyAction
         >>> action.action_type
         <PolicyActionType.TLS: 'tls'>
     """
+    # Create structured TLS config
+    protocol_value = policy.protocol.value if policy.protocol else "http"
+    config = TlsConfig(
+        enforce_tls=(protocol_value == "https"),
+        min_tls_version="1.2" if protocol_value == "https" else "1.0",
+        allowed_cipher_suites=None,
+        require_client_certificate=False,
+        trusted_ca_certificates=None,
+        verify_backend_certificate=True
+    )
+    
     return PolicyAction(
         action_type=PolicyActionType.TLS,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Entry Protocol'),
+        name=policy.name or 'Entry Protocol',
         description=policy.description,
-        config={
-            "protocol": policy.protocol.value if policy.protocol else "http",
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'entryProtocolPolicy'),
+            "template_key": policy.name or 'entryProtocolPolicy',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -60,40 +82,54 @@ def normalize_entry_protocol_policy(policy: EntryProtocolPolicy) -> PolicyAction
 
 def normalize_evaluate_policy(policy: EvaluatePolicy) -> PolicyAction:
     """
-    Normalize EvaluatePolicy to vendor-neutral PolicyAction.
+    Normalize EvaluatePolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The EvaluatePolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with AuthenticationConfig.
     """
-    identification_rules = []
-    for rule in policy.identification_rules:
-        identification_rules.append({
-            "application_lookup": rule.application_lookup.value if hasattr(rule, 'application_lookup') else rule.applicationLookup.value,
-            "identification_type": rule.identification_type.value if hasattr(rule, 'identification_type') else rule.identificationType.value
-        })
+    # Determine auth type from identification rules
+    auth_type = "oauth2"  # Default
+    
+    if policy.identification_rules:
+        first_rule = policy.identification_rules[0]
+        id_type = first_rule.identification_type
+        
+        if id_type.value == "apiKey":
+            auth_type = "api_key"
+        elif id_type.value == "httpBasicAuth":
+            auth_type = "basic"
+        elif id_type.value == "jwtClaims":
+            auth_type = "jwt"
+    
+    # Create structured authentication config
+    config = AuthenticationConfig(
+        auth_type=auth_type,
+        allow_anonymous=policy.allow_anonymous,
+        oauth_provider=None,
+        oauth_scopes=None,
+        oauth_token_endpoint=None,
+        jwt_issuer=None,
+        jwt_audience=None,
+        jwt_public_key_url=None,
+        api_key_header=None,
+        api_key_query_param=None,
+        cache_credentials=True,
+        cache_ttl_seconds=300
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.AUTHENTICATION,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Identify & Authorize'),
+        name=policy.name or 'Identify & Authorize',
         description=policy.description,
-        config={
-            "logical_connector": policy.logical_connector.value if hasattr(policy, 'logical_connector') else policy.logicalConnector.value,
-            "allow_anonymous": policy.allow_anonymous if hasattr(policy, 'allow_anonymous') else policy.allowAnonymous,
-            "trigger_policy_violation_on_missing_authorization_header": (
-                policy.trigger_policy_violation_on_missing_authorization_header 
-                if hasattr(policy, 'trigger_policy_violation_on_missing_authorization_header') 
-                else policy.triggerPolicyViolationOnMissingAuthorizationHeader
-            ),
-            "identification_rules": identification_rules
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'evaluatePolicy'),
+            "template_key": policy.name or 'evaluatePolicy',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -101,28 +137,48 @@ def normalize_evaluate_policy(policy: EvaluatePolicy) -> PolicyAction:
 
 def normalize_authorize_user_policy(policy: AuthorizeUserPolicy) -> PolicyAction:
     """
-    Normalize AuthorizeUserPolicy to vendor-neutral PolicyAction.
+    Normalize AuthorizeUserPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The AuthorizeUserPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with AuthorizationConfig.
     """
+    # Create structured authorization config
+    config = AuthorizationConfig(
+        allowed_users=policy.users,
+        allowed_groups=policy.groups,
+        allowed_access_profiles=policy.access_profiles,
+        denied_users=None,
+        denied_groups=None,
+        allowed_roles=None,
+        denied_roles=None,
+        required_permissions=None,
+        any_permissions=None,
+        required_scopes=None,
+        any_scopes=None,
+        required_claims=None,
+        allowed_ip_ranges=None,
+        denied_ip_ranges=None,
+        allowed_time_windows=None,
+        timezone=None,
+        authorization_mode="all",
+        custom_authorization_expression=None,
+        unauthorized_status_code=403,
+        unauthorized_message=None
+    )
+    
     return PolicyAction(
         action_type=PolicyActionType.AUTHORIZATION,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Authorize User'),
+        name=policy.name or 'Authorize User',
         description=policy.description,
-        config={
-            "users": policy.users,
-            "groups": policy.groups,
-            "access_profiles": policy.access_profiles if hasattr(policy, 'access_profiles') else policy.accessProfiles
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'authorizeUser'),
+            "template_key": policy.name or 'authorizeUser',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -130,40 +186,38 @@ def normalize_authorize_user_policy(policy: AuthorizeUserPolicy) -> PolicyAction
 
 def normalize_log_invocation_policy(policy: LogInvocationPolicy) -> PolicyAction:
     """
-    Normalize LogInvocationPolicy to vendor-neutral PolicyAction.
+    Normalize LogInvocationPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The LogInvocationPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with LoggingConfig.
     """
-    store_request_headers = policy.store_request_headers if hasattr(policy, 'store_request_headers') else policy.storeRequestHeaders
-    store_request_payload = policy.store_request_payload if hasattr(policy, 'store_request_payload') else policy.storeRequestPayload
-    store_response_headers = policy.store_response_headers if hasattr(policy, 'store_response_headers') else policy.storeResponseHeaders
-    store_response_payload = policy.store_response_payload if hasattr(policy, 'store_response_payload') else policy.storeResponsePayload
-    store_as_zip = policy.store_as_zip if hasattr(policy, 'store_as_zip') else policy.storeAsZip
-    log_gen_freq = policy.log_generation_frequency if hasattr(policy, 'log_generation_frequency') else policy.logGenerationFrequency
-    dest_type = policy.destination.destination_type if hasattr(policy.destination, 'destination_type') else policy.destination.destinationType
+    # Create structured logging config
+    config = LoggingConfig(
+        log_level="info",
+        log_request_headers=policy.store_request_headers,
+        log_request_body=policy.store_request_payload,
+        log_response_headers=policy.store_response_headers,
+        log_response_body=policy.store_response_payload,
+        sampling_rate=1.0,
+        log_to_gateway=True,
+        log_to_external=False,
+        external_log_endpoint=None,
+        compress_logs=policy.store_as_zip
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.LOGGING,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Log Invocation'),
+        name=policy.name or 'Log Invocation',
         description=policy.description,
-        config={
-            "store_request_headers": store_request_headers,
-            "store_request_payload": store_request_payload,
-            "store_response_headers": store_response_headers,
-            "store_response_payload": store_response_payload,
-            "store_as_zip": store_as_zip,
-            "log_generation_frequency": log_gen_freq.value,
-            "destination_type": dest_type.value
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'logInvocation'),
+            "template_key": policy.name or 'logInvocation',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -171,49 +225,47 @@ def normalize_log_invocation_policy(policy: LogInvocationPolicy) -> PolicyAction
 
 def normalize_throttle_policy(policy: ThrottlePolicy) -> PolicyAction:
     """
-    Normalize ThrottlePolicy to vendor-neutral PolicyAction.
+    Normalize ThrottlePolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The ThrottlePolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with RateLimitConfig.
     """
-    throttle_rule = policy.throttle_rule if hasattr(policy, 'throttle_rule') else policy.throttleRule
-    rule_name = throttle_rule.throttle_rule_name if hasattr(throttle_rule, 'throttle_rule_name') else throttle_rule.throttleRuleName
-    operator = throttle_rule.monitor_rule_operator if hasattr(throttle_rule, 'monitor_rule_operator') else throttle_rule.monitorRuleOperator
+    # Map webMethods alert interval unit to structured config time-based limits
+    limit_value = policy.throttle_rule.value
+    config_kwargs = {}
     
-    consumer_ids = policy.consumer_ids if hasattr(policy, 'consumer_ids') else policy.consumerIds
-    consumer_specific = policy.consumer_specific_counter if hasattr(policy, 'consumer_specific_counter') else policy.consumerSpecificCounter
-    dest_type = policy.destination.destination_type if hasattr(policy.destination, 'destination_type') else policy.destination.destinationType
-    alert_interval = policy.alert_interval if hasattr(policy, 'alert_interval') else policy.alertInterval
-    alert_interval_unit = policy.alert_interval_unit if hasattr(policy, 'alert_interval_unit') else policy.alertIntervalUnit
-    alert_frequency = policy.alert_frequency if hasattr(policy, 'alert_frequency') else policy.alertFrequency
-    alert_message = policy.alert_message if hasattr(policy, 'alert_message') else policy.alertMessage
+    if policy.alert_interval_unit.value == "SECONDS":
+        config_kwargs["requests_per_second"] = limit_value
+    elif policy.alert_interval_unit.value == "MINUTES":
+        config_kwargs["requests_per_minute"] = limit_value
+    elif policy.alert_interval_unit.value == "HOURS":
+        config_kwargs["requests_per_hour"] = limit_value
+    elif policy.alert_interval_unit.value == "DAYS":
+        config_kwargs["requests_per_day"] = limit_value
+    else:
+        # Default to per minute
+        config_kwargs["requests_per_minute"] = limit_value
+    
+    # Create structured rate limit config
+    config = RateLimitConfig(
+        **config_kwargs,
+        rate_limit_key="custom",  # webMethods uses consumer-based limiting
+        enforcement_action="reject"
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.RATE_LIMITING,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Traffic Optimization'),
+        name=policy.name or 'Traffic Optimization',
         description=policy.description,
-        config={
-            "throttle_rule": {
-                "name": rule_name,
-                "operator": operator.value,
-                "value": throttle_rule.value
-            },
-            "consumer_ids": consumer_ids,
-            "consumer_specific_counter": consumer_specific,
-            "destination_type": dest_type.value,
-            "alert_interval": alert_interval,
-            "alert_interval_unit": alert_interval_unit.value,
-            "alert_frequency": alert_frequency.value,
-            "alert_message": alert_message
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'throttle'),
+            "template_key": policy.name or 'throttle',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -221,29 +273,64 @@ def normalize_throttle_policy(policy: ThrottlePolicy) -> PolicyAction:
 
 def normalize_service_result_cache_policy(policy: ServiceResultCachePolicy) -> PolicyAction:
     """
-    Normalize ServiceResultCachePolicy to vendor-neutral PolicyAction.
+    Normalize ServiceResultCachePolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The ServiceResultCachePolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with CachingConfig.
     """
-    max_payload = policy.max_payload_size if hasattr(policy, 'max_payload_size') else getattr(policy, 'max-payload-size', 1000)
+    # Get max payload size - handle both attribute names
+    max_payload = 1000  # default
+    if hasattr(policy, 'max_payload_size'):
+        max_payload = policy.max_payload_size
+    elif hasattr(policy, 'max-payload-size'):
+        max_payload = getattr(policy, 'max-payload-size')
+    
+    # Parse TTL string (e.g., "1d", "2h", "30m") to seconds
+    ttl_str = policy.ttl
+    ttl_seconds = 300  # Default 5 minutes
+    
+    if ttl_str:
+        if ttl_str.endswith('d'):
+            ttl_seconds = int(ttl_str[:-1]) * 86400
+        elif ttl_str.endswith('h'):
+            ttl_seconds = int(ttl_str[:-1]) * 3600
+        elif ttl_str.endswith('m'):
+            ttl_seconds = int(ttl_str[:-1]) * 60
+        elif ttl_str.endswith('s'):
+            ttl_seconds = int(ttl_str[:-1])
+        else:
+            try:
+                ttl_seconds = int(ttl_str)
+            except ValueError:
+                ttl_seconds = 300
+    
+    # Create structured caching config
+    config = CachingConfig(
+        ttl_seconds=ttl_seconds,
+        max_ttl_seconds=None,
+        cache_key_strategy="url",
+        vary_headers=None,
+        vary_query_params=None,
+        respect_cache_control_headers=True,
+        cache_methods=["GET", "HEAD"],
+        cache_status_codes=[200, 203, 204, 206, 300, 301],
+        max_payload_size_bytes=max_payload,
+        invalidate_on_methods=["POST", "PUT", "PATCH", "DELETE"]
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.CACHING,
         enabled=True,
         stage="response",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Service Result Cache'),
+        name=policy.name or 'Service Result Cache',
         description=policy.description,
-        config={
-            "ttl": policy.ttl,
-            "max_payload_size": max_payload
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'serviceResultCache'),
+            "template_key": policy.name or 'serviceResultCache',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -251,38 +338,37 @@ def normalize_service_result_cache_policy(policy: ServiceResultCachePolicy) -> P
 
 def normalize_validate_api_spec_policy(policy: ValidateAPISpecPolicy) -> PolicyAction:
     """
-    Normalize ValidateAPISpecPolicy to vendor-neutral PolicyAction.
+    Normalize ValidateAPISpecPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The ValidateAPISpecPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with ValidationConfig.
     """
-    schema_validation = policy.schema_validation_flag if hasattr(policy, 'schema_validation_flag') else policy.schemaValidationFlag
-    validate_query = policy.validate_query_params if hasattr(policy, 'validate_query_params') else policy.validateQueryParams
-    validate_path = policy.validate_path_params if hasattr(policy, 'validate_path_params') else policy.validatePathParams
-    validate_cookie = policy.validate_cookie_params if hasattr(policy, 'validate_cookie_params') else policy.validateCookieParams
-    validate_content = policy.validate_content_types if hasattr(policy, 'validate_content_types') else policy.validateContentTypes
-    headers_validation = policy.headers_validation_flag if hasattr(policy, 'headers_validation_flag') else policy.headersValidationFlag
+    # Create structured validation config
+    config = ValidationConfig(
+        validate_request_schema=policy.schema_validation_flag,
+        validate_response_schema=False,
+        validate_query_params=policy.validate_query_params,
+        validate_path_params=policy.validate_path_params,
+        validate_headers=policy.headers_validation_flag,
+        validate_content_type=policy.validate_content_types,
+        allowed_content_types=None,
+        strict_mode=False,
+        return_validation_errors=True
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.VALIDATION,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Validate API Specification'),
+        name=policy.name or 'Validate API Specification',
         description=policy.description,
-        config={
-            "schema_validation": schema_validation,
-            "validate_query_params": validate_query,
-            "validate_path_params": validate_path,
-            "validate_cookie_params": validate_cookie,
-            "validate_content_types": validate_content,
-            "validate_headers": headers_validation
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'validateAPISpec'),
+            "template_key": policy.name or 'validateAPISpec',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -290,45 +376,68 @@ def normalize_validate_api_spec_policy(policy: ValidateAPISpecPolicy) -> PolicyA
 
 def normalize_request_data_masking_policy(policy: RequestDataMaskingPolicy) -> PolicyAction:
     """
-    Normalize RequestDataMaskingPolicy to vendor-neutral PolicyAction.
+    Normalize RequestDataMaskingPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The RequestDataMaskingPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with DataMaskingConfig.
     """
-    jpath_masking = policy.jpath_masking if hasattr(policy, 'jpath_masking') else policy.jpathMasking
-    regex_masking = policy.regex_masking if hasattr(policy, 'regex_masking') else policy.regexMasking
-    same_for_logging = policy.same_for_transactional_logging if hasattr(policy, 'same_for_transactional_logging') else policy.sameForTransactionalLogging
-    apply_for_payload = policy.apply_for_payload if hasattr(policy, 'apply_for_payload') else policy.applyForPayload
+    # Map webMethods masking type to structured config
+    jpath_mask_type = policy.jpath_masking.masking_criteria.masking_type.value
+    regex_mask_type = policy.regex_masking.masking_criteria.masking_type.value
     
-    jpath_criteria = jpath_masking.masking_criteria if hasattr(jpath_masking, 'masking_criteria') else jpath_masking.maskingCriteria
-    regex_criteria = regex_masking.masking_criteria if hasattr(regex_masking, 'masking_criteria') else regex_masking.maskingCriteria
+    # Create masking rules
+    masking_rules = []
+    
+    # Add JPath masking rule
+    if policy.jpath_masking.masking_criteria.action:
+        masking_rules.append(MaskingRule(
+            field_path=policy.jpath_masking.masking_criteria.action,
+            mask_type="full" if jpath_mask_type == "mask" else "remove",
+            mask_character=policy.jpath_masking.masking_criteria.mask_value or "*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        ))
+    
+    # Add regex masking rule
+    if policy.regex_masking.masking_criteria.action:
+        masking_rules.append(MaskingRule(
+            field_path=policy.regex_masking.masking_criteria.action,
+            mask_type="full" if regex_mask_type == "mask" else "remove",
+            mask_character=policy.regex_masking.masking_criteria.mask_value or "*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        ))
+    
+    # Create structured data masking config
+    config = DataMaskingConfig(
+        mask_request=True,
+        mask_response=False,
+        mask_logs=policy.same_for_transactional_logging,
+        masking_rules=masking_rules if masking_rules else [MaskingRule(
+            field_path="*",
+            mask_type="full",
+            mask_character="*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        )]
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.DATA_MASKING,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Request Data Masking'),
+        name=policy.name or 'Request Data Masking',
         description=policy.description,
-        config={
-            "jpath_masking": {
-                "action": jpath_criteria.action,
-                "masking_type": jpath_criteria.masking_type.value if hasattr(jpath_criteria, 'masking_type') else jpath_criteria.maskingType.value,
-                "mask_value": jpath_criteria.mask_value if hasattr(jpath_criteria, 'mask_value') else jpath_criteria.maskValue
-            },
-            "regex_masking": {
-                "action": regex_criteria.action,
-                "masking_type": regex_criteria.masking_type.value if hasattr(regex_criteria, 'masking_type') else regex_criteria.maskingType.value,
-                "mask_value": regex_criteria.mask_value if hasattr(regex_criteria, 'mask_value') else regex_criteria.maskValue
-            },
-            "same_for_transactional_logging": same_for_logging,
-            "apply_for_payload": apply_for_payload
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'requestDataMasking'),
+            "template_key": policy.name or 'requestDataMasking',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -336,45 +445,68 @@ def normalize_request_data_masking_policy(policy: RequestDataMaskingPolicy) -> P
 
 def normalize_response_data_masking_policy(policy: ResponseDataMaskingPolicy) -> PolicyAction:
     """
-    Normalize ResponseDataMaskingPolicy to vendor-neutral PolicyAction.
+    Normalize ResponseDataMaskingPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The ResponseDataMaskingPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with DataMaskingConfig.
     """
-    jpath_masking = policy.jpath_masking if hasattr(policy, 'jpath_masking') else policy.jpathMasking
-    regex_masking = policy.regex_masking if hasattr(policy, 'regex_masking') else policy.regexMasking
-    same_for_logging = policy.same_for_transactional_logging if hasattr(policy, 'same_for_transactional_logging') else policy.sameForTransactionalLogging
-    apply_for_payload = policy.apply_for_payload if hasattr(policy, 'apply_for_payload') else policy.applyForPayload
+    # Map webMethods masking type to structured config
+    jpath_mask_type = policy.jpath_masking.masking_criteria.masking_type.value
+    regex_mask_type = policy.regex_masking.masking_criteria.masking_type.value
     
-    jpath_criteria = jpath_masking.masking_criteria if hasattr(jpath_masking, 'masking_criteria') else jpath_masking.maskingCriteria
-    regex_criteria = regex_masking.masking_criteria if hasattr(regex_masking, 'masking_criteria') else regex_masking.maskingCriteria
+    # Create masking rules
+    masking_rules = []
+    
+    # Add JPath masking rule
+    if policy.jpath_masking.masking_criteria.action:
+        masking_rules.append(MaskingRule(
+            field_path=policy.jpath_masking.masking_criteria.action,
+            mask_type="full" if jpath_mask_type == "mask" else "remove",
+            mask_character=policy.jpath_masking.masking_criteria.mask_value or "*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        ))
+    
+    # Add regex masking rule
+    if policy.regex_masking.masking_criteria.action:
+        masking_rules.append(MaskingRule(
+            field_path=policy.regex_masking.masking_criteria.action,
+            mask_type="full" if regex_mask_type == "mask" else "remove",
+            mask_character=policy.regex_masking.masking_criteria.mask_value or "*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        ))
+    
+    # Create structured data masking config
+    config = DataMaskingConfig(
+        mask_request=False,
+        mask_response=True,
+        mask_logs=policy.same_for_transactional_logging,
+        masking_rules=masking_rules if masking_rules else [MaskingRule(
+            field_path="*",
+            mask_type="full",
+            mask_character="*",
+            preserve_length=True,
+            partial_mask_start=None,
+            partial_mask_end=None
+        )]
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.DATA_MASKING,
         enabled=True,
         stage="response",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'Response Data Masking'),
+        name=policy.name or 'Response Data Masking',
         description=policy.description,
-        config={
-            "jpath_masking": {
-                "action": jpath_criteria.action,
-                "masking_type": jpath_criteria.masking_type.value if hasattr(jpath_criteria, 'masking_type') else jpath_criteria.maskingType.value,
-                "mask_value": jpath_criteria.mask_value if hasattr(jpath_criteria, 'mask_value') else jpath_criteria.maskValue
-            },
-            "regex_masking": {
-                "action": regex_criteria.action,
-                "masking_type": regex_criteria.masking_type.value if hasattr(regex_criteria, 'masking_type') else regex_criteria.maskingType.value,
-                "mask_value": regex_criteria.mask_value if hasattr(regex_criteria, 'mask_value') else regex_criteria.maskValue
-            },
-            "same_for_transactional_logging": same_for_logging,
-            "apply_for_payload": apply_for_payload
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'responseDataMasking'),
+            "template_key": policy.name or 'responseDataMasking',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -382,40 +514,36 @@ def normalize_response_data_masking_policy(policy: ResponseDataMaskingPolicy) ->
 
 def normalize_cors_policy(policy: CorsPolicy) -> PolicyAction:
     """
-    Normalize CorsPolicy to vendor-neutral PolicyAction.
+    Normalize CorsPolicy to vendor-neutral PolicyAction with structured config.
 
     Args:
         policy: The CorsPolicy object to normalize.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with CorsConfig.
     """
-    cors_attrs = policy.cors_attributes if hasattr(policy, 'cors_attributes') else policy.corsAttributes
+    cors_attrs = policy.cors_attributes
     
-    allowed_origins = cors_attrs.allowed_origins if hasattr(cors_attrs, 'allowed_origins') else cors_attrs.allowedOrigins
-    allow_headers = cors_attrs.allow_headers if hasattr(cors_attrs, 'allow_headers') else cors_attrs.allowHeaders
-    expose_headers = cors_attrs.expose_headers if hasattr(cors_attrs, 'expose_headers') else cors_attrs.exposeHeaders
-    allow_credentials = cors_attrs.allow_credentials if hasattr(cors_attrs, 'allow_credentials') else cors_attrs.allowCredentials
-    allow_methods = cors_attrs.allow_methods if hasattr(cors_attrs, 'allow_methods') else cors_attrs.allowMethods
-    max_age = cors_attrs.max_age if hasattr(cors_attrs, 'max_age') else cors_attrs.maxAge
+    # Create structured CORS config
+    config = CorsConfig(
+        allowed_origins=cors_attrs.allowed_origins,
+        allowed_methods=[m.value for m in cors_attrs.allow_methods],
+        allowed_headers=cors_attrs.allow_headers,
+        exposed_headers=cors_attrs.expose_headers,
+        allow_credentials=cors_attrs.allow_credentials,
+        max_age_seconds=cors_attrs.max_age
+    )
     
     return PolicyAction(
         action_type=PolicyActionType.CORS,
         enabled=True,
         stage="request",
-        name=getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'CORS'),
+        name=policy.name or 'CORS',
         description=policy.description,
-        config={
-            "allowed_origins": allowed_origins,
-            "allow_headers": allow_headers,
-            "expose_headers": expose_headers,
-            "allow_credentials": allow_credentials,
-            "allow_methods": [m.value for m in allow_methods],
-            "max_age": max_age
-        },
+        config=config,
         vendor_config={
             "vendor": "webmethods",
-            "template_key": getattr(policy, 'name', None) or getattr(policy, 'templateKey', 'cors'),
+            "template_key": policy.name or 'cors',
             "original_policy": policy.model_dump(by_alias=True)
         }
     )
@@ -447,7 +575,7 @@ def normalize_policy_action(policy: WebMethodsPolicyType) -> PolicyAction:
         policy: Any webMethods policy action model object.
 
     Returns:
-        Vendor-neutral PolicyAction object.
+        Vendor-neutral PolicyAction object with structured config.
 
     Raises:
         ValueError: If the policy type is not supported.

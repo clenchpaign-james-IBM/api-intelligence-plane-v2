@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import { Zap, TrendingUp, Filter } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import GatewaySelector from '../components/common/GatewaySelector';
 import RecommendationCard from '../components/optimization/RecommendationCard';
 import { api } from '../services/api';
 import type {
@@ -24,6 +26,8 @@ import type {
  * - Policy application to Gateway
  */
 const Optimization = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedPriority, setSelectedPriority] = useState<RecommendationPriority | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<RecommendationStatus | 'all'>('all');
   const [selectedType, setSelectedType] = useState<RecommendationType | 'all'>('all');
@@ -32,14 +36,20 @@ const Optimization = () => {
   
   const queryClient = useQueryClient();
 
-  // Fetch recommendations
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
+
+  // Fetch recommendations (filtered by gateway if selected)
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['recommendations', selectedPriority, selectedStatus, selectedType],
+    queryKey: ['recommendations', selectedPriority, selectedStatus, selectedType, selectedGatewayId],
     queryFn: () => {
       const params: any = {};
       if (selectedPriority !== 'all') params.priority = selectedPriority;
       if (selectedStatus !== 'all') params.status = selectedStatus;
       if (selectedType !== 'all') params.recommendation_type = selectedType;
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.recommendations.list(params);
     },
     refetchInterval: 60000, // Refetch every minute
@@ -98,9 +108,9 @@ const Optimization = () => {
   }, {} as Record<string, Recommendation[]>);
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="mb-6">
+      <div>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
@@ -127,6 +137,13 @@ const Optimization = () => {
           </div>
         </div>
       </div>
+      {/* Gateway Selector */}
+      <GatewaySelector
+        selectedGatewayId={selectedGatewayId}
+        onGatewayChange={handleGatewayChange}
+        showAllOption={true}
+      />
+
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">

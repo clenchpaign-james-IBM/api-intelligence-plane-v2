@@ -55,6 +55,7 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
 
     def list_recommendations(
         self,
+        gateway_id: Optional[str] = None,
         api_id: Optional[str] = None,
         priority: Optional[RecommendationPriority] = None,
         status: Optional[RecommendationStatus] = None,
@@ -66,7 +67,8 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         List recommendations with filters
 
         Args:
-            api_id: Filter by API ID
+            gateway_id: Filter by Gateway ID (primary dimension)
+            api_id: Filter by API ID (secondary dimension)
             priority: Filter by priority level
             status: Filter by recommendation status
             recommendation_type: Filter by recommendation type
@@ -78,6 +80,8 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         """
         must_clauses = []
 
+        if gateway_id:
+            must_clauses.append({"term": {"gateway_id": gateway_id}})
         if api_id:
             must_clauses.append({"term": {"api_id": api_id}})
         if priority:

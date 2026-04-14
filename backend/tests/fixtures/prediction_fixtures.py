@@ -74,11 +74,12 @@ def sample_contributing_factors() -> List[ContributingFactor]:
 
 
 @pytest.fixture
-def sample_prediction(sample_api_id, sample_contributing_factors) -> Prediction:
+def sample_prediction(sample_api_id, sample_gateway_id, sample_contributing_factors) -> Prediction:
     """Generate a sample prediction."""
     now = datetime.utcnow()
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
         api_name="Test API",
         prediction_type=PredictionType.FAILURE,
@@ -102,11 +103,12 @@ def sample_prediction(sample_api_id, sample_contributing_factors) -> Prediction:
 
 
 @pytest.fixture
-def critical_prediction(sample_api_id) -> Prediction:
+def critical_prediction(sample_api_id, sample_gateway_id) -> Prediction:
     """Generate a critical severity prediction."""
     now = datetime.utcnow()
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
         api_name="Critical API",
         prediction_type=PredictionType.FAILURE,
@@ -145,7 +147,7 @@ def critical_prediction(sample_api_id) -> Prediction:
 
 
 @pytest.fixture
-def resolved_prediction(sample_api_id) -> Prediction:
+def resolved_prediction(sample_api_id, sample_gateway_id) -> Prediction:
     """Generate a resolved prediction with outcome."""
     now = datetime.utcnow()
     predicted_at = now - timedelta(hours=48)
@@ -154,6 +156,7 @@ def resolved_prediction(sample_api_id) -> Prediction:
     
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
         api_name="Resolved API",
         prediction_type=PredictionType.DEGRADATION,
@@ -340,6 +343,7 @@ def sample_test_api(sample_api_id, sample_gateway_id) -> API:
 
 def create_prediction_with_severity(
     api_id: UUID,
+    gateway_id: UUID | None = None,
     api_name: str = "Test API",
     severity: PredictionSeverity = PredictionSeverity.HIGH,
     hours_ahead: int = 36
@@ -349,6 +353,7 @@ def create_prediction_with_severity(
     
     Args:
         api_id: API ID for the prediction
+        gateway_id: Gateway ID (generates random if None)
         api_name: API name
         severity: Desired severity level
         hours_ahead: Hours ahead for predicted_time
@@ -376,6 +381,7 @@ def create_prediction_with_severity(
     
     return Prediction(
         id=uuid4(),
+        gateway_id=gateway_id or uuid4(),
         api_id=api_id,
         api_name=api_name,
         prediction_type=type_map[severity],

@@ -107,6 +107,7 @@ class Prediction(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
+    gateway_id: UUID = Field(..., description="Gateway where API is deployed")
     api_id: UUID = Field(..., description="Target API")
     api_name: Optional[str] = Field(None, description="API name (enriched from inventory)")
     prediction_type: PredictionType = Field(..., description="Type of prediction")
@@ -205,6 +206,7 @@ class Prediction(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440003",
+                "gateway_id": "550e8400-e29b-41d4-a716-446655440000",
                 "api_id": "550e8400-e29b-41d4-a716-446655440001",
                 "prediction_type": "failure",
                 "predicted_at": "2026-03-09T10:00:00Z",

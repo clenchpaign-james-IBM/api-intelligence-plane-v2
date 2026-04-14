@@ -482,7 +482,6 @@ export interface Vulnerability {
   status: VulnerabilityStatus;
   detected_at: string;
   resolved_at?: string;
-  compliance_violations?: ComplianceStandard[];
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;

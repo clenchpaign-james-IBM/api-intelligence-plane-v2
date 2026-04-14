@@ -105,6 +105,7 @@ class OptimizationRecommendation(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
+    gateway_id: UUID = Field(..., description="Gateway where API is deployed")
     api_id: UUID = Field(..., description="Target API")
     recommendation_type: RecommendationType = Field(..., description="Type of optimization")
     title: str = Field(
@@ -132,6 +133,10 @@ class OptimizationRecommendation(BaseModel):
         None, ge=0, description="Estimated cost savings (USD per month)"
     )
     metadata: Optional[dict[str, Any]] = Field(None, description="Additional data")
+    vendor_metadata: Optional[dict[str, Any]] = Field(
+        None,
+        description="Vendor-specific metadata (Gateway policy IDs, configurations, etc.)"
+    )
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Creation timestamp"
     )
@@ -182,6 +187,7 @@ class OptimizationRecommendation(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440005",
+                "gateway_id": "550e8400-e29b-41d4-a716-446655440000",
                 "api_id": "550e8400-e29b-41d4-a716-446655440001",
                 "recommendation_type": "caching",
                 "title": "Implement Redis Caching for User Endpoints",

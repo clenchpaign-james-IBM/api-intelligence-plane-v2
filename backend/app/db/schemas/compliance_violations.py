@@ -1,5 +1,5 @@
 """
-Migration 009: Compliance Violations Index
+Schema: Compliance Violations Index
 
 Creates the compliance-violations index for storing compliance violation findings,
 audit trail, remediation documentation, and compliance posture information.

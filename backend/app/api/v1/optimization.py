@@ -78,6 +78,210 @@ class RecommendationStatsResponse(BaseModel):
     total_cost_savings: float
 
 
+class OptimizationSummaryResponse(BaseModel):
+    """Response model for optimization summary."""
+    
+    total_recommendations: int
+    high_priority_recommendations: int
+    medium_priority_recommendations: int
+    low_priority_recommendations: int
+
+
+@router.get(
+    "/optimization/summary",
+    response_model=OptimizationSummaryResponse,
+    summary="Get optimization summary across all gateways",
+)
+async def get_optimization_summary(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+) -> OptimizationSummaryResponse:
+    """
+    Get aggregated optimization summary across all gateways or for a specific gateway.
+    
+    Returns recommendation counts by priority.
+    """
+    try:
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # If gateway_id is provided, get gateway-specific recommendations
+        if gateway_id:
+            # Verify gateway exists
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateway = gateway_repo.get(str(gateway_id))
+            
+            if not gateway:
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Gateway {gateway_id} not found",
+                )
+            
+            # Get all APIs for this gateway
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            # Get recommendations for each API in the gateway
+            all_recommendations = []
+            for api in gateway_apis:
+                result = optimization_service.list_recommendations(
+                    api_id=str(api.id),
+                    page=1,
+                    page_size=10000,
+                )
+                all_recommendations.extend(result["recommendations"])
+            
+            # Count by priority
+            high = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.HIGH)
+            medium = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.MEDIUM)
+            low = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.LOW)
+            
+            return OptimizationSummaryResponse(
+                total_recommendations=len(all_recommendations),
+                high_priority_recommendations=high,
+                medium_priority_recommendations=medium,
+                low_priority_recommendations=low,
+            )
+        
+        # Get summary for all gateways
+        summary = optimization_service.get_optimization_summary()
+        
+        return OptimizationSummaryResponse(
+            total_recommendations=summary["total_recommendations"],
+            high_priority_recommendations=summary["high_priority_recommendations"],
+            medium_priority_recommendations=summary["medium_priority_recommendations"],
+            low_priority_recommendations=summary["low_priority_recommendations"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get optimization summary: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get optimization summary: {str(e)}",
+        )
+
+
+@router.get(
+    "/recommendations",
+    response_model=RecommendationListResponse,
+    summary="List all optimization recommendations across all gateways",
+)
+async def list_all_recommendations(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+    priority: Optional[RecommendationPriority] = Query(None, description="Filter by priority"),
+    status: Optional[RecommendationStatus] = Query(None, description="Filter by status"),
+    recommendation_type: Optional[RecommendationType] = Query(None, description="Filter by type"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+) -> RecommendationListResponse:
+    """
+    List all optimization recommendations across all gateways with optional filtering.
+    
+    This is an aggregate endpoint that returns recommendations from all gateways.
+    Use gateway_id parameter to filter by specific gateway.
+
+    Args:
+        gateway_id: Optional gateway filter
+        api_id: Filter by API ID
+        priority: Filter by priority level
+        status: Filter by recommendation status
+        recommendation_type: Filter by recommendation type
+        page: Page number (1-indexed)
+        page_size: Items per page
+
+    Returns:
+        List of recommendations with pagination info
+    """
+    try:
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get recommendations with API name enrichment from service
+        result = optimization_service.list_recommendations(
+            api_id=str(api_id) if api_id else None,
+            priority=priority,
+            status=status,
+            recommendation_type=recommendation_type,
+            page=page,
+            page_size=page_size,
+        )
+        
+        # Filter by gateway if specified
+        if gateway_id:
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            filtered_recommendations = [
+                r for r in result["recommendations"]
+                if str(r.api_id) in gateway_api_ids
+            ]
+            result["recommendations"] = filtered_recommendations
+            result["total"] = len(filtered_recommendations)
+
+        # Convert to response models
+        recommendations_response = [
+            RecommendationResponse(
+                id=str(r.id),
+                api_id=str(r.api_id),
+                api_name=r.api_name,
+                recommendation_type=r.recommendation_type.value,
+                title=r.title,
+                description=r.description,
+                priority=r.priority.value,
+                estimated_impact=EstimatedImpactResponse(**r.estimated_impact.model_dump()),
+                implementation_effort=r.implementation_effort,
+                implementation_steps=r.implementation_steps,
+                status=r.status.value,
+                implemented_at=r.implemented_at.isoformat() if r.implemented_at else None,
+                cost_savings=r.cost_savings,
+                created_at=r.created_at.isoformat(),
+                updated_at=r.updated_at.isoformat(),
+                expires_at=r.expires_at.isoformat() if r.expires_at else None,
+            )
+            for r in result["recommendations"]
+        ]
+
+        return RecommendationListResponse(
+            recommendations=recommendations_response,
+            total=result["total"],
+            page=page,
+            page_size=page_size,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to list recommendations: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list recommendations: {str(e)}",
+        )
+
+
 @router.get(
     "/gateways/{gateway_id}/optimization/recommendations",
     response_model=RecommendationListResponse,

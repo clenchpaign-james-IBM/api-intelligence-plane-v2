@@ -46,29 +46,9 @@ services:
       opensearch:
         condition: service_healthy
 
-  # Metrics Infrastructure Initialization - One-time setup
-  init-metrics:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: aip-init-metrics
-    environment:
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=http
-      - LOG_LEVEL=INFO
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./backend:/app
-    networks:
-      - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    command: python -m backend.scripts.init_metrics_infrastructure
-    restart: "no"
-
-  # Backend API - Commented out until Phase 2 implementation
+  # Backend API
+  # Note: Automatically initializes all OpenSearch infrastructure on startup
+  # (indices, templates, ILM policies) - no separate init service needed
   backend:
     build:
       context: ./backend
@@ -95,8 +75,6 @@ services:
     depends_on:
       opensearch:
         condition: service_healthy
-      init-metrics:
-        condition: service_completed_successfully
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend - React SPA with Vite

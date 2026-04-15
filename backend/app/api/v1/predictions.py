@@ -65,6 +65,105 @@ class PredictionListResponse(BaseModel):
 
 
 @router.get(
+    "/predictions",
+    response_model=PredictionListResponse,
+    summary="List all failure predictions across all gateways",
+)
+async def list_all_predictions(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+    severity: Optional[PredictionSeverity] = Query(None, description="Filter by severity"),
+    status: Optional[PredictionStatus] = Query(None, description="Filter by status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+) -> PredictionListResponse:
+    """
+    List all failure predictions across all gateways with optional filtering.
+    
+    This is an aggregate endpoint that returns predictions from all gateways.
+    Use gateway_id parameter to filter by specific gateway.
+    
+    Args:
+        gateway_id: Optional gateway filter
+        api_id: Optional filter by specific API ID
+        severity: Filter by severity level
+        status: Filter by prediction status
+        page: Page number (1-indexed)
+        page_size: Items per page
+        
+    Returns:
+        List of predictions with pagination info
+    """
+    try:
+        # Initialize repository
+        prediction_repo = PredictionRepository()
+        
+        # Get predictions with filters
+        result = prediction_repo.list_predictions(
+            api_id=str(api_id) if api_id else None,
+            severity=severity,
+            status=status,
+            page=page,
+            page_size=page_size,
+        )
+        
+        # Filter by gateway if specified
+        if gateway_id:
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            filtered_predictions = [
+                p for p in result["predictions"]
+                if str(p.api_id) in gateway_api_ids
+            ]
+            result["predictions"] = filtered_predictions
+            result["total"] = len(filtered_predictions)
+        
+        # Convert to response models
+        predictions_response = [
+            PredictionResponse(
+                id=str(p.id),
+                api_id=str(p.api_id),
+                api_name=p.api_name,
+                prediction_type=p.prediction_type,
+                predicted_at=p.predicted_at.isoformat(),
+                predicted_time=p.predicted_time.isoformat(),
+                confidence_score=p.confidence_score,
+                severity=p.severity.value,
+                status=p.status.value,
+                contributing_factors=[
+                    ContributingFactorResponse(**factor.model_dump())
+                    for factor in p.contributing_factors
+                ],
+                recommended_actions=p.recommended_actions,
+                actual_outcome=p.actual_outcome,
+                actual_time=p.actual_time.isoformat() if p.actual_time else None,
+                accuracy_score=p.accuracy_score,
+                model_version=p.model_version,
+                metadata=p.metadata,
+                created_at=p.created_at.isoformat(),
+                updated_at=p.updated_at.isoformat(),
+            )
+            for p in result["predictions"]
+        ]
+        
+        return PredictionListResponse(
+            predictions=predictions_response,
+            total=result["total"],
+            page=page,
+            page_size=page_size,
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to list predictions: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list predictions: {str(e)}",
+        )
+
+
+@router.get(
     "/gateways/{gateway_id}/predictions",
     response_model=PredictionListResponse,
     summary="List failure predictions for a gateway",

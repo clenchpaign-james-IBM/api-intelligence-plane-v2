@@ -1,5 +1,5 @@
 """
-Migration 004: Predictions Index
+Schema: Predictions Index
 
 Creates the api-predictions index for storing AI-generated failure predictions
 with confidence scores, contributing factors, and recommended actions.

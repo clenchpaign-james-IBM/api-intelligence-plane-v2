@@ -1,5 +1,5 @@
 """
-Migration 002: Gateway Registry Index
+Schema: Gateway Registry Index
 
 Creates the gateway-registry index for storing connected API Gateway configurations,
 connection details, and capabilities.

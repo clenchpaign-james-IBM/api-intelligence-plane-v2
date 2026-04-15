@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import httpx
+from opensearchpy import OpenSearch
+from opensearchpy.connection import RequestsHttpConnection
 
 from app.adapters.base import BaseGatewayAdapter
 from app.db.client import get_opensearch_client
@@ -254,24 +256,55 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         start_time: Optional[Any] = None,
         end_time: Optional[Any] = None,
     ) -> list[TransactionalLog]:
-        """Retrieve raw transactional log events from the configured analytics endpoint."""
+        """Retrieve raw transactional log events from the webMethods analytics OpenSearch store."""
         if not self._connected:
             raise RuntimeError("Not connected to Gateway")
 
-        client = self._get_transactional_logs_client()
+        analytics_url = self.gateway.transactional_logs_url
+        if not analytics_url:
+            raise RuntimeError("transactional_logs_url is required for webMethods transactional logs")
 
-        params: dict[str, Any] = {}
-        if start_time:
-            params["fromDate"] = int(self._coerce_datetime(start_time).timestamp() * 1000)
-        if end_time:
-            params["toDate"] = int(self._coerce_datetime(end_time).timestamp() * 1000)
+        credentials = self.gateway.transactional_logs_credentials
+        verify_ssl = (
+            self.gateway.configuration.get("verify_ssl", True)
+            if self.gateway.configuration
+            else True
+        )
 
-        response = await client.get("/rest/apigateway/transactionalEvents", params=params)
-        response.raise_for_status()
+        opensearch = OpenSearch(
+            hosts=[str(analytics_url)],
+            http_auth=(
+                (credentials.username or "", credentials.password or "")
+                if credentials and credentials.type == "basic"
+                else None
+            ),
+            use_ssl=str(analytics_url).startswith("https://"),
+            verify_certs=verify_ssl,
+            connection_class=RequestsHttpConnection,
+            timeout=30,
+        )
 
-        events = response.json().get("events", [])
+        must_clauses: list[dict[str, Any]] = [{"term": {"eventType": "Transactional"}}]
+        if start_time or end_time:
+            range_clause: dict[str, Any] = {}
+            if start_time:
+                range_clause["gte"] = int(self._coerce_datetime(start_time).timestamp() * 1000)
+            if end_time:
+                range_clause["lte"] = int(self._coerce_datetime(end_time).timestamp() * 1000)
+            must_clauses.append({"range": {"creationDate": range_clause}})
+
+        query: dict[str, Any] = {
+            "query": {"bool": {"must": must_clauses}},
+            "sort": [{"creationDate": {"order": "asc"}}],
+            "size": 10000,
+        }
+
+        response = opensearch.search(body=query)
+        hits = response.get("hits", {}).get("hits", [])
+
         transactional_logs: list[TransactionalLog] = []
-        for event in events:
+        for hit in hits:
+            event = hit.get("_source", {})
             try:
                 wm_log = WMTransactionalLog(**event)
                 transactional_logs.append(self._transform_to_transactional_log(wm_log))

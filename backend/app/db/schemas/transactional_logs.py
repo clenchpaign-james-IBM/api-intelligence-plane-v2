@@ -1,5 +1,5 @@
 """
-Migration 010: WebMethods Transactional Logs Index Template
+Transactional Logs Index Template Schema
 
 Creates an index template for transactional-logs-* daily indices.
 This template stores raw transactional log events collected from supported

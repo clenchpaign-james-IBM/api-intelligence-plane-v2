@@ -98,6 +98,19 @@ export function getSeverityColor(severity: string): string {
 }
 
 /**
+ * Get color class for risk level
+ */
+export function getRiskLevelColor(riskLevel: string): string {
+  const colors: Record<string, string> = {
+    low: 'text-green-600',
+    medium: 'text-yellow-600',
+    high: 'text-orange-600',
+    critical: 'text-red-600',
+  };
+  return colors[riskLevel] || 'text-gray-600';
+}
+
+/**
  * Get color class for vulnerability status
  */
 export function getStatusColor(status: string): string {

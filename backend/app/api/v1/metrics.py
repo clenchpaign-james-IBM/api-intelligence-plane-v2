@@ -39,6 +39,283 @@ class MetricsResponse(BaseModel):
     total_data_points: int
 
 
+class MetricsSummaryResponse(BaseModel):
+    """Response model for metrics summary."""
+    
+    total_requests_24h: int
+    avg_response_time: float
+    avg_error_rate: float
+
+
+class AnalyticsMetricsResponse(BaseModel):
+    """Response model for analytics metrics."""
+    
+    items: list[dict]
+    total: int
+    time_bucket: str
+
+
+@router.get(
+    "/analytics/metrics",
+    response_model=AnalyticsMetricsResponse,
+    summary="Get analytics metrics across all gateways",
+)
+async def get_analytics_metrics(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    api_id: Optional[UUID] = Query(None, description="Optional API filter"),
+    time_bucket: str = Query("1h", description="Time bucket granularity"),
+    limit: int = Query(50, ge=1, le=1000, description="Maximum results"),
+) -> AnalyticsMetricsResponse:
+    """
+    Get aggregated analytics metrics across all gateways or for a specific gateway.
+    
+    Returns time-bucketed metrics for analytics dashboard.
+    """
+    try:
+        # Initialize repositories
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        gateway_repo = GatewayRepository()
+        
+        # Set default time range (last 24 hours)
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=24)
+        
+        # Convert time_bucket string to TimeBucket enum
+        try:
+            bucket_enum = TimeBucket(time_bucket)
+        except ValueError:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid time_bucket: {time_bucket}. Must be one of: 1m, 5m, 1h, 1d",
+            )
+        
+        # Build query based on filters
+        items = []
+        
+        if api_id:
+            # Get metrics for specific API
+            metrics, total = metrics_repo.find_by_time_bucket(
+                api_id=api_id,
+                time_bucket=bucket_enum,
+                start_time=start_time,
+                end_time=end_time,
+                size=limit,
+            )
+            
+            # Format metrics for response
+            for metric in metrics:
+                items.append({
+                    "id": str(metric.id),
+                    "gateway_id": str(metric.gateway_id),
+                    "api_id": metric.api_id,
+                    "timestamp": metric.timestamp.isoformat(),
+                    "time_bucket": metric.time_bucket.value,
+                    "request_count": metric.request_count,
+                    "success_count": metric.success_count,
+                    "failure_count": metric.failure_count,
+                    "error_rate": metric.error_rate,
+                    "availability": metric.availability,
+                    "response_time_avg": metric.response_time_avg,
+                    "response_time_p50": metric.response_time_p50,
+                    "response_time_p95": metric.response_time_p95,
+                    "response_time_p99": metric.response_time_p99,
+                    "throughput": metric.throughput,
+                    "cache_hit_rate": metric.cache_hit_rate,
+                })
+            
+            return AnalyticsMetricsResponse(
+                items=items,
+                total=total,
+                time_bucket=time_bucket,
+            )
+        
+        elif gateway_id:
+            # Get metrics for all APIs in a specific gateway
+            metrics, total = metrics_repo.find_by_gateway(
+                gateway_id=gateway_id,
+                start_time=start_time,
+                end_time=end_time,
+                size=limit,
+            )
+            
+            # Filter by time bucket and format
+            for metric in metrics:
+                if metric.time_bucket == bucket_enum:
+                    items.append({
+                        "id": str(metric.id),
+                        "gateway_id": str(metric.gateway_id),
+                        "api_id": metric.api_id,
+                        "timestamp": metric.timestamp.isoformat(),
+                        "time_bucket": metric.time_bucket.value,
+                        "request_count": metric.request_count,
+                        "success_count": metric.success_count,
+                        "failure_count": metric.failure_count,
+                        "error_rate": metric.error_rate,
+                        "availability": metric.availability,
+                        "response_time_avg": metric.response_time_avg,
+                        "response_time_p50": metric.response_time_p50,
+                        "response_time_p95": metric.response_time_p95,
+                        "response_time_p99": metric.response_time_p99,
+                        "throughput": metric.throughput,
+                        "cache_hit_rate": metric.cache_hit_rate,
+                    })
+            
+            return AnalyticsMetricsResponse(
+                items=items[:limit],
+                total=len(items),
+                time_bucket=time_bucket,
+            )
+        
+        else:
+            # Get metrics across all gateways
+            gateways, _ = gateway_repo.list_all(size=1000)
+            
+            for gateway in gateways:
+                try:
+                    metrics, _ = metrics_repo.find_by_gateway(
+                        gateway_id=gateway.id,
+                        start_time=start_time,
+                        end_time=end_time,
+                        size=limit,
+                    )
+                    
+                    # Filter by time bucket and format
+                    for metric in metrics:
+                        if metric.time_bucket == bucket_enum:
+                            items.append({
+                                "id": str(metric.id),
+                                "gateway_id": str(metric.gateway_id),
+                                "api_id": metric.api_id,
+                                "timestamp": metric.timestamp.isoformat(),
+                                "time_bucket": metric.time_bucket.value,
+                                "request_count": metric.request_count,
+                                "success_count": metric.success_count,
+                                "failure_count": metric.failure_count,
+                                "error_rate": metric.error_rate,
+                                "availability": metric.availability,
+                                "response_time_avg": metric.response_time_avg,
+                                "response_time_p50": metric.response_time_p50,
+                                "response_time_p95": metric.response_time_p95,
+                                "response_time_p99": metric.response_time_p99,
+                                "throughput": metric.throughput,
+                                "cache_hit_rate": metric.cache_hit_rate,
+                            })
+                            
+                            if len(items) >= limit:
+                                break
+                    
+                    if len(items) >= limit:
+                        break
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to get metrics for gateway {gateway.id}: {e}")
+                    continue
+            
+            return AnalyticsMetricsResponse(
+                items=items[:limit],
+                total=len(items),
+                time_bucket=time_bucket,
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get analytics metrics: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get analytics metrics: {str(e)}",
+        )
+
+
+@router.get(
+    "/metrics/summary",
+    response_model=MetricsSummaryResponse,
+    summary="Get metrics summary across all gateways",
+)
+async def get_metrics_summary(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+) -> MetricsSummaryResponse:
+    """
+    Get aggregated metrics summary across all gateways or for a specific gateway.
+    
+    Returns summary statistics for the last 24 hours.
+    """
+    try:
+        # Initialize repositories
+        metrics_repo = MetricsRepository()
+        gateway_repo = GatewayRepository()
+        
+        # Set time range (last 24 hours)
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=24)
+        
+        # Aggregate metrics
+        total_requests = 0
+        total_response_time_weighted = 0
+        total_errors = 0
+        metrics_count = 0
+        
+        if gateway_id:
+            # Get metrics for specific gateway
+            metrics, _ = metrics_repo.find_by_gateway(
+                gateway_id=gateway_id,
+                start_time=start_time,
+                end_time=end_time,
+                size=10000,
+            )
+        else:
+            # Get metrics across all gateways
+            gateways, _ = gateway_repo.list_all(size=1000)
+            metrics = []
+            
+            for gateway in gateways:
+                try:
+                    gateway_metrics, _ = metrics_repo.find_by_gateway(
+                        gateway_id=gateway.id,
+                        start_time=start_time,
+                        end_time=end_time,
+                        size=10000,
+                    )
+                    metrics.extend(gateway_metrics)
+                except Exception as e:
+                    logger.warning(f"Failed to get metrics for gateway {gateway.id}: {e}")
+                    continue
+        
+        # Aggregate the metrics
+        for metric in metrics:
+            total_requests += metric.request_count
+            total_errors += metric.failure_count
+            
+            # Weighted average for response time
+            if metric.request_count > 0:
+                total_response_time_weighted += metric.response_time_avg * metric.request_count
+                metrics_count += metric.request_count
+        
+        # Calculate averages
+        avg_response_time = (
+            total_response_time_weighted / metrics_count if metrics_count > 0 else 0.0
+        )
+        avg_error_rate = (
+            (total_errors / total_requests * 100) if total_requests > 0 else 0.0
+        )
+        
+        return MetricsSummaryResponse(
+            total_requests_24h=total_requests,
+            avg_response_time=round(avg_response_time, 2),
+            avg_error_rate=round(avg_error_rate, 2),
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get metrics summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get metrics summary: {str(e)}",
+        )
+
+
 @router.get(
     "/gateways/{gateway_id}/apis/{api_id}/metrics",
     response_model=MetricsResponse,

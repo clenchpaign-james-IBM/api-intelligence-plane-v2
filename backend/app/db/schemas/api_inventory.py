@@ -1,5 +1,5 @@
 """
-Migration 001: API Inventory Index
+API Inventory Index Schema
 
 Creates the api-inventory index for storing discovered APIs with their metadata,
 health metrics, and current status.

@@ -1,5 +1,5 @@
 """
-Migration 008: Query History Index
+Schema: Query History Index
 
 Creates the query-history index for storing natural language queries,
 interpreted intents, results, and user feedback for continuous improvement.

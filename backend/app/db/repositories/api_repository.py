@@ -19,7 +19,7 @@ class APIRepository(BaseRepository[API]):
     
     def __init__(self):
         """Initialize the API repository."""
-        super().__init__(index_name="api-inventory", model_class=API)
+        super().__init__(index_name="api-inventory-v2", model_class=API)
     
     def find_by_gateway(
         self,

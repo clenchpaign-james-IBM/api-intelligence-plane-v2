@@ -1,36 +1,31 @@
 """
-Migration 011: WebMethods 1-Minute Metrics Index Template
+1-Day Metrics Index Template Schema
 
-Creates an index template for api-metrics-1m-* indices.
-This template stores 1-minute aggregated metrics derived from raw
-transactional logs for short-horizon analytics and drill-down entry points.
+Creates an index template for api-metrics-1d-* indices.
+This template stores 1-day aggregated metrics derived from 1-hour
+analytics buckets for long-term reporting and trend analysis.
 
 Retention target:
-- 24 hours via cleanup jobs
+- 90 days via cleanup jobs
 """
 
 from opensearchpy import OpenSearch
 
 
-def create_wm_metrics_1m_index_template(client: OpenSearch):
+def create_metrics_1d_index_template(client: OpenSearch):
     """
-    Create the api-metrics-1m-* index template with mappings optimized for
-    short-window analytics queries.
-
-    This template applies to:
-    - api-metrics-1m-2026.04
-    - api-metrics-1m-2026.05
-    - etc.
+    Create the api-metrics-1d-* index template with mappings optimized for
+    daily summaries, reporting, and longer-term trend exploration.
     """
-    template_name = "api-metrics-1m-template"
+    template_name = "api-metrics-1d-template"
 
     template_body = {
-        "index_patterns": ["api-metrics-1m-*"],
+        "index_patterns": ["api-metrics-1d-*"],
         "template": {
             "settings": {
-                "number_of_shards": 2,
+                "number_of_shards": 1,
                 "number_of_replicas": 1,
-                "refresh_interval": "15s",
+                "refresh_interval": "300s",
                 "index": {
                     "max_result_window": 10000,
                     "codec": "best_compression",
@@ -65,9 +60,6 @@ def create_wm_metrics_1m_index_template(client: OpenSearch):
                         "type": "object",
                         "enabled": True,
                     },
-                    "top_error_messages": {
-                        "type": "keyword",
-                    },
                     "source_index": {"type": "keyword"},
                     "metadata": {
                         "type": "object",
@@ -76,7 +68,7 @@ def create_wm_metrics_1m_index_template(client: OpenSearch):
                 }
             },
         },
-        "priority": 121,
+        "priority": 124,
     }
 
     client.indices.put_index_template(name=template_name, body=template_body)

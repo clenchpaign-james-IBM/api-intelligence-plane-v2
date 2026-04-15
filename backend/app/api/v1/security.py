@@ -74,7 +74,51 @@ class SecurityPostureResponse(BaseModel):
     )
 
 
+class SecuritySummaryResponse(BaseModel):
+    """Response model for security summary."""
+    
+    total_vulnerabilities: int
+    critical_vulnerabilities: int
+    high_vulnerabilities: int
+    medium_vulnerabilities: int
+    low_vulnerabilities: int
+
+
 # API Endpoints
+@router.get(
+    "/security/summary",
+    response_model=SecuritySummaryResponse,
+    summary="Get security summary across all gateways",
+)
+async def get_security_summary(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    security_service: SecurityService = Depends(get_security_service),
+) -> SecuritySummaryResponse:
+    """
+    Get aggregated security summary across all gateways or for a specific gateway.
+    
+    Uses efficient OpenSearch aggregations to count vulnerabilities by severity.
+    When gateway_id is provided, filters vulnerabilities to only those from APIs
+    in that gateway.
+    
+    Returns vulnerability counts by severity.
+    """
+    try:
+        logger.info(f"Fetching security summary (gateway_id={gateway_id})")
+        
+        # Use efficient aggregation from security service
+        # This queries OpenSearch directly with gateway_id filter if provided
+        summary = await security_service.get_security_summary(gateway_id)
+        
+        return SecuritySummaryResponse(**summary)
+    except Exception as e:
+        logger.error(f"Failed to get security summary: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get security summary: {str(e)}",
+        )
+
+
 @router.post(
     "/gateways/{gateway_id}/security/scan",
     response_model=ScanResponse,
@@ -510,33 +554,13 @@ async def get_gateway_security_summary(
         
         logger.info(f"Fetching security summary for gateway {gateway_id}")
         
-        # Get all vulnerabilities
-        all_vulnerabilities = await security_service.get_vulnerabilities(limit=10000)
-        
-        # Filter to only include vulnerabilities from APIs in this gateway
-        from app.db.repositories.api_repository import APIRepository
-        api_repo = APIRepository()
-        gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
-        gateway_api_ids = {str(api.id) for api in gateway_apis}
-        
-        vulnerabilities = [
-            v for v in all_vulnerabilities
-            if str(v.api_id) in gateway_api_ids
-        ]
-        
-        # Count by severity
-        critical = sum(1 for v in vulnerabilities if v.severity == "critical")
-        high = sum(1 for v in vulnerabilities if v.severity == "high")
-        medium = sum(1 for v in vulnerabilities if v.severity == "medium")
-        low = sum(1 for v in vulnerabilities if v.severity == "low")
+        # Use efficient aggregation from security service
+        # This queries OpenSearch directly with gateway_id filter
+        summary = await security_service.get_security_summary(gateway_id)
         
         return {
             "gateway_id": str(gateway_id),
-            "total_vulnerabilities": len(vulnerabilities),
-            "critical_vulnerabilities": critical,
-            "high_vulnerabilities": high,
-            "medium_vulnerabilities": medium,
-            "low_vulnerabilities": low,
+            **summary
         }
         
     except Exception as e:

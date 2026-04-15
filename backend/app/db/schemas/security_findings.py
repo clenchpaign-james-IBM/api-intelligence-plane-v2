@@ -1,5 +1,5 @@
 """
-Migration 005: Security Findings Index
+Schema: Security Findings Index
 
 Creates the security-findings index for storing vulnerability scan results,
 remediation status, and security posture information.

@@ -30,6 +30,100 @@ class APIListResponse(BaseModel):
 
 
 @router.get(
+    "/apis",
+    response_model=APIListResponse,
+    summary="List all APIs across all gateways",
+)
+async def list_all_apis(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    status_filter: Optional[APIStatus] = Query(None, alias="status", description="Filter by status"),
+    is_shadow: Optional[bool] = Query(None, description="Filter shadow APIs"),
+    health_score_min: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum health score"),
+) -> APIListResponse:
+    """
+    List all APIs across all gateways with optional filtering.
+    
+    This is an aggregate endpoint that returns APIs from all gateways.
+    Use gateway_id parameter to filter by specific gateway.
+    
+    Args:
+        page: Page number (1-based)
+        page_size: Number of items per page
+        gateway_id: Optional gateway filter
+        status_filter: Optional status filter
+        is_shadow: Optional shadow API filter
+        health_score_min: Optional minimum health score filter (0.0-1.0)
+        
+    Returns:
+        Paginated list of APIs across all gateways
+    """
+    try:
+        repo = APIRepository()
+        
+        # Calculate offset
+        offset = (page - 1) * page_size
+        
+        # Build query based on filters
+        filters = []
+        
+        # Add gateway filter if specified
+        if gateway_id:
+            filters.append({"term": {"gateway_id": str(gateway_id)}})
+        
+        # Add status filter
+        if status_filter:
+            filters.append({"term": {"status": status_filter.value}})
+        
+        # Add shadow filter
+        if is_shadow is not None:
+            filters.append({"term": {"intelligence_metadata.is_shadow": is_shadow}})
+        
+        # Build query
+        if health_score_min is not None:
+            query = {
+                "bool": {
+                    "must": [
+                        {
+                            "range": {
+                                "intelligence_metadata.health_score": {
+                                    "gte": health_score_min
+                                }
+                            }
+                        }
+                    ],
+                    "filter": filters
+                }
+            }
+        elif filters:
+            query = {
+                "bool": {
+                    "filter": filters
+                }
+            }
+        else:
+            # No filters - get all APIs
+            query = {"match_all": {}}
+        
+        apis, total = repo.search(query, size=page_size, from_=offset)
+        
+        return APIListResponse(
+            items=apis,
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to list APIs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list APIs: {str(e)}"
+        )
+
+
+@router.get(
     "/gateways/{gateway_id}/apis",
     response_model=APIListResponse,
     summary="List APIs for a specific gateway",

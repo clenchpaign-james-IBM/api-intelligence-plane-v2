@@ -219,6 +219,10 @@ class BaseRepository(ABC, Generic[T]):
             
             return documents, total
             
+        except exceptions.NotFoundError:
+            # Index doesn't exist yet - return empty results
+            logger.warning(f"Index {self.index_name} not found, returning empty results")
+            return [], 0
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise

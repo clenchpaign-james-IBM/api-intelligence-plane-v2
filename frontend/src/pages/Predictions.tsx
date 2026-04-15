@@ -44,6 +44,19 @@ const Predictions = () => {
     refetchInterval: 60000, // Refetch every minute
   });
 
+  // Calculate derived values BEFORE early returns to avoid hooks order issues
+  const predictions = data?.predictions || [];
+  const activePredictions = predictions.filter((p: Prediction) => p.status === 'active');
+  const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
+  const aiEnhancedCount = useMemo(
+    () =>
+      predictions.filter(
+        (p: Prediction) =>
+          Boolean((p as Prediction & { metadata?: Record<string, unknown> }).metadata?.ai_enhanced)
+      ).length,
+    [predictions]
+  );
+
   // Loading state
   if (isLoading) {
     return (
@@ -61,18 +74,6 @@ const Predictions = () => {
       </div>
     );
   }
-
-  const predictions = data?.predictions || [];
-  const activePredictions = predictions.filter((p: Prediction) => p.status === 'active');
-  const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
-  const aiEnhancedCount = useMemo(
-    () =>
-      predictions.filter(
-        (p: Prediction) =>
-          Boolean((p as Prediction & { metadata?: Record<string, unknown> }).metadata?.ai_enhanced)
-      ).length,
-    [predictions]
-  );
 
   return (
     <div className="p-6 space-y-6">

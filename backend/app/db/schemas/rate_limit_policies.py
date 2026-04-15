@@ -1,5 +1,5 @@
 """
-Migration 007: Rate Limit Policies Index
+Schema: Rate Limit Policies Index
 
 Creates the rate-limit-policies index for storing dynamic rate limiting
 configurations with adaptive thresholds and priority-based rules.

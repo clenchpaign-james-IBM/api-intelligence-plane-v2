@@ -1,5 +1,5 @@
 """
-Migration 006: Optimization Recommendations Index
+Schema: Optimization Recommendations Index
 
 Creates the optimization-recommendations index for storing performance
 optimization suggestions with estimated impact and implementation tracking.

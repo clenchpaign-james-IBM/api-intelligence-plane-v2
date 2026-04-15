@@ -1,31 +1,31 @@
 """
-Migration 012: WebMethods 5-Minute Metrics Index Template
+1-Hour Metrics Index Template Schema
 
-Creates an index template for api-metrics-5m-* indices.
-This template stores 5-minute aggregated metrics derived from 1-minute
-analytics buckets for short-term operational trending.
+Creates an index template for api-metrics-1h-* indices.
+This template stores 1-hour aggregated metrics derived from 5-minute
+analytics buckets for medium-term operational analysis.
 
 Retention target:
-- 7 days via cleanup jobs
+- 30 days via cleanup jobs
 """
 
 from opensearchpy import OpenSearch
 
 
-def create_wm_metrics_5m_index_template(client: OpenSearch):
+def create_metrics_1h_index_template(client: OpenSearch):
     """
-    Create the api-metrics-5m-* index template with mappings optimized for
-    operational analytics and dashboard queries.
+    Create the api-metrics-1h-* index template with mappings optimized for
+    hourly rollups and trend analysis.
     """
-    template_name = "api-metrics-5m-template"
+    template_name = "api-metrics-1h-template"
 
     template_body = {
-        "index_patterns": ["api-metrics-5m-*"],
+        "index_patterns": ["api-metrics-1h-*"],
         "template": {
             "settings": {
                 "number_of_shards": 2,
                 "number_of_replicas": 1,
-                "refresh_interval": "30s",
+                "refresh_interval": "60s",
                 "index": {
                     "max_result_window": 10000,
                     "codec": "best_compression",
@@ -68,7 +68,7 @@ def create_wm_metrics_5m_index_template(client: OpenSearch):
                 }
             },
         },
-        "priority": 122,
+        "priority": 123,
     }
 
     client.indices.put_index_template(name=template_name, body=template_body)

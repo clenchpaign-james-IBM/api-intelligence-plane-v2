@@ -391,7 +391,7 @@ class SecurityService:
         try:
             if api_id:
                 return await self.vulnerability_repository.find_by_api_id(
-                    api_id, status, limit
+                    api_id, None, status, limit
                 )
             elif severity:
                 return await self.vulnerability_repository.find_by_severity(
@@ -404,6 +404,26 @@ class SecurityService:
 
         except Exception as e:
             logger.error(f"Failed to get vulnerabilities: {str(e)}")
+            raise
+
+    async def get_security_summary(
+        self,
+        gateway_id: Optional[UUID] = None,
+    ) -> Dict[str, int]:
+        """Get security summary with vulnerability counts by severity.
+
+        Uses efficient OpenSearch aggregations and filters by gateway_id if provided.
+
+        Args:
+            gateway_id: Optional gateway filter
+
+        Returns:
+            Dictionary with vulnerability counts by severity
+        """
+        try:
+            return await self.vulnerability_repository.get_summary_by_severity(gateway_id)
+        except Exception as e:
+            logger.error(f"Failed to get security summary: {str(e)}")
             raise
 
     # Private helper methods

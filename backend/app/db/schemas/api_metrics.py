@@ -1,5 +1,5 @@
 """
-Migration 003: API Metrics Index Template
+Schema: API Metrics Index Template
 
 Creates an index template for api-metrics-* indices with monthly rotation.
 Time-series metrics data for API performance monitoring.

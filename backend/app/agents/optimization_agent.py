@@ -178,7 +178,8 @@ class OptimizationAgent:
         """
         logger.info(f"Analyzing performance for API {state['api_name']}")
         
-        if not state["metrics"] or len(state["metrics"]) < 5:
+        # TODO Change to 10 after debugging
+        if not state["metrics"] or len(state["metrics"]) < 1:
             state["performance_analysis"] = "Insufficient metrics data for analysis"
             state["error"] = "Not enough metrics data points"
             return state
@@ -288,7 +289,7 @@ Identify the top optimization opportunities and their potential impact."""
         for rec in recommendations:
             try:
                 # Create enhancement prompt
-                system_prompt = """You are an expert performance optimization consultant. 
+                system_prompt = """You are an expert performance optimization consultant.
 Enhance the given optimization recommendation by:
 1. Adding specific implementation details
 2. Identifying potential challenges and mitigation strategies
@@ -318,6 +319,21 @@ Provide enhanced implementation guidance and success metrics."""
                 )
                 
                 enhancement = response.get("content", "")
+                
+                # NEW: Update the actual recommendation in database with AI insights
+                from app.models.recommendation import AIContext
+                
+                ai_context = AIContext(
+                    performance_analysis=state.get("performance_analysis", ""),
+                    implementation_guidance=enhancement,
+                    generated_at=datetime.utcnow()
+                )
+                
+                # Persist to database
+                self.optimization_service.recommendation_repo.update(
+                    str(rec.id),
+                    {"ai_context": ai_context.dict()}
+                )
                 
                 # Merge AI enrichment into a normalized recommendation dict
                 enhanced_rec = {
@@ -395,7 +411,7 @@ Provide enhanced implementation guidance and success metrics."""
         ])
         
         # Create prioritization prompt
-        system_prompt = """You are an expert performance optimization consultant. 
+        system_prompt = """You are an expert performance optimization consultant.
 Review the list of optimization recommendations and provide:
 1. Recommended implementation order
 2. Rationale for prioritization
@@ -429,6 +445,34 @@ Provide a clear implementation roadmap."""
             logger.info(f"Generated prioritization guidance for API {state['api_name']}")
             
             state["prioritization"] = prioritization
+            
+            # NEW: Update all recommendations with prioritization context
+            from app.models.recommendation import AIContext
+            
+            for rec in enhanced_recs:
+                rec_id = rec.get("id")
+                if rec_id:
+                    # Get existing recommendation
+                    recommendation = self.optimization_service.recommendation_repo.get(rec_id)
+                    if recommendation:
+                        # Update or create ai_context
+                        if recommendation.ai_context:
+                            ai_context_dict = recommendation.ai_context.dict()
+                            ai_context_dict["prioritization"] = prioritization
+                            ai_context_dict["generated_at"] = datetime.utcnow()
+                            ai_context = AIContext(**ai_context_dict)
+                        else:
+                            ai_context = AIContext(
+                                prioritization=prioritization,
+                                generated_at=datetime.utcnow()
+                            )
+                        
+                        # Update in database
+                        self.optimization_service.recommendation_repo.update(
+                            rec_id,
+                            {"ai_context": ai_context.dict()}
+                        )
+            
             return state
             
         except Exception as e:

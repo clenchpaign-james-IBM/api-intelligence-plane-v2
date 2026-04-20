@@ -37,6 +37,7 @@ const APIs = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.apis.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 

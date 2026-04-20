@@ -73,15 +73,13 @@ def setup_scheduler() -> AsyncIOScheduler:
         from app.api.deps import get_security_service, get_compliance_service
         from app.db.repositories.gateway_repository import GatewayRepository
         
-        # Setup API discovery jobs - creates per-gateway jobs
+        # Setup API discovery job - single job that discovers all connected gateways dynamically
         gateway_repo = GatewayRepository()
         setup_api_discovery_jobs(scheduler, gateway_repo)
-        logger.info("Scheduled API discovery jobs for all connected gateways")
         
-        # Setup transactional logs collection jobs - creates per-gateway jobs
+        # Setup transactional logs collection job - single job that processes all connected gateways dynamically
         # Note: Metrics are now aggregated from transactional logs, not collected separately
         setup_logs_metrics_collection_jobs(scheduler, gateway_repo)
-        logger.info("Scheduled transactional logs collection jobs for all connected gateways")
         
         # Setup security scheduler - registers all 4 security jobs:
         # 1. Security scan (every 1 hour)

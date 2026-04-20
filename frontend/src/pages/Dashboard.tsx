@@ -55,11 +55,13 @@ const Dashboard = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.apis.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
   });
 
   const { data: gateways, isLoading: gatewaysLoading, error: gatewaysError, refetch: refetchGateways } = useQuery({
     queryKey: ['gateways'],
     queryFn: () => api.gateways.list(),
+    staleTime: 0, // Always fetch fresh data
   });
 
   // Fetch metrics summary (filtered by gateway if selected)
@@ -73,6 +75,7 @@ const Dashboard = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return metricsService.getSummary(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -84,6 +87,7 @@ const Dashboard = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return securityService.getSummary(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refresh every minute
   });
 
@@ -95,6 +99,7 @@ const Dashboard = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return optimizationService.getSummary(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refresh every minute
   });
 

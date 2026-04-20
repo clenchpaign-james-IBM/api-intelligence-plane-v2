@@ -213,21 +213,41 @@ class PolicyAction(BaseModel):
     
     @model_validator(mode='before')
     @classmethod
-    def validate_no_dict_config(cls, data: Any) -> Any:
+    def validate_and_convert_config(cls, data: Any) -> Any:
         """
-        Validate that config is not a dict before Pydantic tries to convert it.
-        This runs before field validation, catching dicts before auto-conversion.
+        Convert dict-based configs to structured configs during deserialization.
+        This allows OpenSearch to return dicts that get converted to proper Pydantic models.
         """
         if isinstance(data, dict):
             config = data.get("config")
             if config is not None and isinstance(config, dict):
-                action_type = data.get("action_type", "unknown")
-                raise ValueError(
-                    f"Dict-based config is no longer supported for PolicyAction. "
-                    f"For action_type '{action_type}', use the corresponding structured config class "
-                    f"(e.g., RateLimitConfig, AuthenticationConfig, etc.). "
-                    f"See migration guide in docs/vendor-neutral-policy-configuration-analysis.md"
-                )
+                action_type = data.get("action_type")
+                
+                # Map action types to their config classes
+                config_type_map = {
+                    PolicyActionType.RATE_LIMITING: RateLimitConfig,
+                    PolicyActionType.AUTHENTICATION: AuthenticationConfig,
+                    PolicyActionType.AUTHORIZATION: AuthorizationConfig,
+                    PolicyActionType.CACHING: CachingConfig,
+                    PolicyActionType.CORS: CorsConfig,
+                    PolicyActionType.VALIDATION: ValidationConfig,
+                    PolicyActionType.DATA_MASKING: DataMaskingConfig,
+                    PolicyActionType.TRANSFORMATION: TransformationConfig,
+                    PolicyActionType.LOGGING: LoggingConfig,
+                    PolicyActionType.TLS: TlsConfig,
+                    PolicyActionType.COMPRESSION: CompressionConfig,
+                }
+                
+                # Convert dict to appropriate structured config
+                config_class = config_type_map.get(action_type)
+                if config_class:
+                    try:
+                        data["config"] = config_class(**config)
+                    except Exception as e:
+                        raise ValueError(
+                            f"Failed to convert dict config to {config_class.__name__} "
+                            f"for action_type '{action_type}': {e}"
+                        )
         return data
     
     @field_validator("config")

@@ -41,6 +41,7 @@ const Predictions = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.predictions.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refetch every minute
   });
 

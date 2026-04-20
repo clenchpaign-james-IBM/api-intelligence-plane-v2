@@ -19,7 +19,18 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ComplianceStandard(str, Enum):
-    """Compliance standards."""
+    """Supported compliance and regulatory standards.
+    
+    Defines the major compliance frameworks that the API Intelligence Plane
+    monitors for gateway-level compliance violations.
+    
+    Attributes:
+        GDPR: General Data Protection Regulation (EU) - Data protection and privacy
+        HIPAA: Health Insurance Portability and Accountability Act (US) - Healthcare data security
+        SOC2: Service Organization Control 2 - Trust services criteria for service providers
+        PCI_DSS: Payment Card Industry Data Security Standard - Payment card data protection
+        ISO_27001: ISO/IEC 27001 - Information security management systems
+    """
 
     GDPR = "gdpr"
     HIPAA = "hipaa"
@@ -73,7 +84,20 @@ class ComplianceViolationType(str, Enum):
 
 
 class ComplianceSeverity(str, Enum):
-    """Severity level of compliance violation."""
+    """Severity level of compliance violation.
+    
+    Indicates the business and regulatory impact of a compliance violation.
+    
+    Attributes:
+        CRITICAL: Immediate regulatory breach with potential for significant fines or legal action.
+                 Requires immediate remediation (e.g., unencrypted PHI transmission).
+        HIGH: Serious compliance gap that could lead to regulatory penalties if not addressed
+              promptly (e.g., inadequate access controls for sensitive data).
+        MEDIUM: Moderate compliance issue that should be addressed but poses lower immediate
+                risk (e.g., incomplete audit logging).
+        LOW: Minor compliance gap or best practice deviation with minimal regulatory impact
+             (e.g., documentation gaps).
+    """
 
     CRITICAL = "critical"
     HIGH = "high"
@@ -82,7 +106,18 @@ class ComplianceSeverity(str, Enum):
 
 
 class ComplianceStatus(str, Enum):
-    """Remediation status of compliance violation."""
+    """Remediation status of compliance violation.
+    
+    Tracks the lifecycle of a compliance violation from detection to resolution.
+    
+    Attributes:
+        OPEN: Newly detected violation awaiting review and remediation planning.
+        IN_PROGRESS: Remediation actions are actively being implemented.
+        REMEDIATED: Violation has been fully addressed and verified as resolved.
+        ACCEPTED_RISK: Organization has formally accepted the risk after assessment
+                      (requires documentation and approval).
+        FALSE_POSITIVE: Violation was incorrectly identified and is not a real compliance issue.
+    """
 
     OPEN = "open"
     IN_PROGRESS = "in_progress"
@@ -92,7 +127,17 @@ class ComplianceStatus(str, Enum):
 
 
 class DetectionMethod(str, Enum):
-    """How compliance violation was detected."""
+    """Method used to detect the compliance violation.
+    
+    Identifies the source and approach used to discover the compliance issue.
+    
+    Attributes:
+        AUTOMATED_SCAN: Detected by automated compliance scanning tools or scheduled checks.
+        MANUAL_AUDIT: Identified during manual compliance review by internal team.
+        EXTERNAL_AUDIT: Found by external auditors or compliance assessors.
+        AI_ANALYSIS: Discovered through AI-powered analysis of gateway configurations,
+                    traffic patterns, and policy enforcement.
+    """
 
     AUTOMATED_SCAN = "automated_scan"
     MANUAL_AUDIT = "manual_audit"
@@ -101,7 +146,22 @@ class DetectionMethod(str, Enum):
 
 
 class Evidence(BaseModel):
-    """Evidence supporting the compliance violation."""
+    """Evidence supporting the compliance violation.
+    
+    Captures specific proof and documentation that demonstrates the compliance
+    violation exists, enabling audit trails and remediation verification.
+    
+    Attributes:
+        type: Type of evidence collected (e.g., 'gateway_config', 'traffic_log',
+              'policy', 'metrics_snapshot', 'configuration_file').
+        description: Human-readable description explaining what the evidence shows
+                    and why it's relevant to the violation.
+        source: System or component that provided the evidence (e.g., 'gateway_api',
+               'metrics_service', 'policy_engine', 'transactional_logs').
+        timestamp: UTC timestamp when the evidence was collected.
+        data: Structured evidence data containing the actual proof (e.g., configuration
+             values, log entries, metric values). Optional for privacy-sensitive data.
+    """
 
     type: str = Field(..., description="Type of evidence (e.g., 'gateway_config', 'traffic_log', 'policy')")
     description: str = Field(..., description="Description of the evidence")
@@ -111,7 +171,22 @@ class Evidence(BaseModel):
 
 
 class AuditTrailEntry(BaseModel):
-    """Audit trail entry for compliance violation."""
+    """Audit trail entry for compliance violation.
+    
+    Records all actions taken on a compliance violation for regulatory audit
+    requirements and accountability tracking.
+    
+    Attributes:
+        timestamp: UTC timestamp when the action was performed.
+        action: Description of the action taken (e.g., 'violation_detected',
+               'remediation_started', 'status_changed', 'risk_accepted').
+        performed_by: Identifier of the user, system, or agent that performed
+                     the action (e.g., 'compliance_agent', 'admin@example.com').
+        details: Additional context about the action, including reasons for
+                decisions or specific changes made.
+        status_before: Compliance status before this action was taken.
+        status_after: Compliance status after this action was completed.
+    """
 
     timestamp: datetime = Field(..., description="When action occurred")
     action: str = Field(..., description="Action taken")
@@ -122,7 +197,27 @@ class AuditTrailEntry(BaseModel):
 
 
 class RemediationDocumentation(BaseModel):
-    """Documentation of remediation actions (Gateway-level)."""
+    """Documentation of remediation actions (Gateway-level).
+    
+    Records the specific actions taken to address a compliance violation,
+    including implementation details and verification results.
+    
+    Attributes:
+        action: Description of the remediation action taken (e.g., 'Enabled TLS 1.3',
+               'Configured audit logging', 'Applied access control policy').
+        type: Category of remediation (e.g., 'gateway_policy', 'configuration',
+             'policy_update', 'access_control').
+        status: Current status of the remediation action (e.g., 'completed',
+               'pending', 'failed', 'verified').
+        performed_at: UTC timestamp when the remediation was performed.
+        performed_by: Identifier of who performed the remediation (user or system).
+        gateway_policy_id: ID of the gateway policy that was created or modified
+                          to address the violation.
+        verification_method: How the remediation was verified (e.g., 'automated_scan',
+                           'manual_review', 'compliance_test').
+        verification_status: Result of verification (e.g., 'passed', 'failed', 'pending').
+        notes: Additional context, observations, or follow-up actions needed.
+    """
 
     action: str = Field(..., description="Remediation action taken")
     type: str = Field(..., description="Type of remediation (e.g., 'gateway_policy', 'configuration')")
@@ -170,57 +265,105 @@ class ComplianceViolation(BaseModel):
         updated_at: Last update timestamp
     """
 
-    id: UUID = Field(default_factory=uuid4, description="Unique identifier")
-    gateway_id: UUID = Field(..., description="Gateway where API is deployed")
-    api_id: UUID = Field(..., description="Affected API (Gateway proxy endpoint)")
+    id: UUID = Field(
+        default_factory=uuid4,
+        description="Unique identifier for the compliance violation (UUID v4 format). Auto-generated on creation."
+    )
+    gateway_id: UUID = Field(
+        ...,
+        description="UUID of the gateway where the API is deployed. Links violation to specific gateway infrastructure."
+    )
+    api_id: UUID = Field(
+        ...,
+        description="UUID of the affected API (Gateway proxy endpoint). Identifies which API has the compliance issue."
+    )
     compliance_standard: ComplianceStandard = Field(
-        ..., description="Compliance standard violated"
+        ...,
+        description="Compliance standard that was violated (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001). Determines applicable regulations."
     )
     violation_type: ComplianceViolationType = Field(
-        ..., description="Type of compliance violation (mapped to regulatory requirements)"
+        ...,
+        description="Specific type of compliance violation mapped to regulatory requirements. References exact regulation clauses."
     )
-    severity: ComplianceSeverity = Field(..., description="Severity level")
-    title: str = Field(..., min_length=1, max_length=255, description="Violation title")
+    severity: ComplianceSeverity = Field(
+        ...,
+        description="Severity level indicating business and regulatory impact (critical, high, medium, low). Guides prioritization."
+    )
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Brief, descriptive title of the violation (1-255 characters). Should clearly identify the issue."
+    )
     description: str = Field(
-        ..., min_length=1, max_length=5000, description="Detailed description"
+        ...,
+        min_length=1,
+        max_length=5000,
+        description="Detailed explanation of the violation (1-5000 characters). Includes what was found, why it's a violation, and potential impact."
     )
     affected_endpoints: Optional[list[str]] = Field(
-        None, description="Specific Gateway endpoints affected"
+        None,
+        description="List of specific Gateway endpoints affected by this violation. Helps scope remediation efforts."
     )
-    detection_method: DetectionMethod = Field(..., description="How detected")
-    detected_at: datetime = Field(..., description="Detection timestamp")
+    detection_method: DetectionMethod = Field(
+        ...,
+        description="Method used to detect the violation (automated_scan, manual_audit, external_audit, ai_analysis). Tracks detection source."
+    )
+    detected_at: datetime = Field(
+        ...,
+        description="UTC timestamp when the violation was first detected. Used for SLA tracking and audit trails."
+    )
     status: ComplianceStatus = Field(
-        default=ComplianceStatus.OPEN, description="Remediation status"
+        default=ComplianceStatus.OPEN,
+        description="Current remediation status (open, in_progress, remediated, accepted_risk, false_positive). Tracks lifecycle."
     )
     evidence: list[Evidence] = Field(
-        default_factory=list, description="Supporting evidence from Gateway"
+        default_factory=list,
+        description="List of evidence items supporting the violation. Includes gateway configs, logs, and metrics that prove the issue."
     )
     audit_trail: list[AuditTrailEntry] = Field(
-        default_factory=list, description="Complete audit trail"
+        default_factory=list,
+        description="Complete chronological audit trail of all actions taken on this violation. Required for regulatory compliance."
     )
     remediation_documentation: Optional[list[RemediationDocumentation]] = Field(
-        None, description="Gateway-level remediation actions and verification"
+        None,
+        description="Documentation of gateway-level remediation actions and verification results. Proves compliance restoration."
     )
     regulatory_reference: Optional[str] = Field(
-        None, description="Reference to specific regulation clause"
+        None,
+        description="Reference to specific regulation clause (e.g., 'HIPAA § 164.312(e)(1)'). Links to legal requirements."
     )
     risk_level: Optional[str] = Field(
-        None, description="Business risk level (e.g., 'financial', 'reputational', 'operational')"
+        None,
+        description="Business risk category (e.g., 'financial', 'reputational', 'operational'). Helps prioritize based on business impact."
     )
     remediation_deadline: Optional[datetime] = Field(
-        None, description="Deadline for remediation"
+        None,
+        description="UTC deadline for completing remediation. Based on severity and regulatory requirements. Must be after created_at."
     )
-    remediated_at: Optional[datetime] = Field(None, description="Remediation timestamp")
-    last_audit_date: Optional[datetime] = Field(None, description="Last audit date")
+    remediated_at: Optional[datetime] = Field(
+        None,
+        description="UTC timestamp when remediation was completed. Required when status is 'remediated'. Used for SLA measurement."
+    )
+    last_audit_date: Optional[datetime] = Field(
+        None,
+        description="UTC date of the most recent compliance audit that reviewed this violation. Tracks audit frequency."
+    )
     next_audit_date: Optional[datetime] = Field(
-        None, description="Next scheduled audit date"
+        None,
+        description="UTC date when the next compliance audit is scheduled. Ensures ongoing monitoring."
     )
-    metadata: Optional[dict[str, Any]] = Field(None, description="Additional data")
+    metadata: Optional[dict[str, Any]] = Field(
+        None,
+        description="Additional flexible metadata for vendor-specific data, custom fields, or integration information."
+    )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp"
+        default_factory=datetime.utcnow,
+        description="UTC timestamp when the violation record was created. Auto-generated. Used for aging and reporting."
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update timestamp"
+        default_factory=datetime.utcnow,
+        description="UTC timestamp of the last update to this violation. Auto-updated on changes. Tracks modification history."
     )
 
     @field_validator("remediated_at")

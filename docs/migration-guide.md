@@ -342,7 +342,7 @@ api-metrics
 
 #### After
 ```
-api-inventory-v2          # Vendor-neutral API data
+api-inventory          # Vendor-neutral API data
 transactional-logs        # Raw transaction logs
 api-metrics-1m            # 1-minute buckets (1 hour retention)
 api-metrics-5m            # 5-minute buckets (6 hours retention)
@@ -352,7 +352,7 @@ api-metrics-1d            # 1-day buckets (long-term retention)
 
 ### Index Mappings
 
-#### api-inventory-v2
+#### api-inventory
 ```json
 {
   "mappings": {
@@ -571,7 +571,7 @@ interface APIDefinitionViewerProps {
 
 ### For DevOps
 
-- [ ] Create new OpenSearch indices (api-inventory-v2, api-metrics-*)
+- [ ] Create new OpenSearch indices (api-inventory, api-metrics-*)
 - [ ] Set up index lifecycle policies for time-bucketed metrics
 - [ ] Configure retention periods (1h, 6h, 48h, long-term)
 - [ ] Update monitoring dashboards

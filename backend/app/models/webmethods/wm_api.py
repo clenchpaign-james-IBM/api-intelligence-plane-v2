@@ -6,7 +6,7 @@ IBM Confidential - Copyright 2024 IBM Corp.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 # Import policy action models
 from .wm_policy_action import (
@@ -380,6 +380,11 @@ class APIDeploymentTypes(BaseModel):
     deployment_id: Optional[str] = Field(None, alias="deploymentId")
     
     model_config = ConfigDict(populate_by_name=True)
+    
+    @classmethod
+    def from_string(cls, value: str) -> "APIDeploymentTypes":
+        """Create APIDeploymentTypes from a string value."""
+        return cls(deploymentType=value, deploymentId=None)
 
 
 class API(BaseModel):
@@ -388,14 +393,14 @@ class API(BaseModel):
     Represents a complete API Gateway API with all metadata and definition.
     """
     # Core identification
-    api_id: Optional[str] = Field(None, alias="apiId")
+    api_id: Optional[str] = Field(None, alias="id")
     doc_type: Optional[str] = Field("apis", alias="_docType")
     
     # API definition (RestAPI embedded)
     api_definition: Optional[APIDefinition] = Field(None, alias="apiDefinition")
     
     # Endpoints
-    native_endpoint: Optional[Set[Endpoint]] = Field(None, alias="nativeEndpoint")
+    native_endpoint: Optional[list[Endpoint]] = Field(None, alias="nativeEndpoint")
     
     # Basic metadata
     api_group_name: Optional[str] = Field(None, alias="apiGroupName")
@@ -451,7 +456,26 @@ class API(BaseModel):
     gateway_endpoints: Optional[Dict[str, str]] = Field(None, alias="gatewayEndpoints")
     
     # Deployments
-    deployments: Optional[List[APIDeploymentTypes]] = None
+    deployments: Optional[List[Union[APIDeploymentTypes, str]]] = None
+    
+    @field_validator("deployments", mode="before")
+    @classmethod
+    def convert_deployment_strings(cls, v):
+        """Convert string deployments to APIDeploymentTypes instances."""
+        if v is None:
+            return v
+        if not isinstance(v, list):
+            return v
+        
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append(APIDeploymentTypes.from_string(item))
+            elif isinstance(item, dict):
+                result.append(APIDeploymentTypes(**item))
+            else:
+                result.append(item)
+        return result
     
     # Catalog and organization
     catalog_name: Optional[str] = Field(None, alias="catalogName")

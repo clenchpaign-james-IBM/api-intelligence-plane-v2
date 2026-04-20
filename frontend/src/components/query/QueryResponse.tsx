@@ -79,9 +79,33 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
                         </div>
                       </div>
                       {item.agent_insights.remediation_plan && (
-                        <p className="text-xs text-purple-700 line-clamp-2">
-                          {item.agent_insights.remediation_plan.substring(0, 150)}...
-                        </p>
+                        <div className="text-xs text-purple-700 space-y-1">
+                          {typeof item.agent_insights.remediation_plan === 'string' ? (
+                            <p className="line-clamp-2">{item.agent_insights.remediation_plan.substring(0, 150)}...</p>
+                          ) : (
+                            <>
+                              {item.agent_insights.remediation_plan.priority && (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Priority:</span>
+                                  <span className={`px-2 py-0.5 rounded text-xs ${
+                                    item.agent_insights.remediation_plan.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                                    item.agent_insights.remediation_plan.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                    item.agent_insights.remediation_plan.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {item.agent_insights.remediation_plan.priority.toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                              {item.agent_insights.remediation_plan.actions && item.agent_insights.remediation_plan.actions.length > 0 && (
+                                <p className="line-clamp-2">
+                                  {item.agent_insights.remediation_plan.actions[0].action}
+                                  {item.agent_insights.remediation_plan.actions.length > 1 && ` (+${item.agent_insights.remediation_plan.actions.length - 1} more)`}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}

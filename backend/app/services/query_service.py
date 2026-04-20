@@ -685,11 +685,16 @@ Respond in JSON format:
                     "type": "security",
                     "vulnerabilities": agent_result.get("vulnerabilities", []),
                     "compliance_issues": agent_result.get("compliance_issues", []),
-                    "remediation_plan": agent_result.get("remediation_plan", ""),
+                    "remediation_plan": agent_result.get("remediation_plan", {}),  # Structured dict, not string
                     "total_vulnerabilities": len(agent_result.get("vulnerabilities", [])),
                     "critical_count": sum(
                         1 for v in agent_result.get("vulnerabilities", [])
                         if v.get("severity") == "critical"
+                    ),
+                    # Include per-vulnerability plan summary
+                    "has_per_vulnerability_plans": any(
+                        v.get("recommended_remediation") is not None
+                        for v in agent_result.get("vulnerabilities", [])
                     ),
                 }
                 

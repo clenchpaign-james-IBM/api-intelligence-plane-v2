@@ -23,6 +23,7 @@ from app.models.base.policy_configs import (
     ValidationConfig,
 )
 from app.models.vulnerability import (
+    ConfigurationType,
     Vulnerability,
     VulnerabilityStatus,
     VulnerabilityType,
@@ -117,7 +118,7 @@ class SecurityService:
             # Perform hybrid security analysis (always uses both rule-based and AI)
             analysis_result = await self.security_agent.analyze_api_security(api)
 
-            # Store vulnerabilities
+            # Store vulnerabilities with deduplication
             stored_vulnerabilities = []
             for vuln_data in analysis_result.get("vulnerabilities", []):
                 # Convert dict to Vulnerability if needed
@@ -126,9 +127,70 @@ class SecurityService:
                 else:
                     vulnerability = vuln_data
 
-                # Store in database
-                self.vulnerability_repository.create(vulnerability)
-                stored_vulnerabilities.append(vulnerability)
+                # Check if vulnerability already exists
+                existing = await self.vulnerability_repository.find_existing_vulnerability(
+                    api_id=vulnerability.api_id,
+                    vulnerability_type=vulnerability.vulnerability_type.value,
+                    title=vulnerability.title,
+                )
+                
+                logger.info(
+                    f"Checking vulnerability: {vulnerability.title[:50]}... "
+                    f"Existing: {'YES ('+str(existing.id)+')' if existing else 'NO'}"
+                )
+
+                if existing:
+                    # Update existing vulnerability if there are changes
+                    should_update = False
+                    update_data = {}
+
+                    # Check if severity changed
+                    if existing.severity != vulnerability.severity:
+                        update_data["severity"] = vulnerability.severity.value
+                        should_update = True
+
+                    # Check if description changed
+                    if existing.description != vulnerability.description:
+                        update_data["description"] = vulnerability.description
+                        should_update = True
+
+                    # Check if affected endpoints changed
+                    if existing.affected_endpoints != vulnerability.affected_endpoints:
+                        update_data["affected_endpoints"] = vulnerability.affected_endpoints
+                        should_update = True
+
+                    # Check if remediation plan changed
+                    if existing.recommended_remediation != vulnerability.recommended_remediation:
+                        update_data["recommended_remediation"] = vulnerability.recommended_remediation
+                        update_data["plan_generated_at"] = datetime.utcnow()
+                        should_update = True
+
+                    # Update if changes detected
+                    if should_update:
+                        update_data["updated_at"] = datetime.utcnow()
+                        self.vulnerability_repository.update(str(existing.id), update_data)
+                        logger.info(
+                            f"Updated existing vulnerability {existing.id} for API {api_id}"
+                        )
+                        # Use updated vulnerability
+                        existing_dict = existing.dict()
+                        existing_dict.update(update_data)
+                        stored_vulnerabilities.append(Vulnerability(**existing_dict))
+                    else:
+                        logger.info(
+                            f"Vulnerability {existing.id} unchanged, skipping update"
+                        )
+                        stored_vulnerabilities.append(existing)
+                else:
+                    # Create new vulnerability only if it doesn't exist
+                    logger.info(
+                        f"Creating NEW vulnerability {vulnerability.id} for API {api_id}"
+                    )
+                    self.vulnerability_repository.create(vulnerability)
+                    logger.info(
+                        f"Created new vulnerability {vulnerability.id} for API {api_id}"
+                    )
+                    stored_vulnerabilities.append(vulnerability)
 
             logger.info(
                 f"Security scan complete. Found {len(stored_vulnerabilities)} vulnerabilities"
@@ -204,6 +266,9 @@ class SecurityService:
         remediation_strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Trigger automated remediation for a vulnerability.
+        
+        Uses the stored recommended_remediation plan from Option B implementation
+        to guide the remediation process.
 
         Args:
             vulnerability_id: Vulnerability to remediate
@@ -236,12 +301,30 @@ class SecurityService:
                     "status": "manual_required",
                     "message": f"Vulnerability requires {remediation_type_str} remediation",
                     "recommendation": "Manual intervention required",
+                    "recommended_plan": vulnerability.recommended_remediation,  # Include stored plan
                 }
 
             # Get API details
             api = self.api_repository.get(str(vulnerability.api_id))
             if not api:
                 raise ValueError(f"API not found: {vulnerability.api_id}")
+
+            # Use recommended_remediation plan if available
+            if vulnerability.recommended_remediation:
+                logger.info(f"Using stored remediation plan (source: {vulnerability.plan_source}, version: {vulnerability.plan_version})")
+                
+                # Initialize remediation_actions from recommended plan
+                if not vulnerability.remediation_actions:
+                    from app.models.vulnerability import RemediationAction
+                    recommended_actions = vulnerability.recommended_remediation.get("actions", [])
+                    vulnerability.remediation_actions = [
+                        RemediationAction(
+                            action=action.get("action", ""),
+                            type=action.get("type", "configuration"),
+                            status="pending",
+                        )
+                        for action in recommended_actions
+                    ]
 
             # Perform automated remediation
             remediation_result = await self._apply_automated_remediation(
@@ -252,8 +335,17 @@ class SecurityService:
 
             # Update vulnerability status
             vulnerability.status = VulnerabilityStatus.IN_PROGRESS
-            vulnerability.remediation_actions = remediation_result.get("actions", [])
+            
+            # Merge remediation actions from result with existing actions
+            result_actions = remediation_result.get("actions", [])
+            if result_actions:
+                vulnerability.remediation_actions = result_actions
+            
             vulnerability.updated_at = datetime.utcnow()
+            
+            # Update plan status if plan was used
+            if vulnerability.recommended_remediation and vulnerability.plan_status == "generated":
+                vulnerability.plan_status = "approved"  # Mark as approved when remediation starts
 
             self.vulnerability_repository.update(
                 str(vulnerability.id),
@@ -335,17 +427,22 @@ class SecurityService:
     async def get_security_posture(
         self,
         api_id: Optional[UUID] = None,
+        gateway_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Get security posture metrics.
 
         Args:
             api_id: Optional API filter
+            gateway_id: Optional gateway filter
 
         Returns:
             Security posture metrics
         """
         try:
-            posture = await self.vulnerability_repository.get_security_posture(api_id)
+            posture = await self.vulnerability_repository.get_security_posture(
+                api_id=api_id,
+                gateway_id=gateway_id
+            )
 
             # Calculate additional metrics
             total = posture["total_vulnerabilities"]
@@ -536,7 +633,7 @@ class SecurityService:
                 )
                 
             elif vulnerability.vulnerability_type == VulnerabilityType.CONFIGURATION:
-                if "rate limit" in vulnerability.title.lower():
+                if vulnerability.configuration_type == ConfigurationType.RATE_LIMITING:
                     policy = PolicyAction(
                         action_type=PolicyActionType.RATE_LIMITING,
                         enabled=True,
@@ -573,7 +670,7 @@ class SecurityService:
                         )
                     )
                     
-                elif "tls" in vulnerability.title.lower() or "https" in vulnerability.title.lower():
+                elif vulnerability.configuration_type == ConfigurationType.TLS:
                     policy = PolicyAction(
                         action_type=PolicyActionType.TLS,
                         enabled=True,
@@ -608,7 +705,7 @@ class SecurityService:
                         )
                     )
                     
-                elif "cors" in vulnerability.title.lower():
+                elif vulnerability.configuration_type == ConfigurationType.CORS:
                     # Get base_path from API (now a top-level field)
                     base_path = api.base_path if hasattr(api, 'base_path') else "/"
                     policy = PolicyAction(
@@ -642,7 +739,7 @@ class SecurityService:
                         )
                     )
                     
-                elif "validation" in vulnerability.title.lower():
+                elif vulnerability.configuration_type == ConfigurationType.INPUT_VALIDATION:
                     policy = PolicyAction(
                         action_type=PolicyActionType.VALIDATION,
                         enabled=True,
@@ -680,7 +777,7 @@ class SecurityService:
                         )
                     )
                     
-                elif "security header" in vulnerability.title.lower():
+                elif vulnerability.configuration_type == ConfigurationType.SECURITY_HEADERS:
                     from app.models.base.policy_configs import TransformationConfig
                     policy = PolicyAction(
                         action_type=PolicyActionType.TRANSFORMATION,

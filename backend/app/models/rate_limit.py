@@ -13,7 +13,20 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class PolicyType(str, Enum):
-    """Type of rate limit policy."""
+    """Type of rate limit policy strategy.
+    
+    Defines the rate limiting approach and behavior for controlling API traffic.
+    
+    Attributes:
+        FIXED: Static rate limits that remain constant regardless of traffic patterns
+              or system load. Simple and predictable.
+        ADAPTIVE: Dynamic rate limits that adjust automatically based on system load,
+                 performance metrics, and traffic patterns. Optimizes resource utilization.
+        PRIORITY_BASED: Rate limits vary by consumer tier or priority level. Premium
+                       users get higher limits than standard users.
+        BURST_ALLOWANCE: Allows temporary traffic bursts above the base rate limit,
+                        useful for handling legitimate traffic spikes.
+    """
 
     FIXED = "fixed"
     ADAPTIVE = "adaptive"
@@ -22,7 +35,18 @@ class PolicyType(str, Enum):
 
 
 class PolicyStatus(str, Enum):
-    """Policy status."""
+    """Rate limit policy activation status.
+    
+    Indicates whether the policy is currently being enforced on the gateway.
+    
+    Attributes:
+        ACTIVE: Policy is actively enforced. Traffic exceeding limits will be throttled
+               or rejected according to the enforcement action.
+        INACTIVE: Policy exists but is not enforced. Useful for maintaining policy
+                 definitions without active enforcement.
+        TESTING: Policy is in testing mode. May log violations without enforcing limits,
+                allowing validation before full activation.
+    """
 
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -30,7 +54,18 @@ class PolicyStatus(str, Enum):
 
 
 class EnforcementAction(str, Enum):
-    """Action on limit breach."""
+    """Action taken when rate limit is exceeded.
+    
+    Defines how the gateway responds to requests that exceed the rate limit.
+    
+    Attributes:
+        THROTTLE: Slow down request processing by adding delays. Requests are still
+                 processed but with increased latency. Provides graceful degradation.
+        REJECT: Immediately reject excess requests with HTTP 429 (Too Many Requests).
+               Protects backend services but may impact user experience.
+        QUEUE: Place excess requests in a queue for later processing. Requests are
+              delayed but eventually processed. Requires queue management infrastructure.
+    """
 
     THROTTLE = "throttle"
     REJECT = "reject"
@@ -38,7 +73,21 @@ class EnforcementAction(str, Enum):
 
 
 class LimitThresholds(BaseModel):
-    """Rate limit threshold values."""
+    """Rate limit threshold values.
+    
+    Defines the maximum allowed request rates across different time windows.
+    At least one threshold must be specified.
+    
+    Attributes:
+        requests_per_second: Maximum requests allowed per second. Useful for protecting
+                           against rapid bursts and ensuring consistent performance.
+        requests_per_minute: Maximum requests allowed per minute. Common for API quotas
+                           and medium-term rate limiting.
+        requests_per_hour: Maximum requests allowed per hour. Useful for daily quota
+                         management and long-term capacity planning.
+        concurrent_requests: Maximum number of simultaneous in-flight requests. Protects
+                           against connection exhaustion and resource contention.
+    """
 
     requests_per_second: Optional[int] = Field(
         None, ge=0, description="Requests per second limit"
@@ -62,34 +111,119 @@ class LimitThresholds(BaseModel):
 
 
 class PriorityRule(BaseModel):
-    """Priority-based rate limiting rule."""
+    """Priority-based rate limiting rule for consumer tiers.
+    
+    Defines rate limit adjustments for different consumer priority levels,
+    enabling differentiated service levels.
+    
+    Attributes:
+        tier: Name of the consumer tier (e.g., 'premium', 'standard', 'free').
+             Must be unique within a policy.
+        multiplier: Rate limit multiplier applied to base thresholds. For example,
+                   2.0 means this tier gets 2x the base rate limit.
+        guaranteed_throughput: Minimum guaranteed requests per second for this tier,
+                             regardless of system load. Ensures SLA compliance.
+        burst_multiplier: Additional multiplier for burst allowance. For example,
+                        1.5 means this tier can burst to 1.5x their normal limit.
+    """
 
-    tier: str = Field(..., description="Tier name (e.g., 'premium', 'standard')")
-    multiplier: float = Field(..., gt=0, description="Rate limit multiplier")
-    guaranteed_throughput: int = Field(..., ge=0, description="Guaranteed requests/sec")
-    burst_multiplier: float = Field(..., gt=0, description="Burst allowance multiplier")
+    tier: str = Field(
+        ...,
+        description="Name of the consumer tier (e.g., 'premium', 'standard', 'free'). Must be unique within a policy."
+    )
+    multiplier: float = Field(
+        ...,
+        gt=0,
+        description="Rate limit multiplier applied to base thresholds. For example, 2.0 means this tier gets 2x the base rate limit."
+    )
+    guaranteed_throughput: int = Field(
+        ...,
+        ge=0,
+        description="Minimum guaranteed requests per second for this tier, regardless of system load. Ensures SLA compliance."
+    )
+    burst_multiplier: float = Field(
+        ...,
+        gt=0,
+        description="Additional multiplier for burst allowance. For example, 1.5 means this tier can burst to 1.5x their normal limit."
+    )
 
 
 class AdaptationParameters(BaseModel):
-    """Adaptive policy configuration."""
+    """Adaptive rate limit policy configuration.
+    
+    Controls how adaptive policies automatically adjust rate limits based on
+    system performance and traffic patterns.
+    
+    Attributes:
+        learning_rate: Speed of adaptation (0.0 to 1.0). Higher values mean faster
+                      response to changes but more volatility. Lower values provide
+                      stability but slower adaptation. Typical: 0.1-0.3.
+        adjustment_frequency: How often (in seconds) to recalculate and adjust rate limits.
+                            Lower values provide faster response but higher overhead.
+                            Typical: 60-300 seconds.
+        min_threshold: Minimum rate limit floor. Prevents adaptive algorithm from
+                      setting limits too low during low-traffic periods.
+        max_threshold: Maximum rate limit ceiling. Prevents adaptive algorithm from
+                      setting limits too high, protecting backend capacity.
+    """
 
     learning_rate: float = Field(
-        ..., gt=0, le=1, description="Learning rate for adaptation (0-1)"
+        ...,
+        gt=0,
+        le=1,
+        description="Speed of adaptation (0.0 to 1.0). Higher values mean faster response to changes but more volatility. Lower values provide stability but slower adaptation. Typical: 0.1-0.3."
     )
     adjustment_frequency: int = Field(
-        ..., gt=0, description="Adjustment frequency in seconds"
+        ...,
+        gt=0,
+        description="How often (in seconds) to recalculate and adjust rate limits. Lower values provide faster response but higher overhead. Typical: 60-300 seconds."
     )
-    min_threshold: Optional[int] = Field(None, ge=0, description="Minimum threshold")
-    max_threshold: Optional[int] = Field(None, ge=0, description="Maximum threshold")
+    min_threshold: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Minimum rate limit floor. Prevents adaptive algorithm from setting limits too low during low-traffic periods."
+    )
+    max_threshold: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Maximum rate limit ceiling. Prevents adaptive algorithm from setting limits too high, protecting backend capacity."
+    )
 
 
 class ConsumerTier(BaseModel):
-    """Consumer tier definition."""
+    """Consumer tier definition for differentiated service levels.
+    
+    Defines a consumer tier with associated rate limit adjustments and priority.
+    
+    Attributes:
+        tier_name: Human-readable name of the tier (e.g., 'Enterprise', 'Professional', 'Free').
+        tier_level: Numeric tier level where 1 is the highest priority tier. Used for
+                   ordering and priority resolution. Lower numbers = higher priority.
+        rate_multiplier: Multiplier applied to base rate limits for this tier. For example,
+                        3.0 means this tier gets 3x the base rate limit.
+        priority_score: Numeric priority score used for request prioritization when
+                       system is under load. Higher scores get preferential treatment.
+    """
 
-    tier_name: str = Field(..., description="Tier name")
-    tier_level: int = Field(..., ge=1, description="Tier level (1=highest)")
-    rate_multiplier: float = Field(..., gt=0, description="Rate limit multiplier")
-    priority_score: int = Field(..., ge=0, description="Priority score")
+    tier_name: str = Field(
+        ...,
+        description="Human-readable name of the tier (e.g., 'Enterprise', 'Professional', 'Free')."
+    )
+    tier_level: int = Field(
+        ...,
+        ge=1,
+        description="Numeric tier level where 1 is the highest priority tier. Used for ordering and priority resolution. Lower numbers = higher priority."
+    )
+    rate_multiplier: float = Field(
+        ...,
+        gt=0,
+        description="Multiplier applied to base rate limits for this tier. For example, 3.0 means this tier gets 3x the base rate limit."
+    )
+    priority_score: int = Field(
+        ...,
+        ge=0,
+        description="Numeric priority score used for request prioritization when system is under load. Higher scores get preferential treatment."
+    )
 
 
 class RateLimitPolicy(BaseModel):

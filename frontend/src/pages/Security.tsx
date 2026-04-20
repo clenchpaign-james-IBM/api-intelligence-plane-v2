@@ -37,10 +37,11 @@ export const Security: React.FC = () => {
   } = useQuery({
     queryKey: ['apis', selectedGatewayId],
     queryFn: () => {
-      const params: any = {};
+      const params: any = { page_size: 1000 };
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.apis.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000,
   });
 
@@ -59,6 +60,7 @@ export const Security: React.FC = () => {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         limit: 1000,
       }),
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000,
   });
 
@@ -70,6 +72,7 @@ export const Security: React.FC = () => {
   } = useQuery<SecurityPosture>({
     queryKey: ['security-posture', selectedGatewayId],
     queryFn: () => getSecurityPosture({ gateway_id: selectedGatewayId || undefined }),
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000,
   });
 

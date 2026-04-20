@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from app.db.repositories.api_repository import APIRepository
+from app.db.repositories.gateway_repository import GatewayRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.vulnerability_repository import VulnerabilityRepository
 from app.db.repositories.compliance_repository import ComplianceRepository
@@ -44,69 +45,140 @@ logger = logging.getLogger(__name__)
 
 async def compute_health_scores_job() -> None:
     """
-    Compute health scores for all APIs based on metrics.
+    Compute health scores for all APIs based on metrics (gateway-aware).
     
     Runs every 5 minutes.
     
     Algorithm:
-    1. Query all active APIs
-    2. For each API:
-       a. Query metrics from last 24 hours (1m bucket)
-       b. Calculate health score based on:
-          - Error rate (weight: 30%)
-          - Response time (weight: 25%)
-          - Availability (weight: 25%)
-          - Throughput stability (weight: 20%)
-       c. Update API.intelligence_metadata.health_score
+    1. Fetch all gateways
+    2. For each gateway:
+       a. Fetch all APIs belonging to that gateway
+       b. For each API:
+          - Query metrics from last 24 hours (1m bucket)
+          - Calculate health score based on:
+            * Error rate (weight: 30%)
+            * Response time (weight: 25%)
+            * Availability (weight: 25%)
+            * Throughput stability (weight: 20%)
+          - Update API.intelligence_metadata.health_score
     """
     try:
+        gateway_repo = GatewayRepository()
         api_repo = APIRepository()
         metrics_repo = MetricsRepository()
         
-        # Get all active APIs
-        apis, total = api_repo.find_by_status(APIStatus.ACTIVE, size=10000)
+        # Fetch all gateways
+        gateways, total_gateways = gateway_repo.list_all(size=10000)
         
-        logger.info(f"Computing health scores for {len(apis)} APIs")
+        if not gateways:
+            logger.info("No gateways found for health score computation")
+            return
         
-        updated_count = 0
-        failed_count = 0
+        logger.info(f"Computing health scores for APIs across {len(gateways)} gateways")
         
-        for api in apis:
+        total_updated = 0
+        total_failed = 0
+        total_skipped = 0
+        
+        # Process each gateway
+        for gateway in gateways:
             try:
-                # Query metrics for last 24 hours
-                end_time = datetime.utcnow()
-                start_time = end_time - timedelta(hours=24)
-                
-                metrics, _ = metrics_repo.find_by_api(
-                    api_id=api.id,
-                    start_time=start_time,
-                    end_time=end_time,
+                # Fetch all APIs for this gateway
+                apis, total_apis = api_repo.find_by_gateway(
+                    gateway_id=gateway.id,
+                    size=10000
                 )
                 
-                if not metrics:
-                    logger.debug(f"No metrics found for API {api.name}, keeping default health score")
+                if not apis:
+                    logger.debug(f"No APIs found for gateway {gateway.name}")
                     continue
                 
-                # Calculate health score
-                health_score = calculate_health_score(metrics)
+                logger.debug(f"Processing {len(apis)} APIs for gateway {gateway.name}")
                 
-                # Update intelligence_metadata
-                api_repo.update(str(api.id), {
-                    "intelligence_metadata.health_score": health_score,
-                    "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                })
+                gateway_updated = 0
+                gateway_failed = 0
+                gateway_skipped = 0
                 
-                updated_count += 1
-                logger.debug(f"Updated health score for API {api.name}: {health_score}")
+                # Process each API
+                for api in apis:
+                    try:
+                        # Query metrics for last 24 hours
+                        end_time = datetime.utcnow()
+                        start_time = end_time - timedelta(hours=24)
+                        
+                        metrics, _ = metrics_repo.find_by_api(
+                            api_id=api.id,
+                            start_time=start_time,
+                            end_time=end_time,
+                        )
+                        
+                        if not metrics:
+                            logger.debug(
+                                f"No metrics found for API {api.name} (gateway: {gateway.name}), "
+                                f"keeping default health score"
+                            )
+                            gateway_skipped += 1
+                            continue
+                        
+                        # Calculate health score
+                        health_score = calculate_health_score(metrics)
+                        
+                        # Update intelligence_metadata as nested object
+                        # Fetch current intelligence_metadata to preserve other fields
+                        current_api = api_repo.get(str(api.id))
+                        if current_api and current_api.intelligence_metadata:
+                            # Update the nested object
+                            intelligence_metadata = current_api.intelligence_metadata.model_dump(mode="json", exclude_none=True)
+                            intelligence_metadata["health_score"] = health_score
+                            intelligence_metadata["last_seen_at"] = datetime.utcnow().isoformat()
+                            
+                            api_repo.update(str(api.id), {
+                                "intelligence_metadata": intelligence_metadata,
+                                "updated_at": datetime.utcnow().isoformat(),
+                            })
+                        else:
+                            # Fallback: create new intelligence_metadata object
+                            api_repo.update(str(api.id), {
+                                "intelligence_metadata": {
+                                    "health_score": health_score,
+                                    "last_seen_at": datetime.utcnow().isoformat(),
+                                    "is_shadow": False,
+                                    "discovery_method": "registered",
+                                    "discovered_at": datetime.utcnow().isoformat(),
+                                },
+                                "updated_at": datetime.utcnow().isoformat(),
+                            })
+                        
+                        gateway_updated += 1
+                        logger.debug(
+                            f"Updated health score for API {api.name} "
+                            f"(gateway: {gateway.name}): {health_score}"
+                        )
+                        
+                    except Exception as e:
+                        gateway_failed += 1
+                        logger.error(
+                            f"Failed to compute health score for API {api.id} "
+                            f"(gateway: {gateway.name}): {e}"
+                        )
+                
+                logger.info(
+                    f"Gateway {gateway.name}: {gateway_updated} updated, "
+                    f"{gateway_failed} failed, {gateway_skipped} skipped"
+                )
+                
+                total_updated += gateway_updated
+                total_failed += gateway_failed
+                total_skipped += gateway_skipped
                 
             except Exception as e:
-                failed_count += 1
-                logger.error(f"Failed to compute health score for API {api.id}: {e}")
+                logger.error(
+                    f"Failed to process gateway {gateway.name} (id={gateway.id}): {e}"
+                )
         
         logger.info(
-            f"Health score computation complete: {updated_count} updated, "
-            f"{failed_count} failed, {len(apis) - updated_count - failed_count} skipped"
+            f"Health score computation complete across {len(gateways)} gateways: "
+            f"{total_updated} updated, {total_failed} failed, {total_skipped} skipped"
         )
         
     except Exception as e:
@@ -251,11 +323,16 @@ async def compute_risk_scores_job() -> None:
                 # Calculate risk score
                 risk_score = calculate_risk_score(vulnerabilities)
                 
-                # Update intelligence_metadata
-                api_repo.update(str(api.id), {
-                    "intelligence_metadata.risk_score": risk_score,
-                    "updated_at": datetime.utcnow().isoformat(),
-                })
+                # Update intelligence_metadata as nested object
+                current_api = api_repo.get(str(api.id))
+                if current_api and current_api.intelligence_metadata:
+                    intelligence_metadata = current_api.intelligence_metadata.model_dump(mode="json", exclude_none=True)
+                    intelligence_metadata["risk_score"] = risk_score
+                    
+                    api_repo.update(str(api.id), {
+                        "intelligence_metadata": intelligence_metadata,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    })
                 
                 updated_count += 1
                 logger.debug(f"Updated risk score for API {api.name}: {risk_score}")
@@ -351,11 +428,16 @@ async def compute_security_scores_job() -> None:
                     best_practices_score * 0.20
                 )
                 
-                # Update intelligence_metadata
-                api_repo.update(str(api.id), {
-                    "intelligence_metadata.security_score": round(security_score, 2),
-                    "updated_at": datetime.utcnow().isoformat(),
-                })
+                # Update intelligence_metadata as nested object
+                current_api = api_repo.get(str(api.id))
+                if current_api and current_api.intelligence_metadata:
+                    intelligence_metadata = current_api.intelligence_metadata.model_dump(mode="json", exclude_none=True)
+                    intelligence_metadata["security_score"] = round(security_score, 2)
+                    
+                    api_repo.update(str(api.id), {
+                        "intelligence_metadata": intelligence_metadata,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    })
                 
                 updated_count += 1
                 logger.debug(f"Updated security score for API {api.name}: {security_score}")
@@ -426,10 +508,12 @@ def calculate_vulnerability_impact_score(vulnerabilities: List[Vulnerability]) -
 
 def calculate_best_practices_score(api: API) -> float:
     """Calculate score based on security best practices (0-100)."""
+    from app.utils.tls_config import has_tls_enforced
+    
     score = 100.0
     
-    # Check for HTTPS enforcement
-    if api.base_path and not api.base_path.startswith("https://"):
+    # Check if TLS policy exists and enforce_tls is True
+    if not has_tls_enforced(api):
         score -= 20
     
     # Check for versioning
@@ -498,11 +582,16 @@ async def compute_usage_trends_job() -> None:
                 # Calculate trend
                 usage_trend = calculate_usage_trend(metrics)
                 
-                # Update intelligence_metadata
-                api_repo.update(str(api.id), {
-                    "intelligence_metadata.usage_trend": usage_trend,
-                    "updated_at": datetime.utcnow().isoformat(),
-                })
+                # Update intelligence_metadata as nested object
+                current_api = api_repo.get(str(api.id))
+                if current_api and current_api.intelligence_metadata:
+                    intelligence_metadata = current_api.intelligence_metadata.model_dump(mode="json", exclude_none=True)
+                    intelligence_metadata["usage_trend"] = usage_trend
+                    
+                    api_repo.update(str(api.id), {
+                        "intelligence_metadata": intelligence_metadata,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    })
                 
                 updated_count += 1
                 logger.debug(f"Updated usage trend for API {api.name}: {usage_trend}")
@@ -557,146 +646,250 @@ def calculate_usage_trend(metrics: List[Metric]) -> str:
 # ============================================================================
 # Job 5: Shadow API Detection
 # ============================================================================
+async def detect_shadow_apis_for_gateway(
+    gateway,
+    api_repo: APIRepository,
+    log_repo: TransactionalLogRepository,
+) -> int:
+    """
+    Detect shadow APIs for a specific gateway.
+    
+    Args:
+        gateway: Gateway object
+        api_repo: API repository instance
+        log_repo: Transactional log repository instance
+    
+    Returns:
+        Number of shadow APIs detected/processed
+    """
+    from app.utils.path_matcher import parse_request_path
+    
+    gateway_id = gateway.id
+    gateway_name = gateway.name
+    
+    logger.debug(f"Detecting shadow APIs for gateway: {gateway_name} (id={gateway_id})")
+    
+    # Query recent transactional logs for this gateway (last 5 minutes)
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(minutes=5)
+    
+    logs, _ = log_repo.find_logs(
+        gateway_id=str(gateway_id),
+        start_time=start_time,
+        end_time=end_time,
+        size=10000
+    )
+    
+    if not logs:
+        logger.debug(f"No transactional logs found for gateway {gateway_name}")
+        return 0
+    
+    # Extract unique request paths from logs
+    observed_paths = set()
+    for log in logs:
+        if hasattr(log, 'request_path') and log.request_path:
+            observed_paths.add(log.request_path)
+    
+    if not observed_paths:
+        logger.debug(f"No request paths found in logs for gateway {gateway_name}")
+        return 0
+    
+    logger.debug(
+        f"Found {len(observed_paths)} unique request paths for gateway {gateway_name}"
+    )
+    
+    # Check each observed path against registered APIs
+    shadow_paths = []
+    for request_path in observed_paths:
+        # Try to find matching API using enhanced path matching
+        matching_api = api_repo.find_by_request_path(request_path, gateway_id)
+        
+        if not matching_api:
+            # No matching API found - potential shadow API
+            shadow_paths.append(request_path)
+            logger.debug(f"Potential shadow API path: {request_path}")
+    
+    if not shadow_paths:
+        logger.debug(f"No shadow APIs detected for gateway {gateway_name}")
+        return 0
+    
+    logger.warning(
+        f"Detected {len(shadow_paths)} potential shadow API paths for gateway "
+        f"{gateway_name}"
+    )
+    
+    detected_count = 0
+    
+    # Process each shadow path
+    for path in shadow_paths:
+        try:
+            # Parse the path to extract components
+            components = parse_request_path(path)
+            
+            if not components:
+                logger.debug(f"Could not parse shadow path: {path}")
+                continue
+            
+            # Check if shadow API already exists for this path
+            existing_api = api_repo.find_by_request_path(path, gateway_id)
+            
+            if existing_api and existing_api.intelligence_metadata.is_shadow:
+                # Update last_seen_at for existing shadow API
+                api_repo.update(str(existing_api.id), {
+                    "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                })
+                detected_count += 1
+                logger.debug(f"Updated existing shadow API: {path}")
+            elif existing_api:
+                # Mark existing non-shadow API as shadow
+                api_repo.update(str(existing_api.id), {
+                    "intelligence_metadata.is_shadow": True,
+                    "intelligence_metadata.discovery_method": DiscoveryMethod.TRAFFIC_ANALYSIS.value,
+                    "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                })
+                detected_count += 1
+                logger.info(f"Marked existing API as shadow: {path}")
+            else:
+                # Create new shadow API entry
+                shadow_api = API(
+                    id=uuid4(),
+                    gateway_id=gateway_id,
+                    name=f"Shadow: {components.api_name}",
+                    display_name=f"Shadow API: {components.api_name}",
+                    description=(
+                        f"Undocumented API detected from traffic analysis. "
+                        f"Original path: {path}"
+                    ),
+                    icon="warning",
+                    base_path=components.resource_path or "/",
+                    version_info=VersionInfo(
+                        current_version=components.api_version,
+                        previous_version=None,
+                        next_version=None,
+                        version_history=None,
+                    ),
+                    maturity_state=MaturityState.TEST,
+                    api_definition=APIDefinition(
+                        type="REST",
+                        version=None,
+                        openapi_spec=None,
+                        swagger_version=None,
+                        base_path=components.resource_path or "/",
+                        paths=None,
+                        schemas=None,
+                        security_schemes=None,
+                        vendor_extensions=None,
+                    ),
+                    methods=[],  # Unknown methods - can be enriched later
+                    authentication_type=AuthenticationType.NONE,
+                    authentication_config={},
+                    policy_actions=[],
+                    ownership=None,
+                    publishing=None,
+                    deployments=None,
+                    vendor_metadata={
+                        "detected_from": "traffic_analysis",
+                        "original_path": path,
+                        "gateway_prefix": components.gateway_prefix,
+                    },
+                    endpoints=[
+                        Endpoint(
+                            path=components.resource_path or "/",
+                            method="UNKNOWN",
+                            description="Detected from traffic",
+                            connection_timeout=None,
+                            read_timeout=None,
+                        )
+                    ],
+                    intelligence_metadata=IntelligenceMetadata(
+                        is_shadow=True,
+                        discovery_method=DiscoveryMethod.TRAFFIC_ANALYSIS,
+                        discovered_at=datetime.utcnow(),
+                        last_seen_at=datetime.utcnow(),
+                        health_score=50.0,  # Lower default for shadow APIs
+                        risk_score=75.0,    # Higher risk for undocumented APIs
+                        security_score=25.0, # Lower security for undocumented APIs
+                        compliance_status={},
+                        usage_trend="unknown",
+                    ),
+                    status=APIStatus.ACTIVE,
+                    is_active=True,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+                api_repo.create(shadow_api)
+                detected_count += 1
+                logger.warning(
+                    f"Created new shadow API entry for gateway {gateway_name}: "
+                    f"{components.api_name} (path: {path})"
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to process shadow API {path}: {e}")
+    
+    logger.info(
+        f"Shadow API detection for gateway {gateway_name}: "
+        f"{detected_count} shadow APIs processed"
+    )
+    
+    return detected_count
+
+
 
 async def detect_shadow_apis_job() -> None:
     """
-    Detect shadow APIs by analyzing traffic patterns.
+    Detect shadow APIs by analyzing traffic patterns (gateway-aware).
     
     Runs every 5 minutes.
     
     Algorithm:
-    1. Query transactional logs for recent traffic
-    2. Extract unique API paths from logs
-    3. Compare with registered APIs
-    4. Mark unregistered paths as shadow APIs
+    1. Fetch all connected gateways
+    2. For each gateway:
+       a. Query transactional logs for recent traffic
+       b. Extract unique request paths from logs
+       c. Use path matching to identify unregistered APIs
+       d. Mark/create shadow API entries
+    
+    Improvements:
+    - Gateway-aware processing (handles different routing schemes)
+    - Path pattern matching (supports path parameters)
+    - Eliminates false positives from resource paths
     """
     try:
+        gateway_repo = GatewayRepository()
         api_repo = APIRepository()
         log_repo = TransactionalLogRepository()
         
-        # Query all registered APIs
-        registered_apis, _ = api_repo.list_all(size=10000)
-        registered_paths = {api.base_path for api in registered_apis}
+        # Fetch all gateways
+        gateways, _ = gateway_repo.list_all(size=1000)
         
-        # Query recent transactional logs (last 5 minutes)
-        end_time = datetime.utcnow()
-        start_time = end_time - timedelta(minutes=5)
-        
-        logs, _ = log_repo.find_logs(
-            start_time=start_time,
-            end_time=end_time,
-            size=10000
-        )
-        
-        if not logs:
-            logger.debug("No transactional logs found for shadow API detection")
+        if not gateways:
+            logger.debug("No gateways found for shadow API detection")
             return
         
-        # Extract unique paths from logs
-        observed_paths = set()
-        for log in logs:
-            if hasattr(log, 'request_path') and log.request_path:
-                observed_paths.add(log.request_path)
+        logger.info(f"Starting shadow API detection for {len(gateways)} gateways")
         
-        # Find shadow paths (observed but not registered)
-        shadow_paths = observed_paths - registered_paths
+        total_detected = 0
         
-        if not shadow_paths:
-            logger.debug("No shadow APIs detected")
-            return
-        
-        logger.warning(f"Detected {len(shadow_paths)} potential shadow API paths")
-        
-        detected_count = 0
-        
-        for path in shadow_paths:
+        # Process each gateway independently
+        for gateway in gateways:
             try:
-                # Check if already exists
-                existing_api = api_repo.find_by_base_path(path)
-                
-                if existing_api:
-                    # Update to mark as shadow
-                    api_repo.update(str(existing_api.id), {
-                        "intelligence_metadata.is_shadow": True,
-                        "intelligence_metadata.discovery_method": DiscoveryMethod.TRAFFIC_ANALYSIS.value,
-                        "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
-                        "updated_at": datetime.utcnow().isoformat(),
-                    })
-                    detected_count += 1
-                    logger.info(f"Marked existing API as shadow: {path}")
-                else:
-                    # Create new shadow API entry
-                    # Note: This requires gateway_id from logs
-                    gateway_id_str = logs[0].gateway_id if logs else None
-                    if not gateway_id_str:
-                        continue
-                    
-                    # Convert gateway_id string to UUID
-                    try:
-                        gateway_uuid = UUID(gateway_id_str) if isinstance(gateway_id_str, str) else gateway_id_str
-                    except (ValueError, AttributeError):
-                        logger.warning(f"Invalid gateway_id format: {gateway_id_str}")
-                        continue
-                    
-                    shadow_api = API(
-                        id=uuid4(),
-                        gateway_id=gateway_uuid,
-                        name=f"Shadow API: {path}",
-                        display_name=f"Shadow API: {path}",
-                        description=f"Undocumented API detected from traffic analysis",
-                        icon="warning",
-                        base_path=path,
-                        version_info=VersionInfo(
-                            current_version="unknown",
-                            previous_version=None,
-                            next_version=None,
-                            version_history=None,
-                        ),
-                        maturity_state=MaturityState.TEST,
-                        api_definition=APIDefinition(
-                            type="REST",
-                            version=None,
-                            openapi_spec=None,
-                            swagger_version=None,
-                            base_path=path,
-                            paths=None,
-                            schemas=None,
-                            security_schemes=None,
-                            vendor_extensions=None,
-                        ),
-                        methods=[],  # Unknown methods - can be enriched later
-                        authentication_type=AuthenticationType.NONE,
-                        authentication_config={},
-                        policy_actions=[],
-                        ownership=None,
-                        publishing=None,
-                        deployments=None,
-                        vendor_metadata={"detected_from": "traffic_analysis"},
-                        endpoints=[],
-                        intelligence_metadata=IntelligenceMetadata(
-                            is_shadow=True,
-                            discovery_method=DiscoveryMethod.TRAFFIC_ANALYSIS,
-                            discovered_at=datetime.utcnow(),
-                            last_seen_at=datetime.utcnow(),
-                            health_score=50.0,  # Lower default for shadow APIs
-                            risk_score=75.0,    # Higher risk for undocumented APIs
-                            security_score=25.0, # Lower security for undocumented APIs
-                            compliance_status={},
-                            usage_trend="unknown",
-                        ),
-                        status=APIStatus.ACTIVE,
-                        is_active=True,
-                        created_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow(),
-                    )
-                    api_repo.create(shadow_api)
-                    detected_count += 1
-                    logger.warning(f"Created new shadow API entry: {path}")
-                    
+                detected = await detect_shadow_apis_for_gateway(
+                    gateway, api_repo, log_repo
+                )
+                total_detected += detected
             except Exception as e:
-                logger.error(f"Failed to process shadow API {path}: {e}")
+                logger.error(
+                    f"Failed to detect shadow APIs for gateway {gateway.name} "
+                    f"(id={gateway.id}): {e}"
+                )
         
-        logger.info(f"Shadow API detection complete: {detected_count} shadow APIs processed")
+        logger.info(
+            f"Shadow API detection complete: {total_detected} shadow APIs processed "
+            f"across {len(gateways)} gateways"
+        )
         
     except Exception as e:
         logger.error(f"Shadow API detection job failed: {e}", exc_info=True)

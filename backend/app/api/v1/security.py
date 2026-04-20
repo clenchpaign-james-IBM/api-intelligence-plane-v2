@@ -119,6 +119,183 @@ async def get_security_summary(
         )
 
 
+@router.get(
+    "/security/vulnerabilities",
+    response_model=List[Vulnerability],
+    summary="Get vulnerabilities across all gateways",
+    description="Retrieve vulnerabilities with optional filters. Can be scoped to a specific gateway using gateway_id parameter.",
+)
+async def get_vulnerabilities(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+    status_filter: Optional[VulnerabilityStatus] = Query(
+        None, alias="status", description="Filter by status"
+    ),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
+    security_service: SecurityService = Depends(get_security_service),
+) -> List[Vulnerability]:
+    """Get vulnerabilities across all gateways or for a specific gateway.
+    
+    This is a global endpoint that can optionally be filtered by gateway_id.
+    When gateway_id is provided, only returns vulnerabilities from APIs in that gateway.
+    
+    Args:
+        gateway_id: Optional gateway filter
+        api_id: Optional API filter
+        status_filter: Optional status filter
+        severity: Optional severity filter
+        limit: Maximum results
+        security_service: Security service dependency
+    
+    Returns:
+        List of vulnerabilities
+        
+    Raises:
+        HTTPException: If query fails
+    """
+    try:
+        logger.info(
+            f"Fetching vulnerabilities (gateway_id={gateway_id}, api_id={api_id}, "
+            f"status={status_filter}, severity={severity}, limit={limit})"
+        )
+        
+        # If gateway_id is provided, verify it exists
+        if gateway_id:
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateway = gateway_repo.get(str(gateway_id))
+            
+            if not gateway:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Gateway {gateway_id} not found",
+                )
+        
+        # If api_id is provided, verify it exists and optionally belongs to gateway
+        if api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            
+            if not api:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found",
+                )
+            
+            if gateway_id and str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        # Get vulnerabilities from service
+        vulnerabilities = await security_service.get_vulnerabilities(
+            api_id=api_id,
+            status=status_filter,
+            severity=severity,
+            limit=limit,
+        )
+        
+        # Filter by gateway if specified
+        if gateway_id and not api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            vulnerabilities = [
+                v for v in vulnerabilities
+                if str(v.api_id) in gateway_api_ids
+            ]
+        
+        return vulnerabilities
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch vulnerabilities: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch vulnerabilities: {str(e)}",
+        )
+
+
+@router.get(
+    "/security/posture",
+    response_model=SecurityPostureResponse,
+    summary="Get security posture across all gateways",
+    description="Get security posture metrics and risk score, optionally filtered by gateway",
+)
+async def get_security_posture(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+    security_service: SecurityService = Depends(get_security_service),
+) -> SecurityPostureResponse:
+    """Get security posture metrics across all gateways or for a specific gateway.
+    
+    Args:
+        gateway_id: Optional gateway filter
+        api_id: Optional API filter
+        security_service: Security service dependency
+    
+    Returns:
+        Security posture metrics
+        
+    Raises:
+        HTTPException: If query fails
+    """
+    try:
+        # If gateway_id is provided, verify it exists
+        if gateway_id:
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateway = gateway_repo.get(str(gateway_id))
+            
+            if not gateway:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Gateway {gateway_id} not found",
+                )
+        
+        # If api_id is provided, verify it exists and optionally belongs to gateway
+        if api_id:
+            from app.db.repositories.api_repository import APIRepository
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            
+            if not api:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found",
+                )
+            
+            if gateway_id and str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        logger.info(f"Fetching security posture (gateway_id={gateway_id}, api_id={api_id})")
+        
+        posture = await security_service.get_security_posture(
+            api_id=api_id,
+            gateway_id=gateway_id
+        )
+        
+        return SecurityPostureResponse(**posture)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch security posture: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch security posture: {str(e)}",
+        )
+
+
 @router.post(
     "/gateways/{gateway_id}/security/scan",
     response_model=ScanResponse,
@@ -621,7 +798,10 @@ async def get_gateway_security_posture(
         
         logger.info(f"Fetching security posture for gateway {gateway_id} (api_id={api_id})")
 
-        posture = await security_service.get_security_posture(api_id)
+        posture = await security_service.get_security_posture(
+            api_id=api_id,
+            gateway_id=gateway_id
+        )
 
         return SecurityPostureResponse(**posture)
 

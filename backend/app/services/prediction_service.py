@@ -181,7 +181,7 @@ class PredictionService:
             time_bucket=TimeBucket.ONE_HOUR,
         )
 
-        if len(metrics) < 10:
+        if len(metrics) < 1:
             logger.info(f"Insufficient metrics data for API {api_id} (only {len(metrics)} points)")
             return api, None
 
@@ -218,7 +218,44 @@ class PredictionService:
         metrics: List[Metric],
         predictions: List[Prediction],
     ) -> None:
-        """Attach AI enhancement metadata to every prediction with graceful fallback."""
+        """Enhance predictions with AI-generated analysis and explanations.
+
+        This method enriches rule-based predictions with LLM-generated insights by:
+        1. Generating an overall metrics analysis for the API
+        2. Creating detailed explanations for each individual prediction
+        3. Attaching AI metadata to prediction objects for downstream consumption
+
+        The method implements graceful degradation:
+        - If LLM service is unavailable, predictions are marked as non-AI-enhanced
+        - If AI analysis fails, predictions retain rule-based data with error metadata
+        - Individual prediction explanation failures don't block other predictions
+
+        Args:
+            api_id: Unique identifier of the API being analyzed
+            api_name: Human-readable name of the API (optional, used in prompts)
+            metrics: Historical metrics data used for AI analysis context
+            predictions: List of rule-based predictions to enhance (modified in-place)
+
+        Returns:
+            None. Predictions are modified in-place with AI enhancement metadata.
+
+        Side Effects:
+            - Modifies prediction.metadata dict for each prediction in the list
+            - Lazily initializes self._prediction_agent if not already created
+            - Logs warnings/errors for AI service failures
+
+        Metadata Added:
+            - ai_enhanced (bool): True if AI enhancement succeeded
+            - ai_analysis (str): Overall metrics analysis (if successful)
+            - ai_explanation (str): Prediction-specific explanation (if successful)
+            - ai_recommended_actions (List[str]): AI-refined action recommendations
+            - ai_enhancement_error (str): Error message (if enhancement failed)
+
+        Example:
+            >>> predictions = self._generate_rule_based_predictions(...)
+            >>> self._apply_ai_enhancement(api_id, "Payment API", metrics, predictions)
+            >>> # predictions[0].metadata now contains AI insights
+        """
         if not predictions:
             return
 
@@ -358,14 +395,42 @@ class PredictionService:
         self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
     ) -> Optional[Prediction]:
         """
-        Analyze metrics for failure risk.
+        Analyze metrics for imminent API failure risk using multi-factor trend analysis.
+
+        This method detects critical conditions that indicate an API is at risk of complete
+        failure within the prediction window (48 hours). It evaluates three key indicators:
+        error rates, response times, and availability, each weighted by severity.
+
+        Algorithm:
+            1. Analyze error rate trend - checks if current error rate exceeds 10% threshold
+               and is increasing (weight: up to 0.4)
+            2. Analyze response time degradation - checks if P95 response time exceeds 2000ms
+               threshold and is increasing (weight: up to 0.3)
+            3. Analyze availability drops - checks if availability falls below 95% threshold
+               and is decreasing (weight: up to 0.3)
+            4. Calculate overall confidence by summing weights (capped at 1.0)
+            5. Determine severity based on confidence and contributing factors
+            6. Generate recommended actions based on identified issues
+
+        Thresholds:
+            - ERROR_RATE_THRESHOLD: 10% (0.10)
+            - RESPONSE_TIME_P95_THRESHOLD: 2000ms
+            - AVAILABILITY_THRESHOLD: 95.0%
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            gateway_id: Gateway UUID for scoping the prediction
+            api_id: API UUID to analyze
+            metrics: Historical metrics from the trend analysis window (24 hours)
 
         Returns:
-            Prediction if failure risk detected, None otherwise
+            Prediction object with type FAILURE if risk detected, None if no significant
+            risk factors are present. The prediction includes confidence score, severity,
+            contributing factors with weights, and recommended remediation actions.
+
+        Example:
+            If an API shows 15% error rate (increasing), 2500ms P95 response time
+            (increasing), and 92% availability (decreasing), this would generate a
+            high-confidence FAILURE prediction with all three contributing factors.
         """
         contributing_factors = []
         confidence_weights = []
@@ -469,14 +534,42 @@ class PredictionService:
         self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
     ) -> Optional[Prediction]:
         """
-        Analyze metrics for performance degradation risk.
+        Analyze metrics for performance degradation risk using trend analysis.
+
+        This method detects gradual performance decline patterns that indicate
+        an API is degrading over time. It identifies issues before they become
+        critical failures by analyzing trends in response times, throughput,
+        and error rates.
+
+        Algorithm:
+            1. Analyze response time increase - checks if P50 response time shows upward
+               trend and exceeds 150% of historical average, indicating gradual slowdown
+               (weight: 0.35)
+            2. Analyze throughput decline - checks if throughput shows downward trend
+               and drops below 70% of historical average, indicating capacity issues
+               (weight: 0.25)
+            3. Analyze error rate increase - checks if error rate shows upward trend
+               and is between 5% and critical threshold (10%), indicating emerging issues
+               (weight: 0.20)
+            4. Calculate overall confidence by summing weights (capped at 1.0)
+            5. Determine severity based on confidence and contributing factors
+            6. Generate recommended actions based on identified degradation patterns
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            gateway_id: Gateway UUID for the API being analyzed
+            api_id: API UUID to analyze for degradation risk
+            metrics: Historical metrics list ordered chronologically for trend analysis
 
         Returns:
-            Prediction if degradation risk detected, None otherwise
+            Prediction object with DEGRADATION type if risk detected, None otherwise.
+            Prediction includes confidence score, severity level, contributing factors,
+            and recommended remediation actions.
+
+        Example:
+            >>> metrics = [Metric(response_time_p50=100, ...), Metric(response_time_p50=150, ...)]
+            >>> prediction = service._analyze_degradation_risk(gateway_id, api_id, metrics)
+            >>> if prediction:
+            ...     print(f"Degradation risk: {prediction.confidence_score:.2%}")
         """
         contributing_factors = []
         confidence_weights = []
@@ -576,14 +669,41 @@ class PredictionService:
         self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
     ) -> Optional[Prediction]:
         """
-        Analyze metrics for capacity/scaling risk.
+        Analyze metrics for capacity and scaling risk using load growth patterns.
+
+        This method detects when an API is approaching or exceeding its capacity limits
+        due to rapid traffic growth or degrading performance under load. It identifies
+        scaling needs before they impact service quality.
+
+        Algorithm:
+            1. Analyze request count growth - checks if request volume shows upward trend
+               and exceeds 200% of historical average, indicating rapid traffic growth
+               (weight: 0.40)
+            2. Analyze response time under load - checks if P99 response time shows upward
+               trend and exceeds 5000ms threshold, indicating system strain under load
+               (weight: 0.30)
+            3. Calculate overall confidence by summing weights (capped at 1.0)
+            4. Determine severity based on confidence and contributing factors
+            5. Generate recommended actions for capacity planning and scaling
+
+        Thresholds:
+            - Request growth: 200% of historical average
+            - RESPONSE_TIME_P99_THRESHOLD: 5000ms
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            gateway_id: Gateway UUID for scoping the prediction
+            api_id: API UUID to analyze
+            metrics: Historical metrics from the trend analysis window (24 hours)
 
         Returns:
-            Prediction if capacity risk detected, None otherwise
+            Prediction object with type CAPACITY if risk detected, None if no capacity
+            constraints are identified. The prediction includes confidence score, severity,
+            contributing factors with weights, and recommended scaling actions.
+
+        Example:
+            If an API's request volume doubles from 10,000 to 25,000 requests (150% increase
+            above average) and P99 response time increases from 3000ms to 6000ms under this
+            load, this would generate a CAPACITY prediction indicating the need for scaling.
         """
         contributing_factors = []
         confidence_weights = []

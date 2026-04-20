@@ -39,6 +39,39 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         """
         return self.create(recommendation)
 
+    def check_duplicate_recommendation(
+        self,
+        gateway_id: str,
+        api_id: str,
+        recommendation_type: RecommendationType,
+        status: RecommendationStatus = RecommendationStatus.PENDING,
+    ) -> Optional[OptimizationRecommendation]:
+        """
+        Check if a similar recommendation already exists for the API in the gateway
+
+        Args:
+            gateway_id: Gateway UUID
+            api_id: API UUID
+            recommendation_type: Type of recommendation
+            status: Status to check (default: PENDING)
+
+        Returns:
+            Existing recommendation if found, None otherwise
+        """
+        query = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": gateway_id}},
+                    {"term": {"api_id": api_id}},
+                    {"term": {"recommendation_type": recommendation_type.value}},
+                    {"term": {"status": status.value}},
+                ]
+            }
+        }
+
+        recommendations, _ = self.search(query=query, size=1)
+        return recommendations[0] if recommendations else None
+
     def get_recommendation(
         self, recommendation_id: str
     ) -> Optional[OptimizationRecommendation]:

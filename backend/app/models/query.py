@@ -13,7 +13,21 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class QueryType(str, Enum):
-    """Classified query type."""
+    """Classified natural language query type.
+    
+    Categorizes user queries to enable appropriate data retrieval, analysis,
+    and response generation strategies.
+    
+    Attributes:
+        STATUS: Current state queries - "What is the status of API X?", "Show me open vulnerabilities"
+        TREND: Historical trend queries - "Show API performance over the last week", "Error rate trends"
+        PREDICTION: Future prediction queries - "Will API X fail?", "Show upcoming capacity issues"
+        SECURITY: Security-focused queries - "Show critical vulnerabilities", "List security violations"
+        PERFORMANCE: Performance analysis queries - "Which APIs are slowest?", "Show response time metrics"
+        COMPARISON: Comparative queries - "Compare API A vs API B", "Which gateway has most issues?"
+        COMPLIANCE: Compliance-related queries - "Show HIPAA violations", "List compliance issues"
+        GENERAL: General information queries - "How many APIs?", "What gateways are connected?"
+    """
 
     STATUS = "status"
     TREND = "trend"
@@ -26,7 +40,17 @@ class QueryType(str, Enum):
 
 
 class UserFeedback(str, Enum):
-    """User feedback on query results."""
+    """User feedback on query results quality.
+    
+    Captures user satisfaction with query results to improve natural language
+    understanding and response generation over time.
+    
+    Attributes:
+        HELPFUL: Query results fully answered the user's question and were accurate.
+        NOT_HELPFUL: Query results did not answer the question or were incorrect.
+        PARTIALLY_HELPFUL: Query results were somewhat relevant but incomplete or
+                          partially inaccurate.
+    """
 
     HELPFUL = "helpful"
     NOT_HELPFUL = "not_helpful"
@@ -34,30 +58,96 @@ class UserFeedback(str, Enum):
 
 
 class TimeRange(BaseModel):
-    """Time range filter for queries."""
+    """Time range filter for temporal queries.
+    
+    Defines a time window for filtering query results, enabling historical
+    analysis and trend queries.
+    
+    Attributes:
+        start: Start of the time range (inclusive) in UTC.
+        end: End of the time range (inclusive) in UTC. Must be after start.
+    """
 
-    start: datetime = Field(..., description="Start timestamp")
-    end: datetime = Field(..., description="End timestamp")
+    start: datetime = Field(
+        ...,
+        description="Start of the time range (inclusive) in UTC."
+    )
+    end: datetime = Field(
+        ...,
+        description="End of the time range (inclusive) in UTC. Must be after start."
+    )
 
 
 class InterpretedIntent(BaseModel):
-    """Parsed intent from natural language query."""
+    """Parsed intent from natural language query.
+    
+    Represents the structured interpretation of a user's natural language query,
+    breaking it down into actionable components for data retrieval.
+    
+    Attributes:
+        action: The primary action to perform. Common values: 'list', 'show', 'compare',
+               'count', 'analyze', 'find', 'summarize'.
+        entities: List of entity types involved in the query (e.g., ['api', 'vulnerability'],
+                 ['gateway', 'metrics'], ['prediction']). Determines which data sources to query.
+        filters: Dictionary of filter conditions extracted from the query (e.g.,
+                {'severity': 'critical', 'status': 'open'}). Keys are field names,
+                values are filter values.
+        time_range: Optional time range filter for temporal queries. Extracted from
+                   phrases like "in the last week", "since yesterday", "between X and Y".
+    """
 
-    action: str = Field(..., description="Action to perform (e.g., 'list', 'show', 'compare')")
-    entities: list[str] = Field(..., description="Entities involved (e.g., ['api', 'vulnerability'])")
-    filters: dict[str, Any] = Field(
-        default_factory=dict, description="Filter conditions"
+    action: str = Field(
+        ...,
+        description="The primary action to perform. Common values: 'list', 'show', 'compare', 'count', 'analyze', 'find', 'summarize'."
     )
-    time_range: Optional[TimeRange] = Field(None, description="Time range filter")
+    entities: list[str] = Field(
+        ...,
+        description="List of entity types involved in the query (e.g., ['api', 'vulnerability'], ['gateway', 'metrics'], ['prediction']). Determines which data sources to query."
+    )
+    filters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Dictionary of filter conditions extracted from the query (e.g., {'severity': 'critical', 'status': 'open'}). Keys are field names, values are filter values."
+    )
+    time_range: Optional[TimeRange] = Field(
+        None,
+        description="Optional time range filter for temporal queries. Extracted from phrases like 'in the last week', 'since yesterday', 'between X and Y'."
+    )
 
 
 class QueryResults(BaseModel):
-    """Query execution results."""
+    """Query execution results.
+    
+    Contains the data retrieved from OpenSearch and metadata about the query execution.
+    
+    Attributes:
+        data: List of result documents matching the query. Each document is a dictionary
+             containing the fields from the matched entity (API, vulnerability, etc.).
+        count: Total number of results returned. May be less than total matches if
+              pagination is applied.
+        execution_time: Time taken to execute the query in milliseconds, including
+                       OpenSearch query time and result processing.
+        aggregations: Optional aggregation results for statistical queries (e.g., counts
+                     by severity, averages, percentiles). Structure depends on query type.
+    """
 
-    data: list[dict[str, Any]] = Field(..., description="Result data")
-    count: int = Field(..., ge=0, description="Number of results")
-    execution_time: int = Field(..., ge=0, description="Execution time in milliseconds")
-    aggregations: Optional[dict[str, Any]] = Field(None, description="Aggregation results")
+    data: list[dict[str, Any]] = Field(
+        ...,
+        description="List of result documents matching the query. Each document is a dictionary containing the fields from the matched entity (API, vulnerability, etc.)."
+    )
+    count: int = Field(
+        ...,
+        ge=0,
+        description="Total number of results returned. May be less than total matches if pagination is applied."
+    )
+    execution_time: int = Field(
+        ...,
+        ge=0,
+        description="Time taken to execute the query in milliseconds, including OpenSearch query time and result processing."
+    )
+    aggregations: Optional[dict[str, Any]] = Field(
+        None,
+        description="Optional aggregation results for statistical queries (e.g., counts by severity, averages, percentiles). Structure depends on query type."
+    )
 
 
 class Query(BaseModel):

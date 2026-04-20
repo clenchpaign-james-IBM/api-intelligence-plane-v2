@@ -467,6 +467,7 @@ export interface PredictionStatsResponse {
 // Vulnerability Entity
 export interface Vulnerability {
   id: string;
+  gateway_id: string;
   api_id: string;
   vulnerability_type: VulnerabilityType;
   severity: VulnerabilitySeverity;
@@ -483,8 +484,38 @@ export interface Vulnerability {
   detected_at: string;
   resolved_at?: string;
   metadata?: Record<string, any>;
+  
+  // Per-vulnerability remediation plan fields (Option B implementation)
+  recommended_remediation?: RecommendedRemediation;
+  recommended_priority?: string;
+  recommended_verification_steps?: string[];
+  recommended_estimated_time_hours?: number;
+  plan_generated_at?: string;
+  plan_source?: 'llm' | 'rule_based' | 'hybrid' | 'manual_override';
+  plan_version?: string;
+  plan_status?: 'generated' | 'reviewed' | 'approved' | 'superseded' | 'rejected';
+  
   created_at: string;
   updated_at: string;
+}
+
+// Recommended remediation structure
+export interface RecommendedRemediation {
+  vulnerability_id: string;
+  summary: string;
+  actions: RemediationPlanAction[];
+  dependencies?: string[];
+  rollback_plan?: string;
+  priority: string;
+  estimated_time_hours: number;
+  verification_steps: string[];
+}
+
+export interface RemediationPlanAction {
+  step: number;
+  action: string;
+  type: 'configuration' | 'policy' | 'upgrade';
+  estimated_minutes: number;
 }
 
 export type VulnerabilityType = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'compliance' | 'data_protection' | 'other';
@@ -547,9 +578,40 @@ export interface RemediationResponse {
   message?: string;
 }
 
+// Optimization Action Types
+export type OptimizationActionType = 'apply_policy' | 'remove_policy' | 'validate' | 'manual_configuration';
+export type OptimizationActionStatus = 'completed' | 'pending' | 'failed' | 'in_progress';
+
+// Optimization Action Entity
+export interface OptimizationAction {
+  action: string;
+  type: OptimizationActionType;
+  status: OptimizationActionStatus;
+  performed_at: string;
+  performed_by: string;
+  gateway_policy_id?: string;
+  error_message?: string;
+  metadata?: Record<string, any>;
+}
+
+// Validation Results
+export interface ActualImpact {
+  metric: string;
+  before_value: number;
+  after_value: number;
+  actual_improvement: number;
+}
+
+export interface ValidationResults {
+  actual_impact: ActualImpact;
+  success: boolean;
+  measured_at: string;
+}
+
 // Recommendation Entity
 export interface Recommendation {
   id: string;
+  gateway_id: string;
   api_id: string;
   api_name?: string;
   recommendation_type: RecommendationType;
@@ -561,7 +623,11 @@ export interface Recommendation {
   implementation_steps: string[];
   status: RecommendationStatus;
   implemented_at?: string;
+  validation_results?: ValidationResults;
+  remediation_actions?: OptimizationAction[];
   cost_savings?: number;
+  metadata?: Record<string, any>;
+  vendor_metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
   expires_at?: string;

@@ -12,6 +12,118 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, field_validator
 
 
+class AIContext(BaseModel):
+    """AI-generated insights for optimization recommendations."""
+    
+    performance_analysis: Optional[str] = Field(
+        default=None,
+        description="AI-generated performance analysis"
+    )
+    
+    implementation_guidance: Optional[str] = Field(
+        default=None,
+        description="AI-generated implementation guidance and best practices"
+    )
+    
+    prioritization: Optional[str] = Field(
+        default=None,
+        description="AI-generated prioritization guidance"
+    )
+    
+    generated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When AI insights were generated"
+    )
+
+class OptimizationActionType(str, Enum):
+    """Type of action taken on an optimization recommendation.
+    
+    Categorizes the remediation action for deterministic tracking and filtering.
+    
+    Attributes:
+        APPLY_POLICY: Action to apply a policy to the gateway (caching, rate limiting).
+        REMOVE_POLICY: Action to remove a previously applied policy from the gateway.
+        VALIDATE: Action to validate the impact of an implemented recommendation.
+        MANUAL_CONFIGURATION: Action requiring manual configuration (e.g., compression).
+    """
+    
+    APPLY_POLICY = "apply_policy"
+    REMOVE_POLICY = "remove_policy"
+    VALIDATE = "validate"
+    MANUAL_CONFIGURATION = "manual_configuration"
+
+
+class OptimizationActionStatus(str, Enum):
+    """Status of an optimization action.
+    
+    Tracks the current state of the action for workflow management.
+    
+    Attributes:
+        COMPLETED: Action successfully completed.
+        PENDING: Action is queued or awaiting execution.
+        FAILED: Action failed to complete (see error_message for details).
+        IN_PROGRESS: Action is currently being executed.
+    """
+    
+    COMPLETED = "completed"
+    PENDING = "pending"
+    FAILED = "failed"
+    IN_PROGRESS = "in_progress"
+
+
+class OptimizationAction(BaseModel):
+    """Action taken on an optimization recommendation.
+    
+    Records specific remediation actions for audit trail and debugging.
+    Similar to RemediationAction in vulnerability model.
+    
+    Attributes:
+        action: Description of the action taken (e.g., 'Applied caching policy',
+               'Removed rate limit policy', 'Validation completed').
+        type: Category of action (OptimizationActionType enum).
+        status: Current status (OptimizationActionStatus enum).
+        performed_at: UTC timestamp when the action was performed.
+        performed_by: Identifier of who performed the action (user ID, 'system', 'automation').
+        gateway_policy_id: ID of the gateway policy created/modified (if applicable).
+        error_message: Error details if the action failed, for troubleshooting.
+        metadata: Additional context about the action (configuration details, retry attempts, etc.).
+    """
+    
+    action: str = Field(
+        ...,
+        description="Description of the action taken"
+    )
+    type: OptimizationActionType = Field(
+        ...,
+        description="Action type"
+    )
+    status: OptimizationActionStatus = Field(
+        ...,
+        description="Action status"
+    )
+    performed_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When action was performed"
+    )
+    performed_by: str = Field(
+        ...,
+        description="Who performed the action (user ID, 'system', 'automation')"
+    )
+    gateway_policy_id: Optional[str] = Field(
+        None,
+        description="Gateway policy ID if applicable"
+    )
+    error_message: Optional[str] = Field(
+        None,
+        description="Error details if failed"
+    )
+    metadata: Optional[dict[str, Any]] = Field(
+        None,
+        description="Additional action context"
+    )
+
+
+
 class RecommendationType(str, Enum):
     """Type of optimization.
     
@@ -26,7 +138,21 @@ class RecommendationType(str, Enum):
 
 
 class RecommendationPriority(str, Enum):
-    """Implementation priority."""
+    """Implementation priority level for optimization recommendations.
+    
+    Indicates the urgency and importance of implementing the recommendation
+    based on potential impact and risk.
+    
+    Attributes:
+        CRITICAL: Immediate action required - Severe performance issues or imminent
+                 failures. Should be implemented within hours or days.
+        HIGH: High priority - Significant performance impact or growing issues.
+             Should be implemented within days or weeks.
+        MEDIUM: Moderate priority - Noticeable improvements possible but not urgent.
+               Should be implemented within weeks or months.
+        LOW: Low priority - Minor optimizations or nice-to-have improvements.
+            Can be implemented during normal maintenance cycles.
+    """
 
     CRITICAL = "critical"
     HIGH = "high"
@@ -35,7 +161,20 @@ class RecommendationPriority(str, Enum):
 
 
 class ImplementationEffort(str, Enum):
-    """Effort required."""
+    """Estimated effort required to implement the recommendation.
+    
+    Helps prioritize recommendations by balancing impact against implementation cost.
+    
+    Attributes:
+        LOW: Minimal effort - Simple configuration changes or single-step implementations.
+            Can typically be completed in hours. Examples: Enable compression, adjust cache TTL.
+        MEDIUM: Moderate effort - Multiple configuration changes or minor code modifications.
+               May require testing and coordination. Typically days to a week.
+               Examples: Implement caching layer, configure rate limiting.
+        HIGH: Significant effort - Major architectural changes, new infrastructure, or
+             extensive code modifications. Requires planning, testing, and staged rollout.
+             Typically weeks to months. Examples: Migrate to new architecture, major refactoring.
+    """
 
     LOW = "low"
     MEDIUM = "medium"
@@ -43,7 +182,23 @@ class ImplementationEffort(str, Enum):
 
 
 class RecommendationStatus(str, Enum):
-    """Implementation status."""
+    """Current implementation status of the recommendation.
+    
+    Tracks the recommendation lifecycle from creation through implementation
+    or rejection.
+    
+    Attributes:
+        PENDING: Recommendation created but not yet acted upon. Awaiting review
+                and implementation decision.
+        IN_PROGRESS: Implementation has started but is not yet complete. May involve
+                    multiple steps or staged rollout.
+        IMPLEMENTED: Recommendation has been fully implemented and is active.
+                    Validation results may be available.
+        REJECTED: Recommendation was reviewed and rejected. May include reasons
+                 in metadata (e.g., not feasible, conflicts with requirements).
+        EXPIRED: Recommendation is no longer relevant due to time passage, system
+                changes, or resolved conditions. Different from rejected.
+    """
 
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -53,32 +208,110 @@ class RecommendationStatus(str, Enum):
 
 
 class EstimatedImpact(BaseModel):
-    """Expected improvements from implementing recommendation."""
+    """Expected improvements from implementing recommendation.
+    
+    Quantifies the anticipated performance improvement to help prioritize
+    recommendations and measure success after implementation.
+    
+    Attributes:
+        metric: Name of the metric that will improve (e.g., 'response_time_p95',
+               'error_rate', 'throughput', 'cpu_utilization').
+        current_value: Current measured value of the metric before implementation.
+                      Units depend on metric type (ms for latency, % for rates, etc.).
+        expected_value: Predicted value of the metric after successful implementation.
+                       Should be better than current_value.
+        improvement_percentage: Expected improvement as a percentage (must be positive).
+                              Calculated as: ((current - expected) / current) * 100.
+        confidence: Confidence level in the estimate (0.0 to 1.0). Based on historical
+                   data, similar implementations, and analysis certainty. Higher values
+                   indicate more reliable predictions.
+    """
 
-    metric: str = Field(..., description="Metric to improve (e.g., 'response_time_p95')")
-    current_value: float = Field(..., description="Current metric value")
-    expected_value: float = Field(..., description="Expected metric value after implementation")
-    improvement_percentage: float = Field(
-        ..., gt=0, description="Expected improvement percentage"
+    metric: str = Field(
+        ...,
+        description="Name of the metric that will improve (e.g., 'response_time_p95', 'error_rate', 'throughput', 'cpu_utilization')."
     )
-    confidence: float = Field(..., ge=0, le=1, description="Confidence in estimate (0-1)")
+    current_value: float = Field(
+        ...,
+        description="Current measured value of the metric before implementation. Units depend on metric type (ms for latency, % for rates, etc.)."
+    )
+    expected_value: float = Field(
+        ...,
+        description="Predicted value of the metric after successful implementation. Should be better than current_value."
+    )
+    improvement_percentage: float = Field(
+        ...,
+        gt=0,
+        description="Expected improvement as a percentage (must be positive). Calculated as: ((current - expected) / current) * 100."
+    )
+    confidence: float = Field(
+        ...,
+        ge=0,
+        le=1,
+        description="Confidence level in the estimate (0.0 to 1.0). Based on historical data, similar implementations, and analysis certainty. Higher values indicate more reliable predictions."
+    )
 
 
 class ActualImpact(BaseModel):
-    """Actual impact measured after implementation."""
+    """Actual impact measured after implementation.
+    
+    Records the real-world results of implementing the recommendation,
+    enabling accuracy tracking and ROI calculation.
+    
+    Attributes:
+        metric: Name of the metric that was measured (should match EstimatedImpact.metric).
+        before_value: Measured value before implementation (baseline).
+        after_value: Measured value after implementation (result).
+        actual_improvement: Actual improvement percentage achieved.
+                          Calculated as: ((before - after) / before) * 100.
+                          Can be compared to estimated improvement for accuracy assessment.
+    """
 
-    metric: str = Field(..., description="Metric measured")
-    before_value: float = Field(..., description="Value before implementation")
-    after_value: float = Field(..., description="Value after implementation")
-    actual_improvement: float = Field(..., description="Actual improvement percentage")
+    metric: str = Field(
+        ...,
+        description="Name of the metric that was measured (should match EstimatedImpact.metric)."
+    )
+    before_value: float = Field(
+        ...,
+        description="Measured value before implementation (baseline)."
+    )
+    after_value: float = Field(
+        ...,
+        description="Measured value after implementation (result)."
+    )
+    actual_improvement: float = Field(
+        ...,
+        description="Actual improvement percentage achieved. Calculated as: ((before - after) / before) * 100. Can be compared to estimated improvement for accuracy assessment."
+    )
 
 
 class ValidationResults(BaseModel):
-    """Post-implementation validation results."""
+    """Post-implementation validation results.
+    
+    Captures the outcome of implementing a recommendation, including measured
+    impact and success determination.
+    
+    Attributes:
+        actual_impact: Measured performance impact after implementation.
+        success: Whether the implementation achieved its goals. True if actual improvement
+                meets or exceeds estimated improvement (within reasonable tolerance).
+        measured_at: UTC timestamp when validation measurements were taken. Should be
+                    after sufficient time for the change to take effect (typically hours
+                    to days after implementation).
+    """
 
-    actual_impact: ActualImpact = Field(..., description="Measured impact")
-    success: bool = Field(..., description="Whether implementation was successful")
-    measured_at: datetime = Field(..., description="When results were measured")
+    actual_impact: ActualImpact = Field(
+        ...,
+        description="Measured performance impact after implementation."
+    )
+    success: bool = Field(
+        ...,
+        description="Whether the implementation achieved its goals. True if actual improvement meets or exceeds estimated improvement (within reasonable tolerance)."
+    )
+    measured_at: datetime = Field(
+        ...,
+        description="UTC timestamp when validation measurements were taken. Should be after sufficient time for the change to take effect (typically hours to days after implementation)."
+    )
 
 
 class OptimizationRecommendation(BaseModel):
@@ -97,6 +330,7 @@ class OptimizationRecommendation(BaseModel):
         status: Implementation status
         implemented_at: Implementation timestamp
         validation_results: Post-implementation metrics
+        remediation_actions: History of actions taken on this recommendation
         cost_savings: Estimated cost savings (USD per month)
         metadata: Additional data
         created_at: Creation timestamp
@@ -129,6 +363,10 @@ class OptimizationRecommendation(BaseModel):
     validation_results: Optional[ValidationResults] = Field(
         None, description="Post-implementation metrics"
     )
+    remediation_actions: list[OptimizationAction] = Field(
+        default_factory=list,
+        description="History of actions taken on this recommendation"
+    )
     cost_savings: Optional[float] = Field(
         None, ge=0, description="Estimated cost savings (USD per month)"
     )
@@ -136,6 +374,10 @@ class OptimizationRecommendation(BaseModel):
     vendor_metadata: Optional[dict[str, Any]] = Field(
         None,
         description="Vendor-specific metadata (Gateway policy IDs, configurations, etc.)"
+    )
+    ai_context: Optional[AIContext] = Field(
+        None,
+        description="AI-generated insights and analysis"
     )
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Creation timestamp"

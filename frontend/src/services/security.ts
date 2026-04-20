@@ -132,20 +132,24 @@ export function getStatusColor(status: string): string {
  * Remediate a vulnerability
  */
 export async function remediateVulnerability(
+  gatewayId: string,
   vulnerabilityId: string,
   strategy?: string
 ): Promise<any> {
-  const url = `${API_BASE_URL}/api/v1/security/vulnerabilities/${vulnerabilityId}/remediate`;
+  const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/security/vulnerabilities/${vulnerabilityId}/remediate`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ remediation_strategy: strategy }),
+    body: JSON.stringify({
+      vulnerability_id: vulnerabilityId,
+      remediation_strategy: strategy,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to remediate vulnerability: ${response.statusText}`);
+    throw new Error(`Failed to remediate vulnerability: ${response.status} ${response.statusText}`);
   }
 
   return response.json();
@@ -154,14 +158,14 @@ export async function remediateVulnerability(
 /**
  * Verify remediation of a vulnerability
  */
-export async function verifyRemediation(vulnerabilityId: string): Promise<any> {
-  const url = `${API_BASE_URL}/api/v1/security/vulnerabilities/${vulnerabilityId}/verify`;
+export async function verifyRemediation(gatewayId: string, vulnerabilityId: string): Promise<any> {
+  const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/security/vulnerabilities/${vulnerabilityId}/verify`;
   const response = await fetch(url, {
     method: 'POST',
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to verify remediation: ${response.statusText}`);
+    throw new Error(`Failed to verify remediation: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

@@ -26,6 +26,7 @@ class GatewayAdapterFactory:
     _adapters: dict[GatewayVendor, Type[BaseGatewayAdapter]] = {
         GatewayVendor.WEBMETHODS: WebMethodsGatewayAdapter,
         # Future vendor adapters can be registered here when implemented.
+        # GatewayVendor.NATIVE: NativeGatewayAdapter,
         # GatewayVendor.KONG: KongGatewayAdapter,
         # GatewayVendor.APIGEE: ApigeeGatewayAdapter,
     }

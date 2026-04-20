@@ -18,17 +18,21 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def run_api_discovery_job(gateway_id: UUID) -> None:
+async def run_api_discovery_job() -> None:
     """
-    Run API discovery for a specific gateway.
+    Run API discovery for all connected gateways.
     
-    This job fetches APIs (along with PolicyActions) from the gateway
-    and stores them in the data store. It does NOT perform shadow API
-    detection or other analysis - those are handled by separate use cases.
+    This job:
+    1. Fetches all connected gateways dynamically
+    2. For each gateway:
+       - Fetches APIs (along with PolicyActions) from the gateway
+       - Stores them in the data store
     
-    Args:
-        gateway_id: UUID of the gateway to discover APIs from
+    Note: This does NOT perform shadow API detection or other analysis -
+    those are handled by separate use cases.
     """
+    logger.info("🔄 Starting API discovery job for all connected gateways")
+    
     try:
         # Initialize dependencies
         api_repo = APIRepository()
@@ -41,60 +45,81 @@ async def run_api_discovery_job(gateway_id: UUID) -> None:
             adapter_factory=adapter_factory,
         )
         
-        # Run discovery for this specific gateway
-        result = await discovery_service.discover_gateway_apis(gateway_id)
+        # Get all connected gateways
+        gateways, total = gateway_repo.find_connected_gateways(size=1000)
+        
+        if not gateways:
+            logger.info("No connected gateways found - skipping API discovery")
+            return
+        
+        logger.info(f"Found {len(gateways)} connected gateway(s) for API discovery")
+        
+        # Run discovery for each gateway
+        success_count = 0
+        error_count = 0
+        total_apis = 0
+        
+        for gateway in gateways:
+            try:
+                logger.info(f"Discovering APIs for gateway {gateway.name} ({gateway.id})")
+                
+                result = await discovery_service.discover_gateway_apis(gateway.id)
+                
+                apis_discovered = result.get('apis_discovered', 0)
+                total_apis += apis_discovered
+                success_count += 1
+                
+                logger.info(
+                    f"✅ API discovery completed for gateway {gateway.name}: "
+                    f"{apis_discovered} APIs discovered"
+                )
+                
+            except Exception as e:
+                error_count += 1
+                logger.error(
+                    f"❌ API discovery failed for gateway {gateway.name} ({gateway.id}): {e}",
+                    exc_info=True
+                )
         
         logger.info(
-            f"API discovery completed for gateway {gateway_id}: "
-            f"{result.get('apis_discovered', 0)} APIs discovered"
+            f"✅ API discovery job completed: "
+            f"{success_count} succeeded, {error_count} failed out of {len(gateways)} gateways, "
+            f"{total_apis} total APIs discovered"
         )
         
     except Exception as e:
         logger.error(
-            f"API discovery failed for gateway {gateway_id}: {e}",
+            f"❌ API discovery job failed: {e}",
             exc_info=True
         )
 
 
 def setup_api_discovery_jobs(scheduler, gateway_repository: GatewayRepository) -> None:
     """
-    Dynamically create API discovery jobs for each connected gateway.
+    Setup a single API discovery job that processes all connected gateways.
     
-    This creates isolated jobs per gateway to prevent single point of failure.
-    Each gateway's job runs independently on the configured interval.
+    This approach dynamically discovers connected gateways on each run, eliminating
+    the need to register/unregister jobs when gateways connect/disconnect.
     
     Args:
         scheduler: APScheduler instance
-        gateway_repository: Repository for gateway operations
+        gateway_repository: Repository for gateway operations (not used, kept for compatibility)
     """
     from apscheduler.triggers.interval import IntervalTrigger
     
-    # Get all connected gateways
-    gateways, total = gateway_repository.find_connected_gateways(size=1000)
+    # Register single job that will discover gateways dynamically
+    scheduler.add_job(
+        run_api_discovery_job,
+        trigger=IntervalTrigger(minutes=settings.API_DISCOVERY_INTERVAL_MINUTES),
+        id="api_discovery",
+        name="API Discovery (All Gateways)",
+        replace_existing=True,
+    )
     
-    if not gateways:
-        logger.warning("No connected gateways found - no API discovery jobs scheduled")
-        return
-    
-    # Create a job for each gateway
-    for gateway in gateways:
-        job_id = f"api_discovery_{gateway.id}"
-        
-        scheduler.add_job(
-            run_api_discovery_job,
-            args=[gateway.id],
-            trigger=IntervalTrigger(minutes=settings.API_DISCOVERY_INTERVAL_MINUTES),
-            id=job_id,
-            name=f"API Discovery - {gateway.name}",
-            replace_existing=True,
-        )
-        
-        logger.info(
-            f"Scheduled API discovery job for gateway {gateway.name} ({gateway.id}) "
-            f"- interval: {settings.API_DISCOVERY_INTERVAL_MINUTES} minutes"
-        )
-    
-    logger.info(f"Scheduled {len(gateways)} API discovery jobs")
+    logger.info(
+        f"✅ Scheduled API discovery job "
+        f"(runs every {settings.API_DISCOVERY_INTERVAL_MINUTES} minutes, discovers gateways dynamically)"
+    )
 
 
 # Made with Bob

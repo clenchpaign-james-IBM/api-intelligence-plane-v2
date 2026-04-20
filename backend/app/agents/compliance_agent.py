@@ -704,13 +704,8 @@ Respond with ONLY one word: CRITICAL, HIGH, MEDIUM, or LOW"""
     
     def _has_tls_encryption(self, api: API) -> bool:
         """Check if API has TLS encryption configured."""
-        # Check if TLS policy action exists in policy_actions
-        has_tls_policy = self._has_policy_action(api, PolicyActionType.TLS)
-        
-        # Also check if base_path starts with https
-        has_https = api.base_path.startswith("https://") if api.base_path else False
-        
-        return has_tls_policy or has_https
+        from app.utils.tls_config import has_tls_enforced
+        return has_tls_enforced(api)
 
     def _has_strong_tls(self, api: API) -> bool:
         """Check if API has strong TLS (1.3) configured."""
@@ -724,9 +719,11 @@ Respond with ONLY one word: CRITICAL, HIGH, MEDIUM, or LOW"""
                 # Check vendor_config for TLS version
                 if pa.vendor_config and pa.vendor_config.get("min_tls_version") == "1.3":
                     return True
-                # Check common config for TLS version
-                if pa.config and pa.config.get("min_tls_version") == "1.3":
-                    return True
+                # Check config for TLS version (TlsConfig model)
+                if pa.config:
+                    from app.models.base.policy_configs import TlsConfig
+                    if isinstance(pa.config, TlsConfig) and pa.config.min_tls_version == "1.3":
+                        return True
         
         return False
 

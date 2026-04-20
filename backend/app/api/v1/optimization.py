@@ -37,10 +37,20 @@ class EstimatedImpactResponse(BaseModel):
     confidence: float
 
 
+class AIContextResponse(BaseModel):
+    """Response model for AI-generated insights."""
+    
+    performance_analysis: Optional[str] = None
+    implementation_guidance: Optional[str] = None
+    prioritization: Optional[str] = None
+    generated_at: Optional[str] = None
+
+
 class RecommendationResponse(BaseModel):
     """Response model for a single recommendation."""
 
     id: str
+    gateway_id: str
     api_id: str
     api_name: Optional[str] = None
     recommendation_type: str
@@ -53,6 +63,7 @@ class RecommendationResponse(BaseModel):
     status: str
     implemented_at: Optional[str] = None
     cost_savings: Optional[float] = None
+    ai_context: Optional[AIContextResponse] = None
     created_at: str
     updated_at: str
     expires_at: Optional[str] = None
@@ -239,33 +250,46 @@ async def list_all_recommendations(
             
             filtered_recommendations = [
                 r for r in result["recommendations"]
-                if str(r.api_id) in gateway_api_ids
+                if str(r["recommendation"].api_id) in gateway_api_ids
             ]
             result["recommendations"] = filtered_recommendations
             result["total"] = len(filtered_recommendations)
 
         # Convert to response models
-        recommendations_response = [
-            RecommendationResponse(
-                id=str(r.id),
-                api_id=str(r.api_id),
-                api_name=r.api_name,
-                recommendation_type=r.recommendation_type.value,
-                title=r.title,
-                description=r.description,
-                priority=r.priority.value,
-                estimated_impact=EstimatedImpactResponse(**r.estimated_impact.model_dump()),
-                implementation_effort=r.implementation_effort,
-                implementation_steps=r.implementation_steps,
-                status=r.status.value,
-                implemented_at=r.implemented_at.isoformat() if r.implemented_at else None,
-                cost_savings=r.cost_savings,
-                created_at=r.created_at.isoformat(),
-                updated_at=r.updated_at.isoformat(),
-                expires_at=r.expires_at.isoformat() if r.expires_at else None,
+        recommendations_response = []
+        for rec in result["recommendations"]:
+            recommendation = rec["recommendation"]
+            ai_context = None
+            if recommendation.ai_context:
+                ai_context = AIContextResponse(
+                    performance_analysis=recommendation.ai_context.performance_analysis,
+                    implementation_guidance=recommendation.ai_context.implementation_guidance,
+                    prioritization=recommendation.ai_context.prioritization,
+                    generated_at=recommendation.ai_context.generated_at.isoformat() if recommendation.ai_context.generated_at else None,
+                )
+            
+            recommendations_response.append(
+                RecommendationResponse(
+                    id=str(recommendation.id),
+                    gateway_id=str(recommendation.gateway_id),
+                    api_id=str(recommendation.api_id),
+                    api_name=rec["api_name"],
+                    recommendation_type=recommendation.recommendation_type.value,
+                    title=recommendation.title,
+                    description=recommendation.description,
+                    priority=recommendation.priority.value,
+                    estimated_impact=EstimatedImpactResponse(**recommendation.estimated_impact.model_dump()),
+                    implementation_effort=recommendation.implementation_effort,
+                    implementation_steps=recommendation.implementation_steps,
+                    status=recommendation.status.value,
+                    implemented_at=recommendation.implemented_at.isoformat() if recommendation.implemented_at else None,
+                    cost_savings=recommendation.cost_savings,
+                    ai_context=ai_context,
+                    created_at=recommendation.created_at.isoformat(),
+                    updated_at=recommendation.updated_at.isoformat(),
+                    expires_at=recommendation.expires_at.isoformat() if recommendation.expires_at else None,
+                )
             )
-            for r in result["recommendations"]
-        ]
 
         return RecommendationListResponse(
             recommendations=recommendations_response,
@@ -379,9 +403,19 @@ async def list_gateway_recommendations(
             rec = item["recommendation"]
             api_name = item["api_name"]
 
+            ai_context = None
+            if rec.ai_context:
+                ai_context = AIContextResponse(
+                    performance_analysis=rec.ai_context.performance_analysis,
+                    implementation_guidance=rec.ai_context.implementation_guidance,
+                    prioritization=rec.ai_context.prioritization,
+                    generated_at=rec.ai_context.generated_at.isoformat() if rec.ai_context.generated_at else None,
+                )
+            
             recommendations.append(
                 RecommendationResponse(
                     id=str(rec.id),
+                    gateway_id=str(rec.gateway_id),
                     api_id=str(rec.api_id),
                     api_name=api_name,
                     recommendation_type=rec.recommendation_type.value,
@@ -400,6 +434,7 @@ async def list_gateway_recommendations(
                     status=rec.status.value,
                     implemented_at=rec.implemented_at.isoformat() if rec.implemented_at else None,
                     cost_savings=rec.cost_savings,
+                    ai_context=ai_context,
                     created_at=rec.created_at.isoformat(),
                     updated_at=rec.updated_at.isoformat(),
                     expires_at=rec.expires_at.isoformat() if rec.expires_at else None,
@@ -632,6 +667,7 @@ async def get_gateway_recommendation(
         # Convert to response model
         return RecommendationResponse(
             id=str(recommendation.id),
+            gateway_id=str(recommendation.gateway_id),
             api_id=str(recommendation.api_id),
             recommendation_type=recommendation.recommendation_type.value,
             title=recommendation.title,
@@ -1031,4 +1067,176 @@ async def remove_gateway_recommendation_policy(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to remove recommendation policy: {str(e)}",
+        )
+
+@router.post(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/validate",
+    response_model=dict,
+    status_code=http_status.HTTP_200_OK,
+    summary="Validate recommendation impact",
+    description="Validate that an implemented recommendation achieved its expected impact by analyzing post-implementation metrics"
+)
+async def validate_gateway_recommendation(
+    gateway_id: UUID,
+    recommendation_id: UUID,
+    validation_window_hours: int = Query(24, description="Hours of post-implementation metrics to analyze"),
+) -> dict:
+    """
+    Validate the impact of an implemented recommendation.
+    
+    Analyzes post-implementation metrics to determine if the recommendation
+    achieved its expected improvement. Requires at least validation_window_hours
+    to have passed since implementation.
+    
+    Args:
+        gateway_id: Gateway UUID
+        recommendation_id: Recommendation UUID to validate
+        validation_window_hours: Hours of metrics to analyze (default: 24)
+        settings: Application settings
+        llm_service: LLM service dependency
+        
+    Returns:
+        Validation results with actual vs expected impact
+        
+    Raises:
+        HTTPException: If gateway/recommendation not found or validation fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Create optimization service
+        from app.db.repositories.recommendation_repository import RecommendationRepository
+        from app.db.repositories.metrics_repository import MetricsRepository
+        from app.db.repositories.api_repository import APIRepository
+        
+        recommendation_repo = RecommendationRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        from app.config import Settings
+        from app.services.llm_service import LLMService
+        
+        settings = Settings()
+        llm_service = LLMService(settings)
+        
+        optimization_service = OptimizationService(
+            recommendation_repository=recommendation_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo,
+            llm_service=llm_service,
+            rate_limit_service=None
+        )
+        
+        # Validate recommendation
+        result = await optimization_service.validate_recommendation_impact(
+            recommendation_id=str(recommendation_id),
+            validation_window_hours=validation_window_hours
+        )
+        
+        logger.info(
+            f"Validated recommendation {recommendation_id} for gateway {gateway_id}: "
+            f"Success={result['success']}, Actual={result['actual_improvement']}%"
+        )
+        
+        return result
+        
+    except ValueError as e:
+        logger.error(f"Validation error for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except RuntimeError as e:
+        logger.error(f"Validation runtime error for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to validate recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to validate recommendation: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/actions",
+    response_model=list,
+    summary="Get recommendation action history",
+    description="Get the history of all actions taken on a recommendation"
+)
+async def get_recommendation_actions(
+    gateway_id: UUID,
+    recommendation_id: UUID,
+) -> list:
+    """
+    Get the action history for a recommendation.
+    
+    Returns all remediation actions that have been taken on the recommendation,
+    including policy applications, removals, validations, and failures.
+    
+    Args:
+        gateway_id: Gateway UUID
+        recommendation_id: Recommendation UUID
+        settings: Application settings
+        llm_service: LLM service dependency
+        
+    Returns:
+        List of remediation actions
+        
+    Raises:
+        HTTPException: If gateway/recommendation not found
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Get recommendation
+        from app.db.repositories.recommendation_repository import RecommendationRepository
+        recommendation_repo = RecommendationRepository()
+        
+        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
+        
+        if not recommendation:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Recommendation {recommendation_id} not found",
+            )
+        
+        # Return remediation actions
+        actions = recommendation.remediation_actions or []
+        
+        logger.info(
+            f"Retrieved {len(actions)} actions for recommendation {recommendation_id}"
+        )
+        
+        return [action.dict() if hasattr(action, 'dict') else action for action in actions]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get actions for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recommendation actions: {str(e)}",
         )

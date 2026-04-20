@@ -43,6 +43,7 @@ from app.utils.webmethods.policy_parser import parse_policy_action
 from app.utils.webmethods.policy_normalizer import normalize_policy_action
 from app.utils.webmethods.policy_denormalizer import denormalize_policy_action
 from app.utils.webmethods.policy_converter import convert_policy_action
+from app.models.base.policy_configs import AuthenticationConfig
 from app.models.base.metric import Metric, TimeBucket
 from app.models.base.transaction import (
     CacheStatus,
@@ -237,9 +238,8 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             policy_actions = await self._fetch_policy_actions(wm_api)
             
             # Transform to vendor-neutral API with policy actions
-            api = self._transform_to_api(wm_api)
-            if policy_actions:
-                api.policy_actions = policy_actions
+            # Pass the full api_response to access gatewayEndPoints and gatewayEndPointList
+            api = self._transform_to_api(wm_api, api_response, policy_actions)
             
             return api
             
@@ -266,7 +266,7 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
 
         credentials = self.gateway.transactional_logs_credentials
         verify_ssl = (
-            self.gateway.configuration.get("verify_ssl", True)
+            self.gateway.configuration.get("verify_ssl", False)
             if self.gateway.configuration
             else True
         )
@@ -321,6 +321,7 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
     ) -> bool:
         """
         Apply a vendor-neutral policy action through the webMethods APIs.
+        Checks if policy action already exists and updates it instead of creating a new one.
         
         Args:
             api_id: The API ID to apply the policy to
@@ -335,11 +336,59 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         if not self._client:
             raise RuntimeError("Client not initialized")
 
-        # Step 1 & 2: Transform and wrap vendor_payload in "policyAction" field
+        # Get the policy first
+        resolved_policy_id = await self._get_policy_id(api_id, policy_id)
+        if not resolved_policy_id:
+            logger.error(f"Could not resolve policy_id for API {api_id}")
+            return False
+        
+        wm_policy = await self._fetch_policy(resolved_policy_id)
         vendor_payload = self._transform_from_policy_action(policy)
-        create_payload = {
-            "policyAction": vendor_payload
-        }
+        template_key = vendor_payload.get("templateKey", "")
+        stage_key = self._map_template_key_to_stage_key(template_key)
+        
+        # Check if policy action already exists in the policy enforcements
+        existing_policy_action_id = await self._find_existing_policy_action(
+            wm_policy, stage_key, template_key
+        )
+        
+        if existing_policy_action_id:
+            # Update existing policy action
+            logger.info(f"Updating existing policy action {existing_policy_action_id} for template {template_key}")
+            await self._update_policy_action(existing_policy_action_id, policy)
+            policy_action_id = existing_policy_action_id
+        else:
+            # Create new policy action and add enforcement
+            logger.info(f"Creating new policy action for template {template_key}")
+            policy_action_id = await self._create_policy_action(policy)
+            if not policy_action_id:
+                logger.warning("No policyActionId returned from policy action creation")
+                return True
+            
+            # Add enforcement to policy
+            self._add_enforcement_to_policy(wm_policy, policy_action_id, template_key, resolved_policy_id)
+            await self._update_policy(resolved_policy_id, wm_policy)
+        
+        # Update data store with policy action
+        await self._update_api_policy_actions(api_id, policy, policy_action_id)
+        
+        return True
+    
+    async def _create_policy_action(self, policy: PolicyAction) -> Optional[str]:
+        """
+        Create a policy action in webMethods and return its ID.
+        
+        Args:
+            policy: The vendor-neutral PolicyAction to create
+            
+        Returns:
+            Policy action ID or None if creation failed
+        """
+        if not self._client:
+            raise RuntimeError("Client not initialized")
+            
+        vendor_payload = self._transform_from_policy_action(policy)
+        create_payload = {"policyAction": vendor_payload}
         
         create_response = await self._client.post(
             "/rest/apigateway/policyActions",
@@ -347,57 +396,172 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         )
         create_response.raise_for_status()
 
-        # Step 3: Extract policyActionId from create_response.policyAction.id
         response_data = create_response.json()
         policy_action_data = response_data.get("policyAction", {})
-        policy_action_id = policy_action_data.get("id") or response_data.get("id") or response_data.get("policyActionId")
+        return (
+            policy_action_data.get("id")
+            or response_data.get("id")
+            or response_data.get("policyActionId")
+        )
+    
+    async def _fetch_policy_action(self, policy_action_id: str) -> Optional[WMPolicyAction]:
+        """
+        Fetch a policy action from webMethods by its ID.
         
-        if not policy_action_id:
-            logger.warning("No policyActionId returned from policy action creation")
-            return True
-
-        # Step 4: Get Policy object
-        resolved_policy_id = await self._get_policy_id(api_id, policy_id)
-        if not resolved_policy_id:
-            logger.error(f"Could not resolve policy_id for API {api_id}")
-            return False
+        Args:
+            policy_action_id: The policy action ID to fetch
+            
+        Returns:
+            WMPolicyAction object or None if not found
+        """
+        if not self._client:
+            raise RuntimeError("Client not initialized")
         
-        # Fetch the Policy object
-        policy_response = await self._client.get(f"/rest/apigateway/policies/{resolved_policy_id}")
-        policy_response.raise_for_status()
-        policy_response_data = policy_response.json()
+        try:
+            response = await self._client.get(
+                f"/rest/apigateway/policyActions/{policy_action_id}"
+            )
+            response.raise_for_status()
+            
+            response_data = response.json()
+            policy_action_data = response_data.get("policyAction", response_data)
+            return WMPolicyAction(**policy_action_data)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.warning(f"Policy action {policy_action_id} not found")
+                return None
+            raise
+        except Exception as e:
+            logger.error(f"Failed to fetch policy action {policy_action_id}: {e}")
+            return None
+    
+    async def _find_existing_policy_action(
+        self,
+        wm_policy: WMPolicy,
+        stage_key: str,
+        template_key: str
+    ) -> Optional[str]:
+        """
+        Find if a policy action with the same template key already exists in the policy enforcements.
         
-        # Extract policy from "policy" field
-        policy_data = policy_response_data.get("policy", policy_response_data)
+        Args:
+            wm_policy: The policy to search in
+            stage_key: The stage key to look for enforcements
+            template_key: The template key to match
+            
+        Returns:
+            Policy action ID if found, None otherwise
+        """
+        if not wm_policy.policy_enforcements:
+            return None
         
-        # Parse the Policy object
-        wm_policy = WMPolicy(**policy_data)
-        
-        # Step 5: Map templateKey to stageKey
-        template_key = vendor_payload.get("templateKey", "")
-        stage_key = self._map_template_key_to_stage_key(template_key)
-        
-        # Step 6: Add policyActionId to correct policyEnforcements stage
-        policy_enforcements = wm_policy.policy_enforcements or []
-        
-        # Find existing enforcement group for this stage
+        # Find enforcement group for the stage
         enforcement_group = None
-        for group in policy_enforcements:
+        for group in wm_policy.policy_enforcements:
             if group.stage_key == stage_key:
                 enforcement_group = group
                 break
         
-        # If no enforcement group exists for this stage, create one
-        if enforcement_group is None:
-            from app.models.webmethods.wm_policy import PolicyEnforcements, Enforcement
-            enforcement_group = PolicyEnforcements(
-                stageKey=stage_key,
-                enforcements=[]
+        if not enforcement_group or not enforcement_group.enforcements:
+            return None
+        
+        # Check each enforcement to see if it matches the template key
+        for enforcement in enforcement_group.enforcements:
+            if not enforcement.enforcement_object_id:
+                continue
+            
+            # Fetch the policy action to check its template key
+            policy_action = await self._fetch_policy_action(enforcement.enforcement_object_id)
+            if policy_action and policy_action.template_key == template_key:
+                logger.info(
+                    f"Found existing policy action {enforcement.enforcement_object_id} "
+                    f"with template key {template_key} in stage {stage_key}"
+                )
+                return enforcement.enforcement_object_id
+        
+        return None
+    
+    async def _update_policy_action(
+        self,
+        policy_action_id: str,
+        policy: PolicyAction
+    ) -> bool:
+        """
+        Update an existing policy action in webMethods.
+        
+        Args:
+            policy_action_id: The policy action ID to update
+            policy: The vendor-neutral PolicyAction with updated values
+            
+        Returns:
+            True if successful
+        """
+        if not self._client:
+            raise RuntimeError("Client not initialized")
+        
+        try:
+            vendor_payload = self._transform_from_policy_action(policy)
+            update_payload = {"policyAction": vendor_payload}
+            
+            response = await self._client.put(
+                f"/rest/apigateway/policyActions/{policy_action_id}",
+                json=update_payload,
             )
-            policy_enforcements.append(enforcement_group)
+            response.raise_for_status()
+            
+            logger.info(f"Successfully updated policy action {policy_action_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update policy action {policy_action_id}: {e}")
+            return False
+    
+    async def _fetch_policy(self, policy_id: str) -> WMPolicy:
+        """
+        Fetch a policy object from webMethods.
+        
+        Args:
+            policy_id: The policy ID to fetch
+            
+        Returns:
+            WMPolicy object
+        """
+        if not self._client:
+            raise RuntimeError("Client not initialized")
+            
+        policy_response = await self._client.get(f"/rest/apigateway/policies/{policy_id}")
+        policy_response.raise_for_status()
+        policy_response_data = policy_response.json()
+        
+        policy_data = policy_response_data.get("policy", policy_response_data)
+        return WMPolicy(**policy_data)
+    
+    def _add_enforcement_to_policy(
+        self,
+        wm_policy: WMPolicy,
+        policy_action_id: str,
+        template_key: str,
+        resolved_policy_id: str
+    ) -> None:
+        """
+        Add a policy enforcement to the appropriate stage in the policy.
+        
+        Args:
+            wm_policy: The policy to modify
+            policy_action_id: The policy action ID to add
+            template_key: The template key to map to stage key
+            resolved_policy_id: The policy ID for parent reference
+        """
+        from app.models.webmethods.wm_policy import PolicyEnforcements, Enforcement
+        
+        stage_key = self._map_template_key_to_stage_key(template_key)
+        policy_enforcements = wm_policy.policy_enforcements or []
+        
+        # Find or create enforcement group for this stage
+        enforcement_group = self._find_or_create_enforcement_group(
+            policy_enforcements, stage_key
+        )
         
         # Add the new enforcement
-        from app.models.webmethods.wm_policy import Enforcement
         new_enforcement = Enforcement(
             enforcementObjectId=policy_action_id,
             order=str(len(enforcement_group.enforcements or []) + 1),
@@ -407,50 +571,142 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         if enforcement_group.enforcements is None:
             enforcement_group.enforcements = []
         enforcement_group.enforcements.append(new_enforcement)
+    
+    def _find_or_create_enforcement_group(
+        self,
+        policy_enforcements: List,
+        stage_key: str
+    ):
+        """
+        Find existing enforcement group or create a new one.
         
-        # Step 7: Update the Policy object
+        Args:
+            policy_enforcements: List of policy enforcement groups
+            stage_key: The stage key to find or create
+            
+        Returns:
+            PolicyEnforcements object for the stage
+        """
+        from app.models.webmethods.wm_policy import PolicyEnforcements
+        
+        for group in policy_enforcements:
+            if group.stage_key == stage_key:
+                return group
+        
+        # Create new enforcement group
+        enforcement_group = PolicyEnforcements(
+            stageKey=stage_key,
+            enforcements=[]
+        )
+        policy_enforcements.append(enforcement_group)
+        return enforcement_group
+    
+    async def _update_policy(self, policy_id: str, wm_policy: WMPolicy) -> None:
+        """
+        Update a policy in webMethods.
+        
+        Args:
+            policy_id: The policy ID to update
+            wm_policy: The policy object to update
+        """
+        if not self._client:
+            raise RuntimeError("Client not initialized")
+            
         update_payload = wm_policy.model_dump(mode="python", by_alias=True, exclude_none=True)
-        
-        # Wrap update_payload in "policy" field
-        wrapped_payload = {
-            "policy": update_payload
-        }
+        wrapped_payload = {"policy": update_payload}
         
         update_response = await self._client.put(
-            f"/rest/apigateway/policies/{resolved_policy_id}",
+            f"/rest/apigateway/policies/{policy_id}",
             json=wrapped_payload,
         )
         update_response.raise_for_status()
+    
+    async def _update_api_policy_actions(
+        self,
+        api_id: str,
+        policy: PolicyAction,
+        policy_action_id: str
+    ) -> None:
+        """
+        Add or update the API's policy_actions list in the data store.
+        If a policy action with the same action_type and policy_action_id exists, update it.
+        Otherwise, add it as a new policy action.
         
-        # Step 8: Update vendor neutral API.policy_actions in data store
+        Args:
+            api_id: The API ID to update
+            policy: The policy action to add or update
+            policy_action_id: The policy action ID from webMethods
+        """
         try:
             api_repo = APIRepository()
             api = api_repo.get(api_id)
             
-            if api:
-                # Add the new policy action to the API's policy_actions list
-                if api.policy_actions is None:
-                    api.policy_actions = []
-                
-                # Store the policy action ID in vendor_config
-                if policy.vendor_config is None:
-                    policy.vendor_config = {}
-                policy.vendor_config["id"] = policy_action_id
-                policy.vendor_config["policy_action_id"] = policy_action_id
-                
-                api.policy_actions.append(policy)
-                
-                # Update the API in the data store
-                api_dict = api.model_dump(mode="json", exclude_none=True)
-                api_repo.update(api_id, api_dict)
-                logger.info(f"Updated API {api_id} with new policy action {policy_action_id}")
-            else:
+            if not api:
                 logger.warning(f"API {api_id} not found in data store for policy action update")
+                return
+            
+            # Initialize policy_actions list if needed
+            if api.policy_actions is None:
+                api.policy_actions = []
+            
+            # Store the policy action ID in vendor_config
+            if policy.vendor_config is None:
+                policy.vendor_config = {}
+            policy.vendor_config["id"] = policy_action_id
+            policy.vendor_config["policy_action_id"] = policy_action_id
+            
+            # Check if policy action already exists (match by action_type and policy_action_id)
+            existing_index = None
+            for idx, existing_policy in enumerate(api.policy_actions):
+                existing_vendor_config = existing_policy.vendor_config or {}
+                existing_policy_action_id = existing_vendor_config.get("policy_action_id")
+                
+                # Match by both action_type and policy_action_id for precise identification
+                if (existing_policy.action_type == policy.action_type and
+                    existing_policy_action_id == policy_action_id):
+                    existing_index = idx
+                    break
+            
+            # Update existing or append new
+            if existing_index is not None:
+                api.policy_actions[existing_index] = policy
+                logger.info(f"Updated existing policy action {policy_action_id} for API {api_id}")
+            else:
+                api.policy_actions.append(policy)
+                logger.info(f"Added new policy action {policy_action_id} to API {api_id}")
+            
+            # If authentication policy, update API's authentication_type
+            if policy.action_type == PolicyActionType.AUTHENTICATION:
+                if isinstance(policy.config, AuthenticationConfig):
+                    # Map auth_type from config to AuthenticationType enum
+                    auth_type_mapping = {
+                        "basic": AuthenticationType.BASIC,
+                        "bearer": AuthenticationType.BEARER,
+                        "oauth2": AuthenticationType.OAUTH2,
+                        "api_key": AuthenticationType.API_KEY,
+                        "jwt": AuthenticationType.BEARER,  # JWT uses bearer token
+                        "mtls": AuthenticationType.MTLS,
+                    }
+                    
+                    new_auth_type = auth_type_mapping.get(
+                        policy.config.auth_type,
+                        AuthenticationType.CUSTOM
+                    )
+                    
+                    if api.authentication_type != new_auth_type:
+                        api.authentication_type = new_auth_type
+                        logger.info(
+                            f"Updated API {api_id} authentication_type to {new_auth_type.value} "
+                            f"based on authentication policy"
+                        )
+            
+            # Update the API in the data store
+            api_dict = api.model_dump(mode="json", exclude_none=True)
+            api_repo.update(api_id, api_dict)
+            
         except Exception as e:
             logger.error(f"Failed to update API {api_id} policy_actions in data store: {e}")
             # Don't fail the entire operation if data store update fails
-        
-        return True
     
     async def _get_policy_id(self, api_id: str, policy_id: Optional[str] = None) -> Optional[str]:
         """
@@ -661,9 +917,125 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             "log_collection",
         ]
 
+    def _extract_api_definition(self, wm_api: WMApi) -> Optional[Any]:
+        """Return the embedded webMethods API definition if present."""
+        return getattr(wm_api, "api_definition", None) or getattr(wm_api, "apiDefinition", None)
+
+    def _extract_path_items(self, wm_api: WMApi) -> dict[str, Any]:
+        """Extract path items from either root-level or embedded API definition."""
+        api_definition = self._extract_api_definition(wm_api)
+        path_items = getattr(api_definition, "paths", None) if api_definition else None
+        if path_items:
+            return path_items
+        return getattr(wm_api, "paths", None) or {}
+
+    def _extract_base_path(self, wm_api: WMApi, endpoints: Optional[list[Endpoint]] = None) -> str:
+        """Extract the best available base path for the API.
+        
+        Returns URL encoded value of "gateway" + api_name + api_version.
+        """
+        # Extract API name
+        api_definition = self._extract_api_definition(wm_api)
+        wm_info = getattr(api_definition, "info", None) if api_definition else None
+        
+        api_name = (
+            getattr(wm_api, "api_name", None)
+            or getattr(wm_api, "name", None)
+            or getattr(wm_api, "apiName", None)
+            or getattr(wm_info, "title", None)
+            or "unknown"
+        )
+        
+        # Extract API version
+        api_version = (
+            getattr(wm_api, "api_version", None)
+            or "1.0.0"
+        )
+        
+        # Construct the base path (store unencoded in database)
+        base_path = f"gateway/{api_name}/{api_version}"
+        
+        return f"/{base_path}"
+        
+        # Original implementation (commented out for reference):
+        # api_definition = self._extract_api_definition(wm_api)
+        # base_path = (
+        #     getattr(api_definition, "base_path", None)
+        #     or getattr(api_definition, "basePath", None)
+        #     or getattr(wm_api, "api_endpoint_prefix", None)
+        #     or getattr(wm_api, "apiEndpointPrefix", None)
+        # )
+        #
+        # if base_path is not None and base_path != "":
+        #     return base_path
+        #
+        # native_endpoints = getattr(wm_api, "native_endpoint", None) or getattr(wm_api, "nativeEndpoint", None)
+        # if native_endpoints:
+        #     first_native_endpoint = native_endpoints[0]
+        #     uri = getattr(first_native_endpoint, "uri", None)
+        #     if uri:
+        #         try:
+        #             return "/" + uri.split("://", 1)[-1].split("/", 1)[1]
+        #         except IndexError:
+        #             return "/"
+        #
+        # if endpoints:
+        #     first_endpoint_path = endpoints[0].path
+        #     if first_endpoint_path:
+        #         return first_endpoint_path
+        #
+        # return "/"
+
+    def _extract_parameter_data_type(self, parameter: Any) -> str:
+        """Extract the most accurate data type for a parameter."""
+        parameter_schema = (
+            getattr(parameter, "parameter_schema", None)
+            or getattr(parameter, "parameterSchema", None)
+            or getattr(parameter, "schema_", None)
+            or getattr(parameter, "schema", None)
+        )
+
+        if parameter_schema is not None:
+            schema_type = getattr(parameter_schema, "type", None)
+            if schema_type:
+                return schema_type
+
+        parameter_type = getattr(parameter, "type", None)
+        if parameter_type:
+            return parameter_type
+
+        return "string"
+
+    def _extract_operation_parameters(self, path_item: Any, operation: Any) -> list[EndpointParameter]:
+        """Combine path-level and operation-level parameters."""
+        combined_parameters = []
+        seen: set[tuple[str, str]] = set()
+
+        for parameter in list(getattr(path_item, "parameters", None) or []) + list(
+            getattr(operation, "parameters", None) or []
+        ):
+            name = getattr(parameter, "name", None) or "unknown"
+            location = getattr(parameter, "in_", None) or getattr(parameter, "in", None) or "query"
+            dedupe_key = (name, location)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+
+            combined_parameters.append(
+                EndpointParameter(
+                    name=name,
+                    type=location,
+                    data_type=self._extract_parameter_data_type(parameter),
+                    required=bool(getattr(parameter, "required", False)),
+                    description=getattr(parameter, "description", None),
+                )
+            )
+
+        return combined_parameters
+
     def _build_endpoints(self, wm_api: WMApi) -> list[Endpoint]:
         """Build vendor-neutral endpoints from webMethods path definitions."""
-        path_items = getattr(wm_api, "paths", None) or {}
+        path_items = self._extract_path_items(wm_api)
         endpoints: list[Endpoint] = []
 
         for path, path_item in path_items.items():
@@ -680,24 +1052,12 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
                         except (TypeError, ValueError):
                             continue
 
-                parameters = []
-                for parameter in operation.parameters or []:
-                    parameters.append(
-                        {
-                            "name": parameter.name or "unknown",
-                            "type": getattr(parameter, "in_", None) or "query",
-                            "data_type": getattr(parameter, "type", None) or "string",
-                            "required": bool(parameter.required),
-                            "description": parameter.description,
-                        }
-                    )
-
                 endpoints.append(
                     Endpoint(
                         path=path,
                         method=method.upper(),
-                        description=operation.description or operation.summary,
-                        parameters=parameters,
+                        description=getattr(operation, "description", None) or getattr(operation, "summary", None),
+                        parameters=self._extract_operation_parameters(path_item, operation),
                         response_codes=response_codes,
                         connection_timeout=None,
                         read_timeout=None,
@@ -709,7 +1069,7 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
 
         return [
             Endpoint(
-                path=getattr(wm_api, "base_path", "/") or "/",
+                path=self._extract_base_path(wm_api),
                 method="GET",
                 description=getattr(wm_api, "api_description", None),
                 parameters=[],
@@ -998,11 +1358,22 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
                     wm_policy_action = WMPolicyAction(**action_data["policyAction"])
                     
                     # Step 6: Parse PolicyAction to webMethods-specific policy type
-                    parsed_policy = parse_policy_action(wm_policy_action)
+                    try:
+                        parsed_policy = parse_policy_action(wm_policy_action)
+                    except ValueError as parse_error:
+                        # Skip unsupported policy types gracefully
+                        template_key = getattr(wm_policy_action, 'template_key', None) or getattr(wm_policy_action, 'templateKey', 'unknown')
+                        logger.debug(f"Skipping unsupported policy action {action_id} with templateKey '{template_key}': {parse_error}")
+                        continue
                     
                     # Step 7: Normalize to vendor-neutral PolicyAction
-                    normalized_action = normalize_policy_action(parsed_policy)
-                    normalized_actions.append(normalized_action)
+                    try:
+                        normalized_action = normalize_policy_action(parsed_policy)
+                        normalized_actions.append(normalized_action)
+                    except ValueError as norm_error:
+                        # Skip policies that can't be normalized
+                        logger.debug(f"Skipping policy action {action_id} that couldn't be normalized: {norm_error}")
+                        continue
                     
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 404:
@@ -1028,94 +1399,209 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             logger.error(f"Failed to fetch policy actions for API {api_id}: {e}")
             return None
 
+    def _determine_authentication_type_from_policies(self, policy_actions: Optional[list[PolicyAction]]) -> AuthenticationType:
+        """Determine authentication type from policy actions.
+        
+        For webMethods APIs, authentication type is determined from policy actions
+        with PolicyActionType.AUTHENTICATION, not from OpenAPI security schemes.
+        
+        Args:
+            policy_actions: List of normalized policy actions
+            
+        Returns:
+            AuthenticationType based on authentication policy configuration
+        """
+        if not policy_actions:
+            return AuthenticationType.NONE
+        
+        # Find authentication policy actions
+        auth_policies = [
+            policy for policy in policy_actions
+            if policy.action_type == PolicyActionType.AUTHENTICATION
+        ]
+        
+        if not auth_policies:
+            return AuthenticationType.NONE
+        
+        # Check the first authentication policy's config
+        auth_policy = auth_policies[0]
+        config = auth_policy.config
+        
+        # If config is a dict (backward compatibility)
+        if isinstance(config, dict):
+            auth_type = config.get("auth_type", "").lower()
+            if "oauth" in auth_type or auth_type == "jwt":
+                return AuthenticationType.OAUTH2
+            elif auth_type == "api_key" or auth_type == "apikey":
+                return AuthenticationType.API_KEY
+            elif auth_type == "basic" or auth_type == "http_basic":
+                return AuthenticationType.BASIC
+            else:
+                return AuthenticationType.CUSTOM
+        
+        # If config is structured AuthenticationConfig
+        if isinstance(config, AuthenticationConfig):
+            auth_type = str(config.auth_type).lower()
+            if "oauth" in auth_type or auth_type == "jwt":
+                return AuthenticationType.OAUTH2
+            elif auth_type == "api_key" or auth_type == "apikey":
+                return AuthenticationType.API_KEY
+            elif auth_type == "basic" or auth_type == "http_basic":
+                return AuthenticationType.BASIC
+            else:
+                return AuthenticationType.CUSTOM
+        
+        # Default to CUSTOM if we have auth policies but can't determine type
+        return AuthenticationType.CUSTOM
+
     # Transformation methods
-    def _transform_to_api(self, vendor_data: Any) -> API:
-        """Transform WebMethods API to vendor-neutral API model."""
+    def _transform_to_api(
+        self,
+        vendor_data: Any,
+        api_response: Optional[dict[str, Any]] = None,
+        policy_actions: Optional[list[PolicyAction]] = None
+    ) -> API:
+        """Transform WebMethods API to vendor-neutral API model.
+        
+        Args:
+            vendor_data: WebMethods API object (WMApi)
+            api_response: Optional full API response containing gatewayEndPoints and gatewayEndPointList
+            policy_actions: Optional list of normalized policy actions for the API
+        """
         wm_api: WMApi = vendor_data
         now = datetime.utcnow()
+        wm_api_definition = self._extract_api_definition(wm_api)
+        wm_info = getattr(wm_api_definition, "info", None) if wm_api_definition else None
+        wm_components = getattr(wm_api_definition, "components", None) if wm_api_definition else None
 
         api_id = UUID(getattr(wm_api, "id", None) or getattr(wm_api, "api_id", None) or str(uuid4()))
         name = (
             getattr(wm_api, "api_name", None)
             or getattr(wm_api, "name", None)
             or getattr(wm_api, "apiName", None)
+            or getattr(wm_info, "title", None)
             or "Unknown API"
         )
         display_name = (
             getattr(wm_api, "api_display_name", None)
             or getattr(wm_api, "display_name", None)
+            or getattr(wm_info, "title", None)
             or name
         )
         description = (
             getattr(wm_api, "api_description", None)
-            or getattr(getattr(wm_api, "info", None), "description", None)
+            or getattr(wm_info, "description", None)
             or ""
         )
 
         endpoints = self._build_endpoints(wm_api)
         methods = sorted({endpoint.method for endpoint in endpoints})
-        base_path = getattr(wm_api, "base_path", None) or endpoints[0].path or "/"
+        base_path = self._extract_base_path(wm_api, endpoints)
 
         api_definition = None
-        if getattr(wm_api, "paths", None):
+        if wm_api_definition:
+            api_definition_payload = wm_api_definition.model_dump(mode="python", by_alias=True, exclude_none=False)
             api_definition = APIDefinition(
-                type="REST",
-                version=getattr(getattr(wm_api, "info", None), "version", None),
-                openapi_spec=wm_api.model_dump(mode="python", by_alias=True),
-                swagger_version=getattr(wm_api, "swagger", None),
+                type=(getattr(wm_api, "type", None) or getattr(wm_api_definition, "type", None) or "REST").upper(),
+                version=getattr(wm_info, "version", None),
+                openapi_spec=api_definition_payload,
+                swagger_version=api_definition_payload.get("swagger"),
                 base_path=base_path,
                 paths={
-                    k: v.model_dump(mode="python", by_alias=True)
-                    for k, v in (getattr(wm_api, "paths", {}) or {}).items()
-                },
-                schemas=getattr(getattr(wm_api, "components", None), "schemas", None),
-                security_schemes=getattr(getattr(wm_api, "components", None), "security_schemes", None),
-                vendor_extensions=getattr(wm_api, "vendor_extensions", None),
+                    path: path_item.model_dump(mode="python", by_alias=True, exclude_none=False)
+                    for path, path_item in (getattr(wm_api_definition, "paths", {}) or {}).items()
+                }
+                or None,
+                schemas=(
+                    dict(component_schemas)
+                    if isinstance((component_schemas := getattr(wm_components, "schemas", None)), dict)
+                    else component_schemas
+                ),
+                security_schemes=(
+                    dict(component_security_schemes)
+                    if isinstance(
+                        (component_security_schemes := getattr(wm_components, "security_schemes", None)), dict
+                    )
+                    else component_security_schemes
+                ),
+                vendor_extensions=getattr(wm_api_definition, "vendor_extensions", None),
             )
 
-        authentication_type = AuthenticationType.NONE
-        if getattr(wm_api, "security", None):
-            authentication_type = AuthenticationType.CUSTOM
+        # Determine authentication type from policy actions (not from OpenAPI security schemes)
+        # For webMethods APIs, authentication is configured via policy actions with PolicyActionType.AUTHENTICATION
+        authentication_type = self._determine_authentication_type_from_policies(policy_actions)
 
         ownership = None
-        contact = getattr(getattr(wm_api, "info", None), "contact", None)
+        contact = getattr(wm_info, "contact", None)
         owner = getattr(wm_api, "owner", None)
         if contact or owner:
             ownership = OwnershipInfo(
                 team=owner if isinstance(owner, str) else None,
                 contact=getattr(contact, "email", None),
-                organization=None,
+                organization=getattr(wm_api, "p_org_name", None),
                 repository=None,
                 department=None,
             )
 
         publishing = PublishingInfo(
-            published_portals=[],
-            published_to_registry=bool(getattr(wm_api, "is_published", False)),
+            published_portals=getattr(wm_api, "published_portals", None) or [],
+            published_to_registry=bool(getattr(wm_api, "published_to_registry", False)),
             catalog_name=getattr(wm_api, "catalog_name", None),
             catalog_id=getattr(wm_api, "catalog_id", None),
         )
 
         deployments: Optional[list[DeploymentInfo]] = None
-        gateway_endpoint_list = getattr(wm_api, "gatewayEndPointList", None) or getattr(
-            wm_api, "gateway_endpoint_list", None
-        )
-        if gateway_endpoint_list:
+        native_endpoints = getattr(wm_api, "native_endpoint", None) or getattr(wm_api, "nativeEndpoint", None)
+        gateway_endpoints = getattr(wm_api, "gateway_endpoints", None) or getattr(wm_api, "gatewayEndpoints", None)
+        deployment_names = getattr(wm_api, "deployments", None) or []
+        
+        # Extract gatewayEndPoints and gatewayEndPointList from api_response if available
+        gateway_endpoint_urls = []
+        gateway_endpoint_list = []
+        if api_response:
+            gateway_endpoint_urls = api_response.get("gatewayEndPoints", [])
+            gateway_endpoint_list = api_response.get("gatewayEndPointList", [])
+
+        if native_endpoints or gateway_endpoints or deployment_names or gateway_endpoint_urls or gateway_endpoint_list:
+            resolved_gateway_endpoints: dict[str, str] = {}
+            
+            # Add gateway endpoints from gatewayEndPoints array
+            for index, endpoint_url in enumerate(gateway_endpoint_urls or [], start=1):
+                if endpoint_url:
+                    resolved_gateway_endpoints[f"gateway_endpoint_{index}"] = endpoint_url
+            
+            # Add gateway endpoints from gatewayEndPointList with more details
+            for endpoint_info in gateway_endpoint_list or []:
+                if isinstance(endpoint_info, dict):
+                    endpoint_name = endpoint_info.get("endpointName", "")
+                    endpoint_urls = endpoint_info.get("endpointUrls", [])
+                    if endpoint_urls and endpoint_name:
+                        # Use the first URL from the list
+                        resolved_gateway_endpoints[endpoint_name] = endpoint_urls[0]
+            
+            # Add gateway endpoints from wm_api object (backward compatibility)
+            if isinstance(gateway_endpoints, dict):
+                resolved_gateway_endpoints.update(
+                    {str(key): str(value) for key, value in gateway_endpoints.items() if value}
+                )
+            
+            # Add native endpoints
+            for index, endpoint in enumerate(native_endpoints or [], start=1):
+                uri = getattr(endpoint, "uri", None)
+                if uri:
+                    resolved_gateway_endpoints[f"native_endpoint_{index}"] = uri
+
             deployments = [
                 DeploymentInfo(
-                    environment="default",
-                    gateway_endpoints={
-                        f"endpoint_{index}": endpoint
-                        for index, endpoint in enumerate(gateway_endpoint_list, start=1)
-                    },
+                    environment=str(deployment_names[0]) if deployment_names else "default",
+                    gateway_endpoints=resolved_gateway_endpoints,
                     deployed_at=None,
-                    deployment_status="active",
+                    deployment_status="active" if getattr(wm_api, "is_active", True) else "inactive",
                 )
             ]
 
-        policy_actions = []
-        for policy in getattr(wm_api, "policies", None) or []:
-            policy_actions.append(self._transform_to_policy_action(policy))
+        # Policy actions are passed as parameter and used to determine authentication_type
+        # They are set directly on the API object below
 
         maturity_state = None
         raw_maturity = getattr(wm_api, "maturityState", None) or getattr(wm_api, "maturity_state", None)
@@ -1125,13 +1611,51 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             except ValueError:
                 maturity_state = None
 
+        api_type_value = getattr(wm_api, "type", None) or getattr(wm_api_definition, "type", None) or "REST"
+        try:
+            api_type = APIType(str(api_type_value).upper())
+        except ValueError:
+            api_type = APIType.REST
+
         vendor_metadata = {
             "vendor": "webmethods",
             "owner": getattr(wm_api, "owner", None),
+            "provider": getattr(wm_api, "provider", None),
             "maturity_state": raw_maturity,
             "deployments": getattr(wm_api, "deployments", None),
-            "gateway_endpoints": gateway_endpoint_list,
-            "native_endpoint": getattr(wm_api, "nativeEndpoint", None) or getattr(wm_api, "native_endpoint", None),
+            "gateway_endpoints": gateway_endpoints,
+            "native_endpoint": native_endpoints,
+            "policies": getattr(wm_api, "policies", None),
+            "tracing_enabled": getattr(wm_api, "tracing_enabled", None),
+            "scopes": [
+                scope.model_dump(mode="python", by_alias=True, exclude_none=False)
+                if hasattr(scope, "model_dump")
+                else scope
+                for scope in (getattr(wm_api, "scopes", None) or [])
+            ],
+            "referenced_files": getattr(wm_api, "referenced_files", None),
+            "root_file_name": getattr(wm_api, "root_file_name", None),
+            "o_auth2_scope_name": getattr(wm_api, "o_auth2_scope_name", None),
+            "api_group_name": getattr(wm_api, "api_group_name", None),
+            "api_groups": getattr(wm_api, "api_groups", None),
+            "published_to_registry": getattr(wm_api, "published_to_registry", None),
+            "catalog_name": getattr(wm_api, "catalog_name", None),
+            "catalog_id": getattr(wm_api, "catalog_id", None),
+            "organization_name": getattr(wm_api, "p_org_name", None),
+            "organization_id": getattr(wm_api, "p_org_id", None),
+            "portal_api_item_identifier": getattr(wm_api, "portal_api_item_identifier", None),
+            "centrasite_url": getattr(wm_api, "centra_site_url", None),
+            "api_documents": getattr(wm_api, "api_documents", None),
+            "mock_service": (
+                mock_service.model_dump(mode="python", by_alias=True, exclude_none=False)
+                if (mock_service := getattr(wm_api, "mock_service", None)) is not None
+                else None
+            ),
+            "api_definition": (
+                wm_api_definition.model_dump(mode="python", by_alias=True, exclude_none=False)
+                if wm_api_definition is not None
+                else None
+            ),
         }
 
         return API(
@@ -1140,20 +1664,24 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             name=name,
             display_name=display_name,
             description=description,
-            icon=None,
+            icon=getattr(wm_api, "api_icon", None),
             version_info=VersionInfo(
-                current_version=getattr(getattr(wm_api, "info", None), "version", None)
+                current_version=getattr(wm_info, "version", None)
                 or getattr(wm_api, "api_version", None)
                 or "1.0.0",
-                previous_version=None,
-                next_version=None,
-                system_version=1,
+                previous_version=getattr(wm_api, "prev_version", None),
+                next_version=getattr(wm_api, "next_version", None),
+                system_version=getattr(wm_api, "system_version", 1),
                 version_history=None,
             ),
-            type=APIType.REST,
+            type=api_type,
             maturity_state=maturity_state,
-            groups=[],
-            tags=[tag.name for tag in (getattr(wm_api, "tags", None) or []) if getattr(tag, "name", None)],
+            groups=getattr(wm_api, "api_groups", None) or ([] if not getattr(wm_api, "api_group_name", None) else [getattr(wm_api, "api_group_name")]),
+            tags=[
+                tag.name
+                for tag in ((getattr(wm_api_definition, "tags", None) if wm_api_definition else None) or [])
+                if getattr(tag, "name", None)
+            ],
             base_path=base_path,
             api_definition=api_definition,
             endpoints=endpoints,
@@ -1322,7 +1850,9 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
             for call in (wm_log.externalCalls or [])
         ]
 
-        request_path = wm_log.operationName if wm_log.operationName.startswith("/") else f"/{wm_log.operationName}"
+        # Construct request path (store unencoded in database): gateway/{apiName}/{apiVersion}/{operationName}
+        operation_name = wm_log.operationName if wm_log.operationName.startswith("/") else f"/{wm_log.operationName}"
+        request_path = f"/gateway/{wm_log.apiName}/{wm_log.apiVersion}{operation_name}"
 
         return TransactionalLog(
             id=wm_log.id,
@@ -1374,30 +1904,19 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         )
 
     def _transform_to_policy_action(self, vendor_data: Any) -> PolicyAction:
-        """Transform webMethods policy or policy action to vendor-neutral PolicyAction model."""
-        template_key = getattr(vendor_data, "template_key", None) or getattr(vendor_data, "templateKey", None)
-        stage_key = getattr(vendor_data, "stage_key", None) or getattr(vendor_data, "stageKey", None)
-        parameters = getattr(vendor_data, "parameters", None)
-
-        names = getattr(vendor_data, "names", None) or []
-        descriptions = getattr(vendor_data, "descriptions", None) or []
-
-        raw_enabled = getattr(vendor_data, "is_active", None) if hasattr(vendor_data, "is_active") else True
-        enabled = True if raw_enabled is None else bool(raw_enabled)
-
-        return PolicyAction(
-            action_type=self._map_policy_action_type(template_key),
-            enabled=enabled,
-            stage=stage_key or "request",
-            config={
-                "template_key": template_key,
-            },
-            vendor_config={
-                "templateKey": template_key,
-                "parameters": [parameter.model_dump(mode="python", by_alias=True) for parameter in parameters] if parameters else [],
-            },
-            name=names[0].value if names else template_key or "webMethods policy",
-            description=descriptions[0].value if descriptions else None,
+        """
+        Legacy method - no longer used.
+        
+        Policy actions are now properly fetched and transformed via:
+        1. _fetch_policy_actions() - fetches policy actions from gateway
+        2. parse_policy_action() - parses to webMethods-specific types
+        3. normalize_policy_action() - normalizes to vendor-neutral with structured configs
+        
+        This method is kept for backward compatibility but should not be called.
+        """
+        raise NotImplementedError(
+            "This method is deprecated. Use _fetch_policy_actions() instead, "
+            "which properly parses and normalizes policy actions with structured configs."
         )
 
     def _transform_from_policy_action(self, policy_action: PolicyAction) -> Any:

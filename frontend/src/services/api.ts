@@ -143,6 +143,8 @@ export const api = {
     update: (id: string, data: any) => api.put(`/api/v1/gateways/${id}`, data),
     delete: (id: string) => api.delete(`/api/v1/gateways/${id}`),
     sync: (id: string) => api.post(`/api/v1/gateways/${id}/sync`),
+    connect: (id: string) => api.post(`/api/v1/gateways/${id}/connect`),
+    disconnect: (id: string) => api.post(`/api/v1/gateways/${id}/disconnect`),
     testConnection: (data: any) => api.post('/api/v1/gateways/test-connection', data),
     bulkSync: (gatewayIds: string[], forceRefresh: boolean = false) => {
       const queryParams = new URLSearchParams();
@@ -204,8 +206,24 @@ export const api = {
       return api.post('/api/v1/recommendations/generate', params);
     },
     stats: (params?: any) => api.get('/api/v1/recommendations/stats', params),
-    // Apply recommendation policy to Gateway
+    // Apply recommendation policy to Gateway (legacy endpoint)
     apply: (id: string) => api.post(`/api/v1/recommendations/${id}/apply`),
+    
+    // Gateway-scoped remediation endpoints
+    applyToGateway: (gatewayId: string, recommendationId: string) =>
+      api.post(`/api/v1/gateways/${gatewayId}/optimization/recommendations/${recommendationId}/apply`),
+    
+    removeFromGateway: (gatewayId: string, recommendationId: string) =>
+      api.delete(`/api/v1/gateways/${gatewayId}/optimization/recommendations/${recommendationId}/policy`),
+    
+    validate: (gatewayId: string, recommendationId: string, validationWindowHours: number = 24) =>
+      api.post(
+        `/api/v1/gateways/${gatewayId}/optimization/recommendations/${recommendationId}/validate?validation_window_hours=${validationWindowHours}`
+      ),
+    
+    getActions: (gatewayId: string, recommendationId: string) =>
+      api.get(`/api/v1/gateways/${gatewayId}/optimization/recommendations/${recommendationId}/actions`),
+    
     // AI-enhanced endpoints
     generateAiEnhanced: (apiId: string, minImpact?: number, gatewayId?: string) => {
       const params: any = { api_id: apiId };

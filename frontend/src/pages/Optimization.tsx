@@ -5,10 +5,11 @@ import { Zap, TrendingUp, Filter } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
 import GatewaySelector from '../components/common/GatewaySelector';
-import RecommendationCard from '../components/optimization/RecommendationCard';
+import { RecommendationCard } from '../components/optimization/RecommendationCard';
+import { RecommendationDetail } from '../components/optimization/RecommendationDetail';
 import { api } from '../services/api';
+import type { OptimizationRecommendation } from '../types/optimization';
 import type {
-  Recommendation,
   RecommendationPriority,
   RecommendationStatus,
   RecommendationType
@@ -31,7 +32,7 @@ const Optimization = () => {
   const [selectedPriority, setSelectedPriority] = useState<RecommendationPriority | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<RecommendationStatus | 'all'>('all');
   const [selectedType, setSelectedType] = useState<RecommendationType | 'all'>('all');
-  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   
   const queryClient = useQueryClient();
@@ -52,6 +53,7 @@ const Optimization = () => {
       if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.recommendations.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refetch every minute
   });
 
@@ -59,18 +61,53 @@ const Optimization = () => {
   const { data: stats } = useQuery({
     queryKey: ['recommendation-stats'],
     queryFn: () => api.recommendations.stats(),
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000,
   });
 
   // Apply policy mutation (creates or updates policy in Gateway)
   const applyMutation = useMutation({
-    mutationFn: (recommendationId: string) => api.recommendations.apply(recommendationId),
-    onSuccess: () => {
+    mutationFn: ({ gatewayId, recommendationId }: { gatewayId: string; recommendationId: string }) =>
+      api.recommendations.applyToGateway(gatewayId, recommendationId),
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['recommendations'] });
-      alert('Policy applied to Gateway successfully! The policy has been created or updated in the Gateway.');
+      if (data.requires_manual_configuration) {
+        alert(`Manual Configuration Required:\n\n${data.message}\n\nInstructions:\n${data.instructions?.join('\n') || 'See recommendation details'}`);
+      } else {
+        alert('Policy applied to Gateway successfully! The policy has been created or updated in the Gateway.');
+      }
     },
     onError: (error: any) => {
       alert(`Failed to apply policy to Gateway: ${error.message || 'Unknown error'}`);
+    },
+  });
+
+  // Remove policy mutation
+  const removeMutation = useMutation({
+    mutationFn: ({ gatewayId, recommendationId }: { gatewayId: string; recommendationId: string }) =>
+      api.recommendations.removeFromGateway(gatewayId, recommendationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      alert('Policy removed from Gateway successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to remove policy from Gateway: ${error.message || 'Unknown error'}`);
+    },
+  });
+
+  // Validate recommendation mutation
+  const validateMutation = useMutation({
+    mutationFn: ({ gatewayId, recommendationId, validationWindowHours }: { gatewayId: string; recommendationId: string; validationWindowHours?: number }) =>
+      api.recommendations.validate(gatewayId, recommendationId, validationWindowHours || 24),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      const message = data.success
+        ? `Validation Successful!\n\nExpected: ${data.expected_improvement}%\nActual: ${data.actual_improvement}%\nImprovement: ${data.improvement_percentage}%\nConfidence: ${(data.confidence_score * 100).toFixed(1)}%`
+        : `Validation Failed:\n\n${data.message}`;
+      alert(message);
+    },
+    onError: (error: any) => {
+      alert(`Failed to validate recommendation: ${error.message || 'Unknown error'}`);
     },
   });
 
@@ -93,19 +130,19 @@ const Optimization = () => {
   }
 
   const recommendations = data?.recommendations || [];
-  const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
-  const highPriorityCount = recommendations.filter((r: Recommendation) =>
+  const pendingCount = recommendations.filter((r: OptimizationRecommendation) => r.status === 'pending').length;
+  const highPriorityCount = recommendations.filter((r: OptimizationRecommendation) =>
     r.priority === 'critical' || r.priority === 'high'
   ).length;
   const avgImprovement = stats?.avg_improvement || 0;
 
   // Group recommendations by API
-  const groupedRecommendations: Record<string, Recommendation[]> = recommendations.reduce((acc: Record<string, Recommendation[]>, rec: Recommendation) => {
+  const groupedRecommendations: Record<string, OptimizationRecommendation[]> = recommendations.reduce((acc: Record<string, OptimizationRecommendation[]>, rec: OptimizationRecommendation) => {
     const apiKey = rec.api_name || rec.api_id;
     if (!acc[apiKey]) acc[apiKey] = [];
     acc[apiKey].push(rec);
     return acc;
-  }, {} as Record<string, Recommendation[]>);
+  }, {} as Record<string, OptimizationRecommendation[]>);
 
   return (
     <div className="p-6 space-y-6">
@@ -251,12 +288,11 @@ const Optimization = () => {
 
                 {/* Recommendations Grid for this API */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {apiRecs.map((recommendation: Recommendation) => (
+                  {apiRecs.map((recommendation: OptimizationRecommendation) => (
                     <RecommendationCard
                       key={recommendation.id}
                       recommendation={recommendation}
                       onClick={() => setSelectedRecommendation(recommendation)}
-                      onApply={(id) => applyMutation.mutate(id)}
                     />
                   ))}
                 </div>
@@ -277,12 +313,20 @@ const Optimization = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
-              <RecommendationCard
+              <RecommendationDetail
                 recommendation={selectedRecommendation}
-                detailed={true}
-                onApply={(id) => {
-                  applyMutation.mutate(id);
+                onApply={(gatewayId, recommendationId) => {
+                  applyMutation.mutate({ gatewayId, recommendationId });
                   setSelectedRecommendation(null);
+                }}
+                onRemove={(gatewayId, recommendationId) => {
+                  if (confirm('Are you sure you want to remove this policy from the gateway?')) {
+                    removeMutation.mutate({ gatewayId, recommendationId });
+                    setSelectedRecommendation(null);
+                  }
+                }}
+                onValidate={(gatewayId, recommendationId) => {
+                  validateMutation.mutate({ gatewayId, recommendationId });
                 }}
               />
 

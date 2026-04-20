@@ -29,6 +29,17 @@ def create_api_inventory_index(client: OpenSearch):
             "refresh_interval": "5s",
             "index": {
                 "max_result_window": 10000,
+                "mapping": {
+                    "total_fields": {
+                        "limit": 2000
+                    },
+                    "depth": {
+                        "limit": 20
+                    },
+                    "nested_fields": {
+                        "limit": 100
+                    }
+                }
             },
         },
         "mappings": {
@@ -82,6 +93,26 @@ def create_api_inventory_index(client: OpenSearch):
                     "type": "object",
                     "enabled": False,  # Don't index sensitive auth data
                 },
+                "policy_actions": {
+                    "type": "object",
+                    "enabled": False,  # Don't index complex policy structures
+                },
+                "api_definition": {
+                    "type": "object",
+                    "enabled": False,  # Don't index full OpenAPI specs
+                },
+                "vendor_metadata": {
+                    "type": "object",
+                    "enabled": False,  # Don't index vendor-specific metadata
+                },
+                "deployments": {
+                    "type": "object",
+                    "enabled": False,  # Don't index deployment details
+                },
+                "publishing": {
+                    "type": "object",
+                    "enabled": False,  # Don't index publishing details
+                },
                 "ownership": {
                     "type": "object",
                     "properties": {
@@ -89,6 +120,10 @@ def create_api_inventory_index(client: OpenSearch):
                         "contact": {"type": "keyword"},
                         "repository": {"type": "keyword"},
                     },
+                },
+                "version_info": {
+                    "type": "object",
+                    "enabled": False,  # Don't index version history
                 },
                 "tags": {
                     "type": "keyword",
@@ -124,9 +159,19 @@ def create_api_inventory_index(client: OpenSearch):
                         "measured_at": {"type": "date"},
                     },
                 },
-                "metadata": {
+                "intelligence_metadata": {
                     "type": "object",
-                    "enabled": True,
+                    "properties": {
+                        "is_shadow": {"type": "boolean"},
+                        "discovery_method": {"type": "keyword"},
+                        "discovered_at": {"type": "date"},
+                        "last_seen_at": {"type": "date"},
+                        "health_score": {"type": "float"},
+                        "risk_score": {"type": "float"},
+                        "security_score": {"type": "float"},
+                        "usage_trend": {"type": "keyword"},
+                        "has_active_predictions": {"type": "boolean"},
+                    },
                 },
                 "created_at": {
                     "type": "date",

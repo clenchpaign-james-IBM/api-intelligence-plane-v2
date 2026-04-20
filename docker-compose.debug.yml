@@ -1,0 +1,16 @@
+# Docker Compose Override for Debugging
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.debug.yml up
+version: '3.8'
+
+services:
+  backend:
+    environment:
+      - DEBUGPY_ENABLED=true
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # debugpy port
+    command: >
+      sh -c "pip install debugpy &&
+             python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+# Made with Bob

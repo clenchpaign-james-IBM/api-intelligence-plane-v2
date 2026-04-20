@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus, ArrowLeft, Loader, X } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus, ArrowLeft, Loader, X, Trash2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
@@ -24,8 +24,11 @@ const Gateways = () => {
   const { gatewayId } = useParams<{ gatewayId?: string }>();
   const [selectedGateway, setSelectedGateway] = useState<Gateway | null>(null);
   const [syncingGateway, setSyncingGateway] = useState<string | null>(null);
+  const [connectingGateway, setConnectingGateway] = useState<string | null>(null);
+  const [disconnectingGateway, setDisconnectingGateway] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedGateways, setSelectedGateways] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [bulkSyncStatus, setBulkSyncStatus] = useState<{
     isRunning: boolean;
     results?: any;
@@ -51,14 +54,19 @@ const Gateways = () => {
   // Sync gateway mutation
   const syncMutation = useMutation({
     mutationFn: (gatewayId: string) => api.gateways.sync(gatewayId),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['gateways'] });
       setSyncingGateway(null);
+      // Show success message with details
+      const message = `Sync completed: ${data.apis_discovered} APIs discovered (${data.new_apis} new, ${data.updated_apis} updated)`;
+      alert(message);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       console.error('Sync failed:', error);
       setSyncingGateway(null);
-      alert('Failed to sync gateway. Please try again.');
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to sync gateway. Please try again.';
+      alert(`Sync failed: ${errorMessage}`);
     },
   });
 
@@ -75,10 +83,67 @@ const Gateways = () => {
         setBulkSyncStatus({ isRunning: false });
       }, 10000);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       console.error('Bulk sync failed:', error);
       setBulkSyncStatus({ isRunning: false });
-      alert('Failed to sync gateways. Please try again.');
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to sync gateways. Please try again.';
+      alert(`Bulk sync failed: ${errorMessage}`);
+    },
+  });
+
+  // Delete gateway mutation
+  const deleteMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.delete(gatewayId),
+    onSuccess: (_, gatewayId) => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setSelectedGateways((prev) => {
+        const next = new Set(prev);
+        next.delete(gatewayId);
+        return next;
+      });
+      if (selectedGateway?.id === gatewayId) {
+        setSelectedGateway(null);
+        navigate('/gateways');
+      }
+    },
+    onError: (error: any) => {
+      console.error('Delete failed:', error);
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to delete gateway. Please try again.';
+      alert(`Delete failed: ${errorMessage}`);
+    },
+  });
+
+  // Connect gateway mutation
+  const connectMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.connect(gatewayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setConnectingGateway(null);
+      alert('Gateway connected successfully');
+    },
+    onError: (error: any) => {
+      console.error('Connect failed:', error);
+      setConnectingGateway(null);
+      const errorMessage = error.details?.detail || error.message || 'Failed to connect gateway. Please try again.';
+      alert(`Connect failed: ${errorMessage}`);
+    },
+  });
+
+  // Disconnect gateway mutation
+  const disconnectMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.disconnect(gatewayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setDisconnectingGateway(null);
+      alert('Gateway disconnected successfully');
+    },
+    onError: (error: any) => {
+      console.error('Disconnect failed:', error);
+      setDisconnectingGateway(null);
+      const errorMessage = error.details?.detail || error.message || 'Failed to disconnect gateway. Please try again.';
+      alert(`Disconnect failed: ${errorMessage}`);
     },
   });
 
@@ -86,6 +151,32 @@ const Gateways = () => {
   const handleSync = (gatewayId: string) => {
     setSyncingGateway(gatewayId);
     syncMutation.mutate(gatewayId);
+  };
+
+  // Handle connect
+  const handleConnect = (gatewayId: string) => {
+    setConnectingGateway(gatewayId);
+    connectMutation.mutate(gatewayId);
+  };
+
+  // Handle disconnect
+  const handleDisconnect = (gatewayId: string) => {
+    const gateway = data?.items.find((g: Gateway) => g.id === gatewayId);
+    const confirmed = window.confirm(
+      `Disconnect from gateway "${gateway?.name}"? The gateway will remain registered but inactive.`
+    );
+    if (!confirmed) return;
+    setDisconnectingGateway(gatewayId);
+    disconnectMutation.mutate(gatewayId);
+  };
+
+  // Handle delete
+  const handleDelete = (gateway: Gateway) => {
+    const confirmed = window.confirm(
+      `Delete gateway "${gateway.name}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+    deleteMutation.mutate(gateway.id);
   };
 
   // Handle bulk sync
@@ -138,7 +229,6 @@ const Gateways = () => {
       case 'connected': return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'disconnected': return <Clock className="w-5 h-5 text-gray-600" />;
       case 'error': return <XCircle className="w-5 h-5 text-red-600" />;
-      case 'maintenance': return <Server className="w-5 h-5 text-yellow-600" />;
       default: return <Server className="w-5 h-5 text-gray-600" />;
     }
   };
@@ -149,7 +239,6 @@ const Gateways = () => {
       case 'connected': return 'bg-green-100 text-green-800';
       case 'disconnected': return 'bg-gray-100 text-gray-800';
       case 'error': return 'bg-red-100 text-red-800';
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -207,7 +296,13 @@ const Gateways = () => {
         <GatewayCard
           gateway={selectedGateway}
           onSync={handleSync}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          onDelete={handleDelete}
           isSyncing={syncingGateway === selectedGateway.id}
+          isConnecting={connectingGateway === selectedGateway.id}
+          isDisconnecting={disconnectingGateway === selectedGateway.id}
+          isDeleting={deleteMutation.isPending && deleteMutation.variables === selectedGateway.id}
         />
       </div>
     );
@@ -259,11 +354,19 @@ const Gateways = () => {
             Add Gateway
           </button>
           <button
-            onClick={() => refetch()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await refetch();
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -496,6 +599,14 @@ const Gateways = () => {
                     className="px-3 py-1 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors text-xs flex items-center gap-1"
                   >
                     View Details
+                  </button>
+                  <button
+                    onClick={() => handleDelete(gateway)}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === gateway.id}
+                    className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    {deleteMutation.isPending && deleteMutation.variables === gateway.id ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>

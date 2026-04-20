@@ -42,7 +42,7 @@ class SecurityScheduler:
         # Security scan job - runs every 1 hour
         self.scheduler.add_job(
             func=self._run_security_scan,
-            trigger=IntervalTrigger(hours=1),
+            trigger=IntervalTrigger(minutes=1),
             id="security_scan",
             name="Security Scan - All APIs",
             replace_existing=True,
@@ -50,24 +50,24 @@ class SecurityScheduler:
         )
 
         # Automated remediation job - runs every 30 minutes
-        self.scheduler.add_job(
-            func=self._run_automated_remediation,
-            trigger=IntervalTrigger(minutes=30),
-            id="automated_remediation",
-            name="Automated Vulnerability Remediation",
-            replace_existing=True,
-            max_instances=1,
-        )
+        # self.scheduler.add_job(
+        #     func=self._run_automated_remediation,
+        #     trigger=IntervalTrigger(minutes=3),
+        #     id="automated_remediation",
+        #     name="Automated Vulnerability Remediation",
+        #     replace_existing=True,
+        #     max_instances=1,
+        # )
 
         # Remediation verification job - runs every 2 hours
-        self.scheduler.add_job(
-            func=self._verify_remediations,
-            trigger=IntervalTrigger(hours=2),
-            id="remediation_verification",
-            name="Remediation Verification",
-            replace_existing=True,
-            max_instances=1,
-        )
+        # self.scheduler.add_job(
+        #     func=self._verify_remediations,
+        #     trigger=IntervalTrigger(minutes=6),
+        #     id="remediation_verification",
+        #     name="Remediation Verification",
+        #     replace_existing=True,
+        #     max_instances=1,
+        # )
 
         # Security posture report - runs daily at 8 AM
         self.scheduler.add_job(

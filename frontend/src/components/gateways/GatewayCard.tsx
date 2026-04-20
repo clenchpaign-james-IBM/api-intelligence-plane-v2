@@ -1,5 +1,5 @@
 import React from 'react';
-import { Server, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Clock, AlertTriangle, Trash2, Link, Link2Off } from 'lucide-react';
 import Card from '../common/Card';
 import type { Gateway } from '../../types';
 
@@ -21,13 +21,25 @@ import type { Gateway } from '../../types';
 interface GatewayCardProps {
   gateway: Gateway;
   onSync?: (gatewayId: string) => void;
+  onConnect?: (gatewayId: string) => void;
+  onDisconnect?: (gatewayId: string) => void;
+  onDelete?: (gateway: Gateway) => void;
   isSyncing?: boolean;
+  isConnecting?: boolean;
+  isDisconnecting?: boolean;
+  isDeleting?: boolean;
 }
 
-const GatewayCard: React.FC<GatewayCardProps> = ({ 
-  gateway, 
+const GatewayCard: React.FC<GatewayCardProps> = ({
+  gateway,
   onSync,
-  isSyncing = false 
+  onConnect,
+  onDisconnect,
+  onDelete,
+  isSyncing = false,
+  isConnecting = false,
+  isDisconnecting = false,
+  isDeleting = false,
 }) => {
   // Get status icon
   const getStatusIcon = (status: string) => {
@@ -38,8 +50,6 @@ const GatewayCard: React.FC<GatewayCardProps> = ({
         return <Clock className="w-5 h-5 text-gray-600" />;
       case 'error':
         return <XCircle className="w-5 h-5 text-red-600" />;
-      case 'maintenance':
-        return <Server className="w-5 h-5 text-yellow-600" />;
       default:
         return <Server className="w-5 h-5 text-gray-600" />;
     }
@@ -54,8 +64,6 @@ const GatewayCard: React.FC<GatewayCardProps> = ({
         return 'bg-gray-100 text-gray-800';
       case 'error':
         return 'bg-red-100 text-red-800';
-      case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -241,15 +249,59 @@ const GatewayCard: React.FC<GatewayCardProps> = ({
         )}
 
         {/* Actions */}
-        {onSync && (
-          <div className="flex gap-3 pt-4 border-t">
-            <button
-              onClick={() => onSync(gateway.id)}
-              disabled={isSyncing}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSyncing ? 'Syncing...' : 'Sync Now'}
-            </button>
+        {(onSync || onConnect || onDisconnect || onDelete) && (
+          <div className="flex flex-wrap gap-3 pt-4 border-t">
+            {/* Connect button - only show for DISCONNECTED or ERROR gateways */}
+            {onConnect && (gateway.status === 'disconnected' || gateway.status === 'error') && (
+              <button
+                onClick={() => onConnect(gateway.id)}
+                disabled={isConnecting || isDisconnecting || isSyncing || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Establish connection to gateway"
+              >
+                <Link className="w-4 h-4" />
+                {isConnecting ? 'Connecting...' : 'Connect'}
+              </button>
+            )}
+            
+            {/* Disconnect button - only show for CONNECTED gateways */}
+            {onDisconnect && gateway.status === 'connected' && (
+              <button
+                onClick={() => onDisconnect(gateway.id)}
+                disabled={isDisconnecting || isConnecting || isSyncing || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Disconnect from gateway"
+              >
+                <Link2Off className="w-4 h-4" />
+                {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            )}
+            
+            {/* Sync button - only enabled for CONNECTED gateways */}
+            {onSync && (
+              <button
+                onClick={() => onSync(gateway.id)}
+                disabled={gateway.status !== 'connected' || isSyncing || isConnecting || isDisconnecting || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={gateway.status !== 'connected' ? 'Gateway must be connected to sync' : 'Sync APIs from gateway'}
+              >
+                {isSyncing && <span className="animate-spin">⟳</span>}
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            )}
+            
+            {/* Delete button */}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(gateway)}
+                disabled={isDeleting || isSyncing || isConnecting || isDisconnecting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                title="Delete gateway"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isDeleting ? 'Deleting...' : 'Delete Gateway'}
+              </button>
+            )}
           </div>
         )}
       </div>

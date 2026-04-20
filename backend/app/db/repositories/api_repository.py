@@ -19,7 +19,7 @@ class APIRepository(BaseRepository[API]):
     
     def __init__(self):
         """Initialize the API repository."""
-        super().__init__(index_name="api-inventory-v2", model_class=API)
+        super().__init__(index_name="api-inventory", model_class=API)
     
     def find_by_gateway(
         self,
@@ -193,6 +193,33 @@ class APIRepository(BaseRepository[API]):
         sort = [{"intelligence_metadata.health_score": {"order": "asc"}}]
         return self.search(query, size=size, from_=from_, sort=sort)
     
+    def find_by_gateway_and_api_id(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+    ) -> Optional[API]:
+        """
+        Find API by gateway_id and api_id (unique key combination).
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: API UUID
+            
+        Returns:
+            API if found, None otherwise
+        """
+        query: Dict[str, Any] = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": str(gateway_id)}},
+                    {"term": {"id": str(api_id)}}
+                ]
+            }
+        }
+        
+        results, _ = self.search(query, size=1)
+        return results[0] if results else None
+    
     def find_by_base_path(
         self,
         base_path: str,
@@ -223,6 +250,118 @@ class APIRepository(BaseRepository[API]):
         
         results, _ = self.search(query, size=1)
         return results[0] if results else None
+    def find_by_request_path(
+        self,
+        request_path: str,
+        gateway_id: UUID,
+    ) -> Optional[API]:
+        """
+        Find API by matching request path against registered patterns.
+        
+        Uses path parsing and pattern matching to identify the API that handles
+        a given request path, accounting for gateway routing and path parameters.
+        
+        Args:
+            request_path: Full request path from transactional log
+                         (e.g., /gateway/users-api/v1/users/123/profile)
+            gateway_id: Gateway UUID
+        
+        Returns:
+            Matching API if found, None otherwise
+        
+        Algorithm:
+            1. Parse request_path to extract components (gateway_prefix, api_name, 
+               api_version, resource_path)
+            2. Query APIs by gateway_id, api_name, and api_version
+            3. For each candidate API, check if resource_path matches any endpoint
+            4. Return first matching API
+        
+        Example:
+            >>> repo = APIRepository()
+            >>> api = repo.find_by_request_path(
+            ...     "/gateway/users-api/v1/users/123/profile",
+            ...     gateway_id=UUID("...")
+            ... )
+        """
+        from app.utils.path_matcher import parse_request_path, matches_api_endpoints
+        
+        # Parse the request path
+        components = parse_request_path(request_path)
+        if not components:
+            logger.debug(f"Could not parse request path: {request_path}")
+            return None
+        
+        # Query candidate APIs by gateway_id, api_name, and api_version
+        query: Dict[str, Any] = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": str(gateway_id)}},
+                ]
+            }
+        }
+        
+        # Add api_name filter with multiple strategies
+        # Try exact match first, then fuzzy match
+        query["bool"]["should"] = [
+            # Exact match on name.keyword (if available)
+            {"term": {"name.keyword": components.api_name}},
+            # Case-insensitive match
+            {"match": {
+                "name": {
+                    "query": components.api_name,
+                    "operator": "and",
+                    "fuzziness": "AUTO"
+                }
+            }},
+            # Phrase match for names with spaces
+            {"match_phrase": {
+                "name": components.api_name
+            }}
+        ]
+        query["bool"]["minimum_should_match"] = 1
+        
+        # Add version filter as additional should clause
+        query["bool"]["should"].extend([
+            {"term": {"version_info.current_version": components.api_version}},
+            {"match": {"version_info.current_version": components.api_version}}
+        ])
+        
+        # Boost results that match both name and version
+        candidates, _ = self.search(query, size=20)
+        
+        # Filter candidates by version if we got results
+        if candidates and components.api_version:
+            version_matched = [
+                api for api in candidates
+                if hasattr(api, 'version_info') and
+                   hasattr(api.version_info, 'current_version') and
+                   api.version_info.current_version == components.api_version
+            ]
+            if version_matched:
+                candidates = version_matched
+        
+        if not candidates:
+            logger.debug(
+                f"No candidate APIs found for gateway={gateway_id}, "
+                f"api_name={components.api_name}, version={components.api_version}"
+            )
+            return None
+        
+        # Match resource path against API endpoints
+        for api in candidates:
+            if matches_api_endpoints(components.resource_path, api):
+                logger.debug(
+                    f"Matched request path {request_path} to API {api.name} "
+                    f"(id={api.id})"
+                )
+                return api
+        
+        logger.debug(
+            f"No API matched resource path {components.resource_path} "
+            f"from {len(candidates)} candidates"
+        )
+        return None
+    
     
     def advanced_search(
         self,

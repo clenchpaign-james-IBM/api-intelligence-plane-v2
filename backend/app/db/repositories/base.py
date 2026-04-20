@@ -74,6 +74,14 @@ class BaseRepository(ABC, Generic[T]):
             if "updated_at" not in doc_dict:
                 doc_dict["updated_at"] = datetime.utcnow().isoformat()
             
+            # Ensure the id field in document body matches the doc_id
+            if doc_id:
+                doc_dict["id"] = doc_id
+            elif hasattr(document, "id") and document.id:
+                # Use document's id if no doc_id provided
+                doc_dict["id"] = str(document.id)
+                doc_id = str(document.id)
+            
             response = self.client.index(
                 index=self.index_name,
                 body=doc_dict,
@@ -81,14 +89,15 @@ class BaseRepository(ABC, Generic[T]):
                 refresh=True,
             )
             
-            # Update document with generated ID
-            if hasattr(document, "id") and not document.id:
+            # Update document with generated ID if not set
+            if "id" not in doc_dict or not doc_dict["id"]:
                 doc_dict["id"] = response["_id"]
             
             logger.info(
                 f"Created document in {self.index_name}: {response['_id']}"
             )
-            return self.model_class(**doc_dict)
+            # Use model_validate to properly reconstruct nested Pydantic models
+            return self.model_class.model_validate(doc_dict)
             
         except exceptions.ConflictError:
             logger.error(f"Document with ID {doc_id} already exists")
@@ -112,7 +121,8 @@ class BaseRepository(ABC, Generic[T]):
                 index=self.index_name,
                 id=doc_id,
             )
-            return self.model_class(**response["_source"])
+            # Use model_validate to properly reconstruct nested Pydantic models
+            return self.model_class.model_validate(response["_source"])
             
         except exceptions.NotFoundError:
             logger.warning(f"Document not found: {doc_id}")
@@ -211,8 +221,9 @@ class BaseRepository(ABC, Generic[T]):
                 body=body,
             )
             
+            # Use model_validate to properly reconstruct nested Pydantic models
             documents = [
-                self.model_class(**hit["_source"])
+                self.model_class.model_validate(hit["_source"])
                 for hit in response["hits"]["hits"]
             ]
             total = response["hits"]["total"]["value"]

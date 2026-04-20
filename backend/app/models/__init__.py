@@ -61,6 +61,7 @@ from app.models.recommendation import (
     ValidationResults,
 )
 from app.models.vulnerability import (
+    ConfigurationType,
     DetectionMethod,
     RemediationAction,
     RemediationType,
@@ -138,6 +139,7 @@ __all__ = [
     "RecommendationType",
     "ValidationResults",
     # Vulnerability models
+    "ConfigurationType",
     "DetectionMethod",
     "RemediationAction",
     "RemediationType",

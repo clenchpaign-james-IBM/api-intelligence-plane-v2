@@ -11,6 +11,7 @@ The agent uses a HYBRID approach:
 - Vendor-neutral policy action analysis across supported gateway adapters
 """
 
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, TypedDict
@@ -28,6 +29,7 @@ except ImportError:
 from app.models.base.api import API, AuthenticationType, PolicyActionType
 from app.models.base.metric import Metric
 from app.models.vulnerability import (
+    ConfigurationType,
     Vulnerability,
     VulnerabilityType,
     VulnerabilitySeverity,
@@ -176,7 +178,10 @@ class SecurityAgent:
     async def _analyze_direct(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Direct analysis without LangGraph workflow."""
+        """Direct analysis without LangGraph workflow.
+        
+        Implements Option B: single batched LLM call plus deterministic split.
+        """
         vulnerabilities = []
         
         # Run all analysis steps with metrics context
@@ -188,14 +193,30 @@ class SecurityAgent:
         vulnerabilities.extend(await self._check_validation(api, metrics, traffic_analysis))
         vulnerabilities.extend(await self._check_security_headers(api, metrics, traffic_analysis))
         
-        # Generate remediation plan
-        remediation_plan = await self._create_remediation_plan(api, vulnerabilities)
+        # Generate batched remediation plan (single LLM call)
+        batched_plan = await self._create_remediation_plan(api, vulnerabilities)
+        
+        # Normalize into per-vulnerability plans (deterministic split)
+        if vulnerabilities:
+            per_vuln_plans = self._normalize_per_vulnerability_plans(batched_plan, vulnerabilities)
+            
+            # Attach plans to vulnerabilities
+            plan_timestamp = datetime.utcnow()
+            for vuln, plan in zip(vulnerabilities, per_vuln_plans):
+                vuln.recommended_remediation = plan
+                vuln.recommended_priority = plan.get("priority")
+                vuln.recommended_verification_steps = plan.get("verification_steps", [])
+                vuln.recommended_estimated_time_hours = plan.get("estimated_time_hours")
+                vuln.plan_generated_at = plan_timestamp
+                vuln.plan_source = "llm"
+                vuln.plan_version = "1.0"
+                vuln.plan_status = "generated"
 
         return {
             "api_id": str(api.id),
             "api_name": api.name,
             "vulnerabilities": [v.dict() for v in vulnerabilities],
-            "remediation_plan": remediation_plan,
+            "remediation_plan": batched_plan,  # Keep for backward compatibility
             "metrics_analyzed": len(metrics),
             "analysis_timestamp": datetime.utcnow().isoformat(),
         }
@@ -251,12 +272,32 @@ class SecurityAgent:
         return state
 
     async def _generate_remediation_plan_node(self, state: SecurityAnalysisState) -> SecurityAnalysisState:
-        """Generate remediation plan."""
+        """Generate remediation plan.
+        
+        Implements Option B: single batched LLM call plus deterministic split.
+        """
         if state["vulnerabilities"]:
             api = API(**state["api_data"])
             vulns = [Vulnerability(**v) for v in state["vulnerabilities"]]
-            plan = await self._create_remediation_plan(api, vulns)
-            state["remediation_plan"] = plan
+            
+            # Generate batched remediation plan (single LLM call)
+            batched_plan = await self._create_remediation_plan(api, vulns)
+            state["remediation_plan"] = batched_plan
+            
+            # Normalize into per-vulnerability plans (deterministic split)
+            per_vuln_plans = self._normalize_per_vulnerability_plans(batched_plan, vulns)
+            
+            # Attach plans to vulnerabilities in state
+            plan_timestamp = datetime.utcnow()
+            for i, (vuln_dict, plan) in enumerate(zip(state["vulnerabilities"], per_vuln_plans)):
+                vuln_dict["recommended_remediation"] = plan
+                vuln_dict["recommended_priority"] = plan.get("priority")
+                vuln_dict["recommended_verification_steps"] = plan.get("verification_steps", [])
+                vuln_dict["recommended_estimated_time_hours"] = plan.get("estimated_time_hours")
+                vuln_dict["plan_generated_at"] = plan_timestamp.isoformat()
+                vuln_dict["plan_source"] = "llm"
+                vuln_dict["plan_version"] = "1.0"
+                vuln_dict["plan_status"] = "generated"
         
         state["analysis_complete"] = True
         return state
@@ -394,6 +435,7 @@ class SecurityAgent:
 
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.AUTHENTICATION,
                 cve_id=None,
@@ -421,6 +463,7 @@ class SecurityAgent:
             # Basic auth is weak - recommend upgrade
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.AUTHENTICATION,
                 cve_id=None,
@@ -466,6 +509,7 @@ class SecurityAgent:
             if needs_authorization:
                 vulnerability = Vulnerability(
                     id=uuid4(),
+                    gateway_id=api.gateway_id,
                     api_id=api.id,
                     vulnerability_type=VulnerabilityType.AUTHORIZATION,
                     cve_id=None,
@@ -517,8 +561,10 @@ class SecurityAgent:
             severity = VulnerabilitySeverity.HIGH if traffic_analysis.get("total_requests", 0) > 10000 else VulnerabilitySeverity.MEDIUM
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                configuration_type=ConfigurationType.RATE_LIMITING,
                 cve_id=None,
                 severity=severity,
                 title=f"Missing Rate Limiting Policy for {api.name}",
@@ -552,12 +598,16 @@ class SecurityAgent:
         """Check TLS/SSL configuration."""
         vulnerabilities = []
 
-        # Check if HTTPS is enforced
-        if api.base_path.startswith("http://"):
+        # Check if TLS policy exists and enforce_tls is True
+        from app.utils.tls_config import has_tls_enforced
+        
+        if not has_tls_enforced(api):
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                configuration_type=ConfigurationType.TLS,
                 cve_id=None,
                 severity=VulnerabilitySeverity.HIGH,
                 title=f"Insecure HTTP Protocol for {api.name}",
@@ -589,34 +639,40 @@ class SecurityAgent:
         """Check CORS policy configuration using AI with proper context."""
         vulnerabilities = []
 
-        # Use AI to determine if CORS policy is needed and properly configured
-        # Provide comprehensive context including endpoints and traffic patterns
-        cors_issues = await self._check_cors_with_ai(api, traffic_analysis)
+        # Check if CORS policy exists in policy_actions
+        has_cors_policy = self._has_policy_action(api, PolicyActionType.CORS)
+        
+        if not has_cors_policy:
+            # Use AI to determine if CORS policy is needed and properly configured
+            # Provide comprehensive context including endpoints and traffic patterns
+            cors_issues = await self._check_cors_with_ai(api, traffic_analysis)
 
-        if cors_issues:
-            vulnerability = Vulnerability(
-                id=uuid4(),
-                api_id=api.id,
-                vulnerability_type=VulnerabilityType.CONFIGURATION,
-                cve_id=None,
-                severity=VulnerabilitySeverity.MEDIUM,
-                title=f"Insecure CORS Policy for {api.name}",
-                description=f"API {api.name} has overly permissive CORS configuration. "
-                f"Issues detected: {cors_issues}",
-                affected_endpoints=[e.path for e in api.endpoints],
-                detection_method=DetectionMethod.AUTOMATED_SCAN,
-                detected_at=datetime.utcnow(),
-                status=VulnerabilityStatus.OPEN,
-                remediation_type=RemediationType.CONFIGURATION,
-                remediation_actions=None,
-                remediated_at=None,
-                verification_status=None,
-                cvss_score=None,
-                references=None,
-                metadata={"policy_action_type": PolicyActionType.CORS.value},
-            )
+            if cors_issues:
+                vulnerability = Vulnerability(
+                    id=uuid4(),
+                    gateway_id=api.gateway_id,
+                    api_id=api.id,
+                    vulnerability_type=VulnerabilityType.CONFIGURATION,
+                    configuration_type=ConfigurationType.CORS,
+                    cve_id=None,
+                    severity=VulnerabilitySeverity.MEDIUM,
+                    title=f"Insecure CORS Policy for {api.name}",
+                    description=f"API {api.name} has overly permissive CORS configuration. "
+                    f"Issues detected: {cors_issues}",
+                    affected_endpoints=[e.path for e in api.endpoints],
+                    detection_method=DetectionMethod.AUTOMATED_SCAN,
+                    detected_at=datetime.utcnow(),
+                    status=VulnerabilityStatus.OPEN,
+                    remediation_type=RemediationType.CONFIGURATION,
+                    remediation_actions=None,
+                    remediated_at=None,
+                    verification_status=None,
+                    cvss_score=None,
+                    references=None,
+                    metadata={"policy_action_type": PolicyActionType.CORS.value},
+                )
 
-            vulnerabilities.append(vulnerability)
+                vulnerabilities.append(vulnerability)
 
         return vulnerabilities
 
@@ -644,8 +700,10 @@ class SecurityAgent:
         if needs_validation:
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                configuration_type=ConfigurationType.INPUT_VALIDATION,
                 cve_id=None,
                 severity=VulnerabilitySeverity.MEDIUM,
                 title=f"Missing Input Validation Policy for {api.name}",
@@ -657,7 +715,7 @@ class SecurityAgent:
                 detection_method=DetectionMethod.AUTOMATED_SCAN,
                 detected_at=datetime.utcnow(),
                 status=VulnerabilityStatus.OPEN,
-                remediation_type=RemediationType.CONFIGURATION,
+                remediation_type=RemediationType.AUTOMATED,
                 remediation_actions=None,
                 remediated_at=None,
                 verification_status=None,
@@ -685,8 +743,10 @@ class SecurityAgent:
         if missing_headers:
             vulnerability = Vulnerability(
                 id=uuid4(),
+                gateway_id=api.gateway_id,
                 api_id=api.id,
                 vulnerability_type=VulnerabilityType.CONFIGURATION,
+                configuration_type=ConfigurationType.SECURITY_HEADERS,
                 cve_id=None,
                 severity=VulnerabilitySeverity.LOW,
                 title=f"Missing Security Headers for {api.name}",
@@ -1008,12 +1068,116 @@ Respond with ONLY: yes or no"""
             return False
 
 
+    def _normalize_per_vulnerability_plans(
+        self,
+        batched_plan: Dict[str, Any],
+        vulnerabilities: List[Vulnerability],
+    ) -> List[Dict[str, Any]]:
+        """Normalize batched LLM remediation plan into per-vulnerability plans.
+        
+        This implements Option B from vulnerability-centric-remediation-architecture.md:
+        Single batched LLM call plus deterministic split.
+        
+        Args:
+            batched_plan: The consolidated plan from LLM
+            vulnerabilities: List of vulnerabilities to map plans to
+            
+        Returns:
+            List of per-vulnerability plan dictionaries
+        """
+        per_vuln_plans = []
+        
+        # Extract actions from batched plan
+        actions = batched_plan.get("actions", [])
+        verification_steps = batched_plan.get("verification_steps", [])
+        overall_priority = batched_plan.get("priority", "medium")
+        total_time = batched_plan.get("estimated_time_hours", 0)
+        
+        # Calculate per-vulnerability time estimate
+        time_per_vuln = total_time / len(vulnerabilities) if vulnerabilities else 0
+        
+        # Map actions to vulnerabilities based on content matching
+        for vuln in vulnerabilities:
+            vuln_actions = []
+            vuln_verification = []
+            
+            # Find actions that mention this vulnerability's title or type
+            vuln_keywords = {
+                vuln.title.lower(),
+                vuln.vulnerability_type.value.lower(),
+                vuln.severity.value.lower()
+            }
+            
+            for action in actions:
+                action_text = action.get("action", "").lower()
+                # Check if action mentions this vulnerability
+                if any(keyword in action_text for keyword in vuln_keywords):
+                    vuln_actions.append(action)
+            
+            # If no specific actions found, assign proportionally
+            if not vuln_actions and actions:
+                # Distribute actions evenly or by severity
+                actions_per_vuln = max(1, len(actions) // len(vulnerabilities))
+                vuln_index = vulnerabilities.index(vuln)
+                start_idx = vuln_index * actions_per_vuln
+                end_idx = start_idx + actions_per_vuln
+                vuln_actions = actions[start_idx:end_idx]
+            
+            # Find verification steps that mention this vulnerability
+            for step in verification_steps:
+                step_text = step.lower() if isinstance(step, str) else ""
+                if any(keyword in step_text for keyword in vuln_keywords):
+                    vuln_verification.append(step)
+            
+            # If no specific verification found, use generic steps
+            if not vuln_verification:
+                vuln_verification = [
+                    f"Verify {vuln.title} is resolved",
+                    f"Test affected endpoints: {', '.join(vuln.affected_endpoints or ['all endpoints'])}",
+                    "Confirm security scan shows no issues"
+                ]
+            
+            # Determine priority based on severity
+            priority_map = {
+                VulnerabilitySeverity.CRITICAL: "critical",
+                VulnerabilitySeverity.HIGH: "high",
+                VulnerabilitySeverity.MEDIUM: "medium",
+                VulnerabilitySeverity.LOW: "low",
+            }
+            vuln_priority = priority_map.get(vuln.severity, overall_priority)
+            
+            # Build per-vulnerability plan
+            per_vuln_plan = {
+                "vulnerability_id": str(vuln.id),
+                "summary": f"Remediate {vuln.title}",
+                "actions": vuln_actions or [{
+                    "step": 1,
+                    "action": f"Remediate: {vuln.title}",
+                    "type": "configuration",
+                    "estimated_minutes": int(time_per_vuln * 60)
+                }],
+                "dependencies": batched_plan.get("dependencies", []),
+                "rollback_plan": batched_plan.get("rollback_plan", "Restore previous configuration"),
+                "priority": vuln_priority,
+                "estimated_time_hours": time_per_vuln,
+                "verification_steps": vuln_verification,
+            }
+            
+            per_vuln_plans.append(per_vuln_plan)
+        
+        return per_vuln_plans
+
     async def _create_remediation_plan(
         self,
         api: API,
         vulnerabilities: List[Vulnerability],
     ) -> Dict[str, Any]:
-        """Generate comprehensive remediation plan using AI."""
+        """Generate comprehensive remediation plan using AI.
+        
+        Implements Option B: single batched LLM call plus deterministic split.
+        Returns a batched plan that will be split into per-vulnerability plans
+        by the caller using _normalize_per_vulnerability_plans().
+        """
         if not vulnerabilities:
             return {
                 "priority": "none",
@@ -1024,7 +1188,7 @@ Respond with ONLY: yes or no"""
 
         try:
             vuln_summary = "\n".join([
-                f"- {v.severity.value.upper()}: {v.title}"
+                f"- {v.severity.value.upper()}: {v.title} (Type: {v.vulnerability_type.value})"
                 for v in vulnerabilities
             ])
 
@@ -1036,9 +1200,9 @@ Vulnerabilities:
 
 Generate a JSON remediation plan with:
 1. Priority order (critical first)
-2. Specific gateway configuration changes
+2. Specific gateway configuration changes mapped to vulnerabilities
 3. Estimated implementation time
-4. Verification steps
+4. Verification steps for each vulnerability type
 
 Format:
 {{
@@ -1047,12 +1211,14 @@ Format:
   "actions": [
     {{
       "step": <number>,
-      "action": "<description>",
+      "action": "<description mentioning vulnerability title or type>",
       "type": "configuration|policy|upgrade",
       "estimated_minutes": <number>
     }}
   ],
-  "verification_steps": ["<step1>", "<step2>"]
+  "verification_steps": ["<step1 mentioning vulnerability>", "<step2>"],
+  "dependencies": ["<dependency1>"],
+  "rollback_plan": "<rollback description>"
 }}"""
 
             messages = [
@@ -1060,15 +1226,151 @@ Format:
                 {"role": "user", "content": prompt},
             ]
 
-            result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=1000)
-            response_text = result.get("content", "")
+            response_text = ""
+            try:
+                result = await self.llm_service.generate_completion(messages, temperature=0.3, max_tokens=1000)
+                response_text = result.get("content", "")
 
-            # Parse JSON response
-            import json
-            plan = json.loads(response_text)
+                # Log the response for debugging
+                if not response_text or not response_text.strip():
+                    logger.warning("LLM returned empty response for remediation plan")
+                    raise ValueError("Empty LLM response")
+                
+                logger.debug(f"LLM remediation plan response: {response_text[:200]}...")
+                
+                # Try to extract JSON if wrapped in markdown code blocks
+                if "```json" in response_text:
+                    response_text = response_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in response_text:
+                    response_text = response_text.split("```")[1].split("```")[0].strip()
+                
+                # Handle multiple JSON objects in response (LLM may return array of plans)
+                # Try to parse as single JSON first
+                try:
+                    plan = json.loads(response_text)
+                    return plan
+                except json.JSONDecodeError:
+                    # If single parse fails, try to extract multiple JSON objects
+                    logger.debug("Single JSON parse failed, attempting to parse multiple JSON objects")
+                    
+                    # Split by newlines and find JSON object boundaries
+                    json_objects = []
+                    current_obj = ""
+                    brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    
+                    for char in response_text:
+                        if escape_next:
+                            current_obj += char
+                            escape_next = False
+                            continue
+                            
+                        if char == '\\':
+                            escape_next = True
+                            current_obj += char
+                            continue
+                            
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            
+                        if not in_string:
+                            if char == '{':
+                                if brace_count == 0:
+                                    current_obj = ""
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                
+                        current_obj += char
+                        
+                        # When we close a complete object, try to parse it
+                        if brace_count == 0 and current_obj.strip() and current_obj.strip().endswith('}'):
+                            try:
+                                obj = json.loads(current_obj.strip())
+                                json_objects.append(obj)
+                                current_obj = ""
+                            except json.JSONDecodeError:
+                                # Continue accumulating
+                                pass
+                    
+                    if json_objects:
+                        # Merge multiple JSON objects into a single batched plan
+                        logger.info(f"Parsed {len(json_objects)} remediation plans from LLM response, merging into batched plan")
+                        
+                        # If we got multiple plans, merge them into a single batched plan
+                        if len(json_objects) == 1:
+                            return json_objects[0]
+                        
+                        # Merge multiple plans into batched structure
+                        all_actions = []
+                        all_verification_steps = []
+                        all_dependencies = []
+                        rollback_plans = []
+                        total_time = 0
+                        highest_priority = "low"
+                        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+                        
+                        for plan in json_objects:
+                            # Collect actions
+                            if "actions" in plan:
+                                all_actions.extend(plan["actions"])
+                            
+                            # Collect verification steps
+                            if "verification_steps" in plan:
+                                all_verification_steps.extend(plan["verification_steps"])
+                            
+                            # Collect dependencies
+                            if "dependencies" in plan:
+                                all_dependencies.extend(plan["dependencies"])
+                            
+                            # Collect rollback plans
+                            if "rollback_plan" in plan:
+                                rollback_plans.append(plan["rollback_plan"])
+                            
+                            # Sum time estimates
+                            if "estimated_time_hours" in plan:
+                                total_time += plan.get("estimated_time_hours", 0)
+                            
+                            # Track highest priority
+                            plan_priority = plan.get("priority", "low").lower()
+                            if priority_order.get(plan_priority, 4) < priority_order.get(highest_priority, 4):
+                                highest_priority = plan_priority
+                        
+                        # Renumber actions sequentially
+                        for i, action in enumerate(all_actions):
+                            action["step"] = i + 1
+                        
+                        # Return merged batched plan
+                        return {
+                            "priority": highest_priority,
+                            "estimated_time_hours": total_time,
+                            "actions": all_actions,
+                            "verification_steps": all_verification_steps,
+                            "dependencies": list(set(all_dependencies)),  # Remove duplicates
+                            "rollback_plan": " | ".join(rollback_plans) if rollback_plans else "Restore previous configuration"
+                        }
+                    else:
+                        raise json.JSONDecodeError("No valid JSON objects found", response_text, 0)
 
-            return plan
-
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM response as JSON: {e}. Response: {response_text[:500] if response_text else 'N/A'}")
+            # Return basic plan
+            return {
+                "priority": "high",
+                "estimated_time_hours": len(vulnerabilities) * 0.5,
+                "actions": [
+                    {
+                        "step": i + 1,
+                        "action": f"Remediate: {v.title}",
+                        "type": "configuration",
+                        "estimated_minutes": 30,
+                    }
+                    for i, v in enumerate(vulnerabilities)
+                ],
+                "dependencies": [],
+                "rollback_plan": "Revert configuration changes if issues occur",
+            }
         except Exception as e:
             logger.error(f"AI remediation plan generation failed: {e}")
             # Return basic plan

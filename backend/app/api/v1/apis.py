@@ -36,7 +36,7 @@ class APIListResponse(BaseModel):
 )
 async def list_all_apis(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    page_size: int = Query(20, ge=1, le=1000, description="Page size"),
     gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
     status_filter: Optional[APIStatus] = Query(None, alias="status", description="Filter by status"),
     is_shadow: Optional[bool] = Query(None, description="Filter shadow APIs"),
@@ -131,7 +131,7 @@ async def list_all_apis(
 async def list_gateway_apis(
     gateway_id: UUID,
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    page_size: int = Query(20, ge=1, le=1000, description="Page size"),
     status_filter: Optional[APIStatus] = Query(None, alias="status", description="Filter by status"),
     is_shadow: Optional[bool] = Query(None, description="Filter shadow APIs"),
     health_score_min: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum health score"),

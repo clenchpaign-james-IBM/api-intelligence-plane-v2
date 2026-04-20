@@ -63,7 +63,8 @@ class MetricsRepository(BaseRepository[Metric]):
         Returns:
             Index pattern (single index, list, or wildcard)
         """
-        bucket_suffix = f"-{time_bucket.value}" if time_bucket else ""
+        # When no time_bucket specified, use wildcard to match all bucket types
+        bucket_suffix = f"-{time_bucket.value}" if time_bucket else "-*"
         
         if not start_time and not end_time:
             return f"api-metrics{bucket_suffix}-*"
@@ -138,7 +139,7 @@ class MetricsRepository(BaseRepository[Metric]):
         query = {
             "bool": {
                 "must": [
-                    {"term": {"api_id.keyword": str(api_id)}},
+                    {"term": {"api_id": str(api_id)}},
                     {
                         "range": {
                             "timestamp": {
@@ -224,7 +225,7 @@ class MetricsRepository(BaseRepository[Metric]):
             Latest metric if found, None otherwise
         """
         query = {
-            "term": {"api_id.keyword": str(api_id)}
+            "term": {"api_id": str(api_id)}
         }
         
         sort = [{"timestamp": {"order": "desc"}}]
@@ -262,7 +263,7 @@ class MetricsRepository(BaseRepository[Metric]):
             query = {
                 "bool": {
                     "must": [
-                        {"term": {"api_id.keyword": str(api_id)}},
+                        {"term": {"api_id": str(api_id)}},
                         {
                             "range": {
                                 "timestamp": {
@@ -354,7 +355,7 @@ class MetricsRepository(BaseRepository[Metric]):
             query = {
                 "bool": {
                     "must": [
-                        {"term": {"api_id.keyword": str(api_id)}},
+                        {"term": {"api_id": str(api_id)}},
                         {
                             "range": {
                                 "timestamp": {
@@ -572,7 +573,7 @@ class MetricsRepository(BaseRepository[Metric]):
         query = {
             "bool": {
                 "must": [
-                    {"term": {"api_id.keyword": str(api_id)}},
+                    {"term": {"api_id": str(api_id)}},
                     {"term": {"time_bucket": time_bucket.value}},
                     {
                         "range": {
@@ -656,4 +657,67 @@ class MetricsRepository(BaseRepository[Metric]):
             time_bucket = self.get_optimal_time_bucket(start_time, end_time)
             logger.info(f"Auto-selected time bucket {time_bucket.value} for range {start_time} to {end_time}")
         
-        return self.find_by_time_bucket(api_id, time_bucket, start_time, end_time, size, from_)
+    
+    def find_by_api_and_gateway(
+        self,
+        api_id: UUID,
+        gateway_id: UUID,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        time_bucket: Optional[TimeBucket] = None,
+        size: int = 1000,
+        from_: int = 0,
+    ) -> tuple[List[Metric], int]:
+        """
+        Find metrics for an API scoped to a specific gateway with automatic or specified time bucket selection.
+        
+        Args:
+            api_id: API UUID
+            gateway_id: Gateway UUID to scope the query
+            start_time: Start of time range (default: 24 hours ago)
+            end_time: End of time range (default: now)
+            time_bucket: Time bucket size (auto-selected if None)
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of metrics, total count)
+        """
+        if not end_time:
+            end_time = datetime.utcnow()
+        if not start_time:
+            start_time = end_time - timedelta(hours=24)
+        
+        # Auto-select optimal time bucket if not specified
+        if not time_bucket:
+            time_bucket = self.get_optimal_time_bucket(start_time, end_time)
+            logger.info(f"Auto-selected time bucket {time_bucket.value} for range {start_time} to {end_time}")
+        
+        # Build query with both api_id and gateway_id filters
+        query = {
+            "bool": {
+                "must": [
+                    {"term": {"api_id": str(api_id)}},
+                    {"term": {"gateway_id": str(gateway_id)}},
+                    {"term": {"time_bucket": time_bucket.value}},
+                    {
+                        "range": {
+                            "timestamp": {
+                                "gte": start_time.isoformat(),
+                                "lte": end_time.isoformat(),
+                            }
+                        }
+                    },
+                ]
+            }
+        }
+        
+        # Use appropriate index pattern for this time bucket
+        original_index = self.index_name
+        self.index_name = self._get_index_pattern(start_time, end_time, time_bucket)
+        
+        try:
+            sort = [{"timestamp": {"order": "desc"}}]
+            return self.search(query, size=size, from_=from_, sort=sort)
+        finally:
+            self.index_name = original_index

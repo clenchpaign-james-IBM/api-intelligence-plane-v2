@@ -58,7 +58,7 @@ services:
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - OPENSEARCH_SCHEME=http
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - LLM_PROVIDER=ollama
@@ -72,9 +72,9 @@ services:
       - "8000:8000"
     networks:
       - aip-network
-    depends_on:
-      opensearch:
-        condition: service_healthy
+    # depends_on:
+    #   opensearch:
+    #     condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend - React SPA with Vite

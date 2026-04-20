@@ -20,7 +20,7 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     name: '',
-    vendor: 'native' as GatewayVendor,
+    vendor: 'webmethods' as GatewayVendor,
     version: '',
     base_url: '',
     transactional_logs_url: '',
@@ -48,7 +48,13 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
   // Create gateway mutation
   const createMutation = useMutation({
     mutationFn: (data: any) => api.gateways.create(data),
-    onSuccess: () => {
+    onSuccess: async (gateway: any) => {
+      // Automatically trigger sync after successful creation
+      try {
+        await api.gateways.sync(gateway.id);
+      } catch (error) {
+        console.warn('Initial sync failed, but gateway was created:', error);
+      }
       queryClient.invalidateQueries({ queryKey: ['gateways'] });
       onSuccess?.();
       onClose();
@@ -63,11 +69,20 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
   const testConnectionMutation = useMutation({
     mutationFn: (data: any) => api.gateways.testConnection(data),
     onSuccess: (response: any) => {
-      setConnectionTest({
-        status: 'success',
-        message: response.message || 'Connection successful',
-        latency: response.latency_ms,
-      });
+      // Check if connection was actually successful
+      if (response.connected) {
+        setConnectionTest({
+          status: 'success',
+          message: response.message || 'Connection successful',
+          latency: response.latency_ms,
+        });
+      } else {
+        // Backend returned connected: false
+        setConnectionTest({
+          status: 'error',
+          message: response.message || response.error || 'Connection failed',
+        });
+      }
     },
     onError: (error: any) => {
       setConnectionTest({

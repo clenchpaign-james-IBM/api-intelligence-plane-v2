@@ -6,7 +6,7 @@ IBM Confidential - Copyright 2024 IBM Corp.
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class InternationalizedString(BaseModel):
@@ -120,14 +120,14 @@ class PolicyScope(str, Enum):
     Policy scope enumeration.
     Defines the level at which a policy can be applied.
     """
-    GLOBAL = "global"
-    METHOD = "method"
-    OPERATION = "operation"
-    RESOURCE = "resource"
-    SERVICE = "service"
-    PACKAGE = "package"
-    TEMPLATE = "template"
-    SCOPE = "scope"
+    GLOBAL = "GLOBAL"
+    METHOD = "METHOD"
+    OPERATION = "OPERATION"
+    RESOURCE = "RESOURCE"
+    SERVICE = "SERVICE"
+    PACKAGE = "PACKAGE"
+    TEMPLATE = "TEMPLATE"
+    SCOPE = "SCOPE"
 
 
 class Policy(BaseModel):
@@ -176,6 +176,14 @@ class Policy(BaseModel):
         alias="systemPolicy",
         description="True if global policy is system level (created by default)"
     )
+    
+    @field_validator('policy_scope', mode='before')
+    @classmethod
+    def normalize_policy_scope(cls, v):
+        """Convert policy scope values to uppercase for enum compatibility."""
+        if isinstance(v, str):
+            return v.upper()
+        return v
     
     model_config = ConfigDict(populate_by_name=True)
 

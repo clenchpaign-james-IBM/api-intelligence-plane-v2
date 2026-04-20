@@ -299,7 +299,39 @@ class ComplianceAgent:
     async def _check_gdpr_compliance(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> List[ComplianceViolation]:
-        """Check GDPR compliance using HYBRID approach (Gateway-level)."""
+        """Check GDPR compliance using HYBRID approach (Gateway-level).
+        
+        DATA REQUIREMENTS:
+        This method operates at the GATEWAY LEVEL and does NOT require raw transactional logs.
+        Instead, it analyzes:
+        
+        1. API Configuration (from `api` parameter):
+           - Policy actions (TLS, authentication, logging policies)
+           - Authentication type
+           - Gateway-level security settings
+           - Intelligence metadata (shadow API detection)
+        
+        2. Aggregated Metrics (from `metrics` parameter):
+           - Time-bucketed metrics (1-hour, 1-day aggregations)
+           - Request counts, error rates, latency statistics
+           - NOT individual transaction logs
+        
+        3. Traffic Analysis Summary (from `traffic_analysis` parameter):
+           - Derived statistics: has_traffic, total_requests, metrics_count
+           - High-level traffic patterns
+           - NOT raw request/response data
+        
+        COMPLIANCE CHECKS PERFORMED:
+        - GDPR Art. 32: Security of Processing (TLS encryption enforcement)
+        - GDPR Art. 30: Records of Processing Activities (audit logging configuration)
+        
+        All checks are based on gateway configuration and aggregated metrics, making this
+        approach privacy-preserving and scalable without requiring access to sensitive
+        transactional data.
+        
+        Returns:
+            List of ComplianceViolation objects for any detected GDPR violations
+        """
         violations = []
         
         # RULE-BASED: GDPR Art. 32 - Security of Processing
@@ -357,7 +389,38 @@ class ComplianceAgent:
     async def _check_hipaa_compliance(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> List[ComplianceViolation]:
-        """Check HIPAA compliance using HYBRID approach (Gateway-level)."""
+        """Check HIPAA compliance using HYBRID approach (Gateway-level).
+        
+        DATA REQUIREMENTS:
+        This method operates at the GATEWAY LEVEL and does NOT require raw transactional logs.
+        Instead, it analyzes:
+        
+        1. API Configuration (from `api` parameter):
+           - Policy actions (TLS policies, authentication, logging)
+           - Authentication type and strength
+           - Gateway-level security controls
+        
+        2. Aggregated Metrics (from `metrics` parameter):
+           - Time-bucketed metrics (1-hour, 1-day aggregations)
+           - Request volumes and patterns
+           - NOT individual PHI transaction data
+        
+        3. Traffic Analysis Summary (from `traffic_analysis` parameter):
+           - Derived statistics: total_requests, has_traffic
+           - High-level usage patterns
+           - NOT raw PHI or patient data
+        
+        COMPLIANCE CHECKS PERFORMED:
+        - HIPAA § 164.312(e)(1): Transmission Security (TLS 1.3 enforcement)
+        - HIPAA § 164.312(a)(1): Access Control (authentication requirements)
+        - HIPAA § 164.312(b): Audit Controls (audit logging configuration)
+        
+        All checks are based on gateway configuration and aggregated metrics, ensuring
+        HIPAA-compliant analysis without accessing Protected Health Information (PHI).
+        
+        Returns:
+            List of ComplianceViolation objects for any detected HIPAA violations
+        """
         violations = []
         
         # RULE-BASED: HIPAA § 164.312(e)(1) - Transmission Security
@@ -423,7 +486,37 @@ class ComplianceAgent:
     async def _check_soc2_compliance(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> List[ComplianceViolation]:
-        """Check SOC2 compliance using HYBRID approach (Gateway-level)."""
+        """Check SOC2 compliance using HYBRID approach (Gateway-level).
+        
+        DATA REQUIREMENTS:
+        This method operates at the GATEWAY LEVEL and does NOT require raw transactional logs.
+        Instead, it analyzes:
+        
+        1. API Configuration (from `api` parameter):
+           - Authentication policies and mechanisms
+           - Gateway-level access controls
+           - Security policy configurations
+        
+        2. Aggregated Metrics (from `metrics` parameter):
+           - Time-bucketed metrics (1-hour, 1-day aggregations)
+           - System availability and performance data
+           - NOT individual transaction details
+        
+        3. Traffic Analysis Summary (from `traffic_analysis` parameter):
+           - Monitoring indicators: has_traffic, metrics_count
+           - System health and availability metrics
+           - NOT sensitive customer data
+        
+        COMPLIANCE CHECKS PERFORMED:
+        - SOC2 CC6.1: Logical and Physical Access Controls (authentication)
+        - SOC2 CC7.2: System Monitoring (metrics collection and monitoring)
+        
+        All checks focus on Trust Services Criteria observable at the gateway level,
+        ensuring scalable compliance monitoring without accessing sensitive data.
+        
+        Returns:
+            List of ComplianceViolation objects for any detected SOC2 violations
+        """
         violations = []
         
         # RULE-BASED: SOC2 CC6.1 - Logical and Physical Access Controls
@@ -469,7 +562,37 @@ class ComplianceAgent:
     async def _check_pci_dss_compliance(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> List[ComplianceViolation]:
-        """Check PCI-DSS compliance using HYBRID approach (Gateway-level)."""
+        """Check PCI-DSS compliance using HYBRID approach (Gateway-level).
+        
+        DATA REQUIREMENTS:
+        This method operates at the GATEWAY LEVEL and does NOT require raw transactional logs.
+        Instead, it analyzes:
+        
+        1. API Configuration (from `api` parameter):
+           - TLS/encryption policies and strength
+           - Authentication and access control policies
+           - Gateway security configurations
+        
+        2. Aggregated Metrics (from `metrics` parameter):
+           - Time-bucketed metrics (1-hour, 1-day aggregations)
+           - Request patterns and volumes
+           - NOT cardholder data or payment details
+        
+        3. Traffic Analysis Summary (from `traffic_analysis` parameter):
+           - High-level traffic statistics
+           - System usage patterns
+           - NOT Primary Account Numbers (PANs) or sensitive authentication data
+        
+        COMPLIANCE CHECKS PERFORMED:
+        - PCI-DSS Requirement 4: Encrypt transmission of cardholder data (strong TLS)
+        - PCI-DSS Requirement 7: Restrict access to cardholder data (authentication)
+        
+        All checks are based on gateway-level security controls, ensuring PCI-DSS
+        compliance verification without accessing or storing cardholder data.
+        
+        Returns:
+            List of ComplianceViolation objects for any detected PCI-DSS violations
+        """
         violations = []
         
         # RULE-BASED: PCI-DSS Requirement 4 - Encrypt transmission of cardholder data
@@ -505,7 +628,38 @@ class ComplianceAgent:
     async def _check_iso_27001_compliance(
         self, api: API, metrics: List[Metric], traffic_analysis: Dict[str, Any]
     ) -> List[ComplianceViolation]:
-        """Check ISO 27001 compliance using HYBRID approach (Gateway-level)."""
+        """Check ISO 27001 compliance using HYBRID approach (Gateway-level).
+        
+        DATA REQUIREMENTS:
+        This method operates at the GATEWAY LEVEL and does NOT require raw transactional logs.
+        Instead, it analyzes:
+        
+        1. API Configuration (from `api` parameter):
+           - Access control policies and authentication
+           - Cryptographic controls (TLS configuration)
+           - Gateway security settings
+           - Intelligence metadata (shadow API detection)
+        
+        2. Aggregated Metrics (from `metrics` parameter):
+           - Time-bucketed metrics (1-hour, 1-day aggregations)
+           - System performance and availability data
+           - NOT individual transaction records
+        
+        3. Traffic Analysis Summary (from `traffic_analysis` parameter):
+           - Traffic volume and patterns: total_requests
+           - System usage indicators
+           - NOT sensitive information assets
+        
+        COMPLIANCE CHECKS PERFORMED:
+        - ISO 27001 Annex A.9: Access Control (authentication mechanisms)
+        - ISO 27001 Annex A.10: Cryptography (TLS encryption controls)
+        
+        All checks align with ISO 27001 controls that can be verified at the gateway
+        level, supporting ISMS compliance without requiring access to information assets.
+        
+        Returns:
+            List of ComplianceViolation objects for any detected ISO 27001 violations
+        """
         violations = []
         
         # RULE-BASED: ISO 27001 A.9 - Access Control
@@ -644,6 +798,7 @@ Respond with ONLY one word: CRITICAL, HIGH, MEDIUM, or LOW"""
         
         return ComplianceViolation(
             id=uuid4(),
+            gateway_id=api.gateway_id,
             api_id=api.id,
             compliance_standard=standard,
             violation_type=violation_type,

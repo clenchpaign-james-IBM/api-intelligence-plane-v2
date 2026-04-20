@@ -140,13 +140,13 @@ class Settings(BaseSettings):
         default=1, description="Metrics collection interval in minutes"
     )
     SECURITY_SCAN_INTERVAL_MINUTES: int = Field(
-        default=1, description="Security scan interval in minutes"
+        default=2, description="Security scan interval in minutes"
     )
     PREDICTION_INTERVAL_MINUTES: int = Field(
-        default=1, description="Prediction generation interval in minutes"
+        default=5, description="Prediction generation interval in minutes"
     )
     OPTIMIZATION_INTERVAL_MINUTES: int = Field(
-        default=1, description="Optimization analysis interval in minutes"
+        default=5, description="Optimization analysis interval in minutes"
     )
     TRANSACTIONAL_LOGS_INTERVAL_MINUTES: int = Field(
         default=1, description="Transactional logs collection interval in minutes per gateway"

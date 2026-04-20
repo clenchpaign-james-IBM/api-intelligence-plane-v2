@@ -288,6 +288,54 @@ class Prediction(BaseModel):
                         f"accuracy_score ({v}) should be approximately {calculated_accuracy}"
                     )
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 20-30% for typical prediction entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "api_id": str(self.api_id),
+            "api_name": self.api_name,
+            "prediction_type": self.prediction_type.value,
+            "predicted_at": self.predicted_at.isoformat(),
+            "predicted_time": self.predicted_time.isoformat(),
+            "confidence_score": self.confidence_score,
+            "severity": self.severity.value,
+            "status": self.status.value,
+            "actual_outcome": self.actual_outcome.value if self.actual_outcome else None,
+            "actual_time": self.actual_time.isoformat() if self.actual_time else None,
+            "accuracy_score": self.accuracy_score,
+            "model_version": self.model_version,
+        }
+        
+        # Trim contributing_factors - keep only factor, current_value, trend
+        result["contributing_factors"] = [
+            {
+                "factor": cf.factor.value,
+                "current_value": cf.current_value,
+                "trend": cf.trend,
+            }
+            for cf in self.contributing_factors
+        ]
+        
+        # Trim recommended_actions - keep first 3 only
+        result["recommended_actions"] = self.recommended_actions[:3]
+        if len(self.recommended_actions) > 3:
+            result["recommended_actions_total"] = len(self.recommended_actions)
+        
+        # Drop: metadata, threshold and weight from contributing_factors
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""

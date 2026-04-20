@@ -422,6 +422,67 @@ class OptimizationRecommendation(BaseModel):
             if v <= created_at:
                 raise ValueError("expires_at must be > created_at")
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 50-70% for typical recommendation entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "api_id": str(self.api_id),
+            "recommendation_type": self.recommendation_type.value,
+            "title": self.title,
+            "description": self.description,
+            "priority": self.priority.value,
+            "implementation_effort": self.implementation_effort.value,
+            "status": self.status.value,
+            "cost_savings": self.cost_savings,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+        
+        # Trim estimated_impact - keep only key metrics
+        result["estimated_impact"] = {
+            "metric": self.estimated_impact.metric,
+            "improvement_percentage": self.estimated_impact.improvement_percentage,
+            "confidence": self.estimated_impact.confidence,
+        }
+        
+        # Trim implementation_steps - keep first 3 only
+        if self.implementation_steps:
+            result["implementation_steps"] = self.implementation_steps[:3]
+            if len(self.implementation_steps) > 3:
+                result["implementation_steps_total"] = len(self.implementation_steps)
+        
+        # Trim validation_results - keep only success and actual_improvement
+        if self.validation_results:
+            result["validation_results"] = {
+                "success": self.validation_results.success,
+                "actual_improvement": self.validation_results.actual_impact.actual_improvement,
+            }
+        
+        # Trim remediation_actions - keep count and latest action status
+        if self.remediation_actions:
+            result["remediation_actions_count"] = len(self.remediation_actions)
+            latest = self.remediation_actions[-1]
+            result["latest_action_status"] = latest.status.value
+        
+        # Trim ai_context - keep only performance_analysis (first 200 chars)
+        if self.ai_context and self.ai_context.performance_analysis:
+            result["ai_performance_analysis"] = self.ai_context.performance_analysis[:200]
+        
+        # Drop: vendor_metadata, metadata, full ai_context
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""

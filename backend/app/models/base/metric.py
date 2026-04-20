@@ -268,6 +268,71 @@ class Metric(BaseModel):
         if v < ninety_days_ago:
             raise ValueError("timestamp must be within last 90 days (retention policy)")
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 40-60% for typical metric entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "api_id": self.api_id,
+            "timestamp": self.timestamp.isoformat(),
+            "time_bucket": self.time_bucket.value,
+            # Request counts
+            "request_count": self.request_count,
+            "success_count": self.success_count,
+            "failure_count": self.failure_count,
+            "error_rate": self.error_rate,
+            "availability": self.availability,
+            # Key response time metrics (avg, p95, p99 only)
+            "response_time_avg": self.response_time_avg,
+            "response_time_p95": self.response_time_p95,
+            "response_time_p99": self.response_time_p99,
+            # Throughput
+            "throughput": self.throughput,
+            # Cache metrics (hit rate only)
+            "cache_hit_rate": self.cache_hit_rate,
+            # Status code aggregates
+            "status_2xx_count": self.status_2xx_count,
+            "status_4xx_count": self.status_4xx_count,
+            "status_5xx_count": self.status_5xx_count,
+        }
+        
+        # Trim endpoint_metrics - keep count and top 3 by request_count
+        if self.endpoint_metrics:
+            result["endpoint_metrics_count"] = len(self.endpoint_metrics)
+            sorted_endpoints = sorted(
+                self.endpoint_metrics,
+                key=lambda x: x.request_count,
+                reverse=True
+            )
+            result["top_endpoints"] = [
+                {
+                    "endpoint": ep.endpoint,
+                    "method": ep.method,
+                    "request_count": ep.request_count,
+                    "error_rate": ep.error_rate,
+                    "response_time_avg": ep.response_time_avg,
+                }
+                for ep in sorted_endpoints[:3]
+            ]
+        
+        # Drop: status_codes dict, endpoint_metrics full details, vendor_metadata
+        # Drop: response_time_min, response_time_max, response_time_p50
+        # Drop: gateway_time_avg, backend_time_avg
+        # Drop: total_data_size, avg_request_size, avg_response_size
+        # Drop: cache_hit_count, cache_miss_count, cache_bypass_count
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""

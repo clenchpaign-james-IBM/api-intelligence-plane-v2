@@ -17,6 +17,9 @@ from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
 from app.db.repositories.compliance_repository import ComplianceRepository
+from app.db.repositories.gateway_repository import GatewayRepository
+from app.db.repositories.vulnerability_repository import VulnerabilityRepository
+from app.db.repositories.transactional_log_repository import TransactionalLogRepository
 from app.services.query_service import QueryService
 from app.services.llm_service import LLMService
 from app.models.query import Query, UserFeedback
@@ -73,6 +76,9 @@ metrics_repo = MetricsRepository()
 prediction_repo = PredictionRepository()
 recommendation_repo = RecommendationRepository()
 compliance_repo = ComplianceRepository()
+gateway_repo = GatewayRepository()
+vulnerability_repo = VulnerabilityRepository()
+transactional_log_repo = TransactionalLogRepository()
 llm_service = LLMService(settings)
 
 # Initialize agents if enabled
@@ -141,6 +147,9 @@ query_service = QueryService(
     security_agent=security_agent,
     compliance_agent=compliance_agent,
     compliance_repository=compliance_repo,
+    gateway_repository=gateway_repo,
+    vulnerability_repository=vulnerability_repo,
+    transactional_log_repository=transactional_log_repo,
 )
 
 

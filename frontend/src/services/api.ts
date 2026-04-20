@@ -28,7 +28,7 @@ export interface ApiError {
 // Use relative path in production/Docker (goes through Vite proxy)
 // Use full URL in development when running frontend standalone
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const API_TIMEOUT = 30000; // 30 seconds
+const API_TIMEOUT = 120000; // 120 seconds (2 minutes) - increased for LLM query processing
 
 /**
  * Create and configure Axios instance
@@ -252,7 +252,10 @@ export const api = {
 
   // Query endpoints
   query: {
-    execute: (query: string) => api.post('/api/v1/query', { query }),
+    execute: (query: string) => {
+      // Use extended timeout for query execution (LLM processing can take time)
+      return apiClient.post('/api/v1/query', { query }, { timeout: 120000 }).then((res) => res.data);
+    },
     history: (params?: any) => api.get('/api/v1/query/history', params),
   },
 };

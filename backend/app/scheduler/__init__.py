@@ -128,7 +128,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 1: Compute health scores (every 1 minute - testing)
         scheduler.add_job(
             compute_health_scores_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="compute_health_scores",
             name="Compute API Health Scores",
             replace_existing=True,
@@ -138,7 +138,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 2: Compute risk scores (every 1 minute - testing)
         scheduler.add_job(
             compute_risk_scores_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="compute_risk_scores",
             name="Compute API Risk Scores",
             replace_existing=True,
@@ -148,7 +148,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 3: Compute security scores (every 1 minute - testing)
         scheduler.add_job(
             compute_security_scores_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="compute_security_scores",
             name="Compute API Security Scores",
             replace_existing=True,
@@ -158,7 +158,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 4: Compute usage trends (every 1 minute - testing)
         scheduler.add_job(
             compute_usage_trends_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="compute_usage_trends",
             name="Compute API Usage Trends",
             replace_existing=True,
@@ -168,7 +168,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 5: Detect shadow APIs (every 1 minute - testing)
         scheduler.add_job(
             detect_shadow_apis_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="detect_shadow_apis",
             name="Detect Shadow APIs",
             replace_existing=True,
@@ -178,7 +178,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 6: Compute compliance status (every 1 minute - testing)
         scheduler.add_job(
             compute_compliance_status_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="compute_compliance_status",
             name="Compute Compliance Status",
             replace_existing=True,
@@ -188,7 +188,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         # Job 7: Update predictions status (every 1 minute - testing)
         scheduler.add_job(
             update_predictions_status_job,
-            trigger=IntervalTrigger(minutes=1),
+            trigger=IntervalTrigger(minutes=5),
             id="update_predictions_status",
             name="Update Predictions Status",
             replace_existing=True,

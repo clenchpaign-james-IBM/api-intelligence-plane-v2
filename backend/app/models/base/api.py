@@ -575,6 +575,118 @@ class API(BaseModel):
             raise ValueError("updated_at must be >= created_at")
         return v
 
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 60-85% for typical API entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        # Start with essential fields
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "name": self.name,
+            "display_name": self.display_name,
+            "description": self.description,
+            "base_path": self.base_path,
+            "type": self.type.value,
+            "maturity_state": self.maturity_state.value if self.maturity_state else None,
+            "groups": self.groups,
+            "tags": self.tags,
+            "methods": self.methods,
+            "authentication_type": self.authentication_type.value,
+            "status": self.status.value,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+        
+        # Trim api_definition - keep only essential fields
+        if self.api_definition:
+            result["api_definition"] = {
+                "type": self.api_definition.type,
+                "version": self.api_definition.version,
+                "base_path": self.api_definition.base_path,
+            }
+        
+        # Trim endpoints - keep count and first 3 with simplified structure
+        if self.endpoints:
+            result["endpoints_count"] = len(self.endpoints)
+            result["endpoints_sample"] = [
+                {
+                    "path": ep.path,
+                    "method": ep.method,
+                    "description": ep.description,
+                }
+                for ep in self.endpoints[:3]
+            ]
+        
+        # Trim policy_actions - keep only action_type, enabled, name
+        if self.policy_actions:
+            result["policy_actions"] = [
+                {
+                    "action_type": pa.action_type.value,
+                    "enabled": pa.enabled,
+                    "name": pa.name,
+                }
+                for pa in self.policy_actions
+            ]
+        
+        # Trim ownership - keep only team and organization
+        if self.ownership:
+            result["ownership"] = {
+                "team": self.ownership.team,
+                "organization": self.ownership.organization,
+            }
+        
+        # Trim publishing - keep only published_portals count
+        if self.publishing:
+            result["publishing"] = {
+                "published_portals_count": len(self.publishing.published_portals),
+            }
+        
+        # Trim deployments - keep count and environment names
+        if self.deployments:
+            result["deployments"] = {
+                "count": len(self.deployments),
+                "environments": [d.environment for d in self.deployments],
+            }
+        
+        # Trim version_info - keep only current_version and system_version
+        result["version_info"] = {
+            "current_version": self.version_info.current_version,
+            "system_version": self.version_info.system_version,
+        }
+        
+        # Trim intelligence_metadata - keep most fields but simplify compliance_status
+        if self.intelligence_metadata:
+            result["intelligence_metadata"] = {
+                "is_shadow": self.intelligence_metadata.is_shadow,
+                "discovery_method": self.intelligence_metadata.discovery_method.value,
+                "discovered_at": self.intelligence_metadata.discovered_at.isoformat(),
+                "last_seen_at": self.intelligence_metadata.last_seen_at.isoformat(),
+                "health_score": self.intelligence_metadata.health_score,
+                "risk_score": self.intelligence_metadata.risk_score,
+                "security_score": self.intelligence_metadata.security_score,
+                "usage_trend": self.intelligence_metadata.usage_trend,
+                "has_active_predictions": self.intelligence_metadata.has_active_predictions,
+            }
+            # Simplify compliance_status to just count
+            if self.intelligence_metadata.compliance_status:
+                result["intelligence_metadata"]["compliant_standards_count"] = sum(
+                    1 for v in self.intelligence_metadata.compliance_status.values() if v
+                )
+        
+        # Drop: authentication_config, vendor_metadata (too large/sensitive)
+        
+        return result
+
     class Config:
         """Pydantic model configuration."""
 

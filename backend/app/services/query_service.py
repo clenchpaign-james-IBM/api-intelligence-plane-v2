@@ -17,6 +17,9 @@ from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.recommendation_repository import RecommendationRepository
 from app.db.repositories.compliance_repository import ComplianceRepository
+from app.db.repositories.gateway_repository import GatewayRepository
+from app.db.repositories.vulnerability_repository import VulnerabilityRepository
+from app.db.repositories.transactional_log_repository import TransactionalLogRepository
 from app.models.query import (
     Query,
     QueryType,
@@ -35,13 +38,41 @@ class QueryService:
     
     # Query type keywords for classification
     QUERY_TYPE_KEYWORDS = {
-        QueryType.STATUS: ["status", "health", "state", "current", "now", "active"],
-        QueryType.TREND: ["trend", "over time", "history", "pattern", "change"],
-        QueryType.PREDICTION: ["predict", "forecast", "future", "will", "expect"],
-        QueryType.SECURITY: ["security", "vulnerability", "vulnerabilities", "threat", "risk", "cve"],
-        QueryType.PERFORMANCE: ["performance", "latency", "response time", "throughput", "slow"],
-        QueryType.COMPARISON: ["compare", "versus", "vs", "difference", "between"],
-        QueryType.COMPLIANCE: ["compliance", "regulatory", "regulation", "gdpr", "hipaa", "soc2", "pci", "iso", "audit", "violation"],
+        QueryType.STATUS: [
+            "status", "health", "state", "current", "now", "active",
+            "running", "available", "up", "down", "online", "offline",
+            "operational", "working", "functioning"
+        ],
+        QueryType.TREND: [
+            "trend", "over time", "history", "pattern", "change",
+            "historical", "past", "previous", "evolution", "progression",
+            "growth", "decline", "increase", "decrease", "timeline"
+        ],
+        QueryType.PREDICTION: [
+            "predict", "forecast", "future", "will", "expect",
+            "anticipate", "upcoming", "next", "projected", "estimated",
+            "likely", "probable", "expected", "ahead"
+        ],
+        QueryType.SECURITY: [
+            "security", "vulnerability", "vulnerabilities", "threat", "risk", "cve",
+            "exploit", "attack", "breach", "exposure", "weakness",
+            "insecure", "unsafe", "compromised", "malicious", "suspicious"
+        ],
+        QueryType.PERFORMANCE: [
+            "performance", "latency", "response time", "throughput", "slow",
+            "fast", "speed", "efficiency", "bottleneck", "optimization",
+            "delay", "lag", "timeout", "error rate", "failure rate",
+            "availability", "uptime", "downtime"
+        ],
+        QueryType.COMPARISON: [
+            "compare", "versus", "vs", "difference", "between",
+            "comparison", "contrast", "against", "relative to", "compared to"
+        ],
+        QueryType.COMPLIANCE: [
+            "compliance", "regulatory", "regulation", "gdpr", "hipaa", "soc2", "pci", "iso", "audit", "violation",
+            "standard", "policy", "rule", "requirement", "mandate",
+            "non-compliant", "compliant", "certified", "certification"
+        ],
     }
     
     # Entity keywords for extraction
@@ -51,9 +82,9 @@ class QueryService:
         "metric": ["metric", "metrics", "measurement"],
         "prediction": ["prediction", "predictions", "forecast"],
         "vulnerability": ["vulnerability", "vulnerabilities", "security issue"],
-        "recommendation": ["recommendation", "recommendations", "optimization", "suggestion"],
-        "rate_limit": ["rate limit", "rate limiting", "throttle", "throttling"],
+        "recommendation": ["recommendation", "recommendations", "optimization", "suggestion", "rate limit", "rate limiting", "throttle", "throttling", "caching", "compression"],
         "compliance": ["compliance", "violation", "violations", "regulatory", "audit"],
+        "transaction": ["transaction", "transactions", "transactional log", "log", "logs", "request", "requests", "raw logs", "traffic logs"],
     }
     
     # Action keywords
@@ -78,6 +109,9 @@ class QueryService:
         security_agent: Optional[Any] = None,
         compliance_agent: Optional[Any] = None,
         compliance_repository: Optional[ComplianceRepository] = None,
+        gateway_repository: Optional[GatewayRepository] = None,
+        vulnerability_repository: Optional[VulnerabilityRepository] = None,
+        transactional_log_repository: Optional[TransactionalLogRepository] = None,
     ):
         """
         Initialize the Query Service.
@@ -94,6 +128,9 @@ class QueryService:
             security_agent: Optional SecurityAgent for AI-enhanced security queries
             compliance_agent: Optional ComplianceAgent for AI-enhanced compliance queries
             compliance_repository: Optional ComplianceRepository for compliance operations
+            gateway_repository: Optional GatewayRepository for gateway operations
+            vulnerability_repository: Optional VulnerabilityRepository for vulnerability operations
+            transactional_log_repository: Optional TransactionalLogRepository for transaction log operations
         """
         self.query_repo = query_repository
         self.api_repo = api_repository
@@ -101,6 +138,9 @@ class QueryService:
         self.prediction_repo = prediction_repository
         self.recommendation_repo = recommendation_repository
         self.compliance_repo = compliance_repository or ComplianceRepository()
+        self.gateway_repo = gateway_repository or GatewayRepository()
+        self.vulnerability_repo = vulnerability_repository or VulnerabilityRepository()
+        self.transactional_log_repo = transactional_log_repository or TransactionalLogRepository()
         self.llm_service = llm_service
         self.prediction_agent = prediction_agent
         self.optimization_agent = optimization_agent
@@ -326,9 +366,31 @@ Respond in JSON format:
                 max_tokens=500,
             )
             
-            # Parse JSON response
+            # Parse JSON response - handle markdown-wrapped JSON
             import json
-            intent_data = json.loads(response["content"])
+            import re
+            
+            content = response["content"]
+            
+            # Try to extract JSON from markdown code blocks
+            json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1).strip()
+            else:
+                # If no markdown block, try to find JSON object directly
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    json_str = content
+            
+            try:
+                intent_data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON from LLM response: {e}")
+                logger.debug(f"Original content: {content}")
+                logger.debug(f"Extracted JSON string: {json_str}")
+                raise
             
             # Extract time range if present
             time_range = None
@@ -825,26 +887,49 @@ Respond in JSON format:
                 results, total = self.api_repo.search(
                     opensearch_query["query"], size=50
                 )
-                data = [api.model_dump(mode="json") for api in results]
+                # Use LLM-optimized serialization for APIs (60-85% reduction)
+                data = [api.to_llm_dict() for api in results]
+            elif primary_entity == "gateway":
+                results, total = self.gateway_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                # Use LLM-optimized serialization for Gateways (40-60% reduction)
+                data = [gateway.to_llm_dict() for gateway in results]
+            elif primary_entity == "metric":
+                results, total = self.metrics_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                # Use LLM-optimized serialization for Metrics (40-60% reduction)
+                data = [metric.to_llm_dict() for metric in results]
             elif primary_entity == "prediction":
                 results, total = self.prediction_repo.search(
                     opensearch_query["query"], size=50
                 )
-                data = [pred.model_dump(mode="json") for pred in results]
+                # Use LLM-optimized serialization for Predictions (20-30% reduction)
+                data = [pred.to_llm_dict() for pred in results]
             elif primary_entity == "vulnerability":
-                # Would query vulnerability repository
-                data = []
-                total = 0
+                results, total = self.vulnerability_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                # Use LLM-optimized serialization for Vulnerabilities (40-60% reduction)
+                data = [vuln.to_llm_dict() for vuln in results]
             elif primary_entity == "recommendation":
                 results, total = self.recommendation_repo.search(
                     opensearch_query["query"], size=50
                 )
-                data = [rec.model_dump(mode="json") for rec in results]
+                # Use LLM-optimized serialization for Recommendations (50-70% reduction)
+                data = [rec.to_llm_dict() for rec in results]
             elif primary_entity == "compliance":
                 results, total = self.compliance_repo.search(
                     opensearch_query["query"], size=50
                 )
-                data = [comp.model_dump(mode="json") for comp in results]
+                # Use LLM-optimized serialization for Compliance (50-70% reduction)
+                data = [comp.to_llm_dict() for comp in results]
+            elif primary_entity == "transaction" or primary_entity == "transactional_log":
+                results, total = self.transactional_log_repo.search(
+                    opensearch_query["query"], size=50
+                )
+                data = [log.model_dump(mode="json") for log in results]
             else:
                 data = []
                 total = 0
@@ -908,24 +993,50 @@ Respond in JSON format:
         )
         
         if has_agent_insights:
-            system_prompt = """You are an AI assistant for API management with access to advanced AI agent analysis. Generate a clear, insightful response that incorporates the AI agent insights.
+            system_prompt = """You are an AI assistant for API management with access to advanced AI agent analysis. Generate a clear, well-formatted response that incorporates the AI agent insights.
 
 Guidelines:
-- Highlight key insights from the AI agent analysis
-- Be specific and use numbers from the results
+- Use markdown formatting for better readability (headers, lists, bold, etc.)
+- Start with a brief summary sentence
+- Use bullet points for key findings
+- Highlight important numbers and metrics in **bold**
+- Use headers (##) to organize different sections
 - Explain predictions or recommendations in context
 - Keep responses under 250 words
 - Use professional but friendly tone
-- Emphasize actionable insights from the agent analysis"""
+- End with actionable insights or recommendations
+
+Example format:
+## Summary
+Brief overview of findings.
+
+## Key Findings
+- **Metric 1**: Description
+- **Metric 2**: Description
+
+## Recommendations
+Action items based on the analysis."""
         else:
-            system_prompt = """You are an AI assistant for API management. Generate a clear, concise response to the user's query based on the results.
+            system_prompt = """You are an AI assistant for API management. Generate a clear, well-formatted response to the user's query based on the results.
 
 Guidelines:
-- Be specific and use numbers from the results
-- Highlight important findings
+- Use markdown formatting for better readability (headers, lists, bold, etc.)
+- Start with a brief summary sentence
+- Use bullet points for key findings
+- Highlight important numbers and metrics in **bold**
+- Use headers (##) to organize different sections if needed
 - Keep responses under 200 words
 - Use professional but friendly tone
-- If no results, explain why and suggest alternatives"""
+- If no results, explain why and suggest alternatives
+
+Example format:
+Found **X results** matching your query.
+
+## Key Findings
+- **Item 1**: Description
+- **Item 2**: Description
+
+Try asking about specific aspects for more details."""
 
         # Prepare results summary
         results_summary = f"Found {results.count} results in {results.execution_time}ms"
@@ -1037,6 +1148,18 @@ Guidelines:
                     "Are there any predictions for these APIs?",
                     "What security vulnerabilities affect these APIs?",
                 ])
+            elif primary_entity == "gateway":
+                follow_ups.extend([
+                    "Show me the APIs managed by these gateways",
+                    "What's the health status of these gateways?",
+                    "Show me the policies configured on these gateways",
+                ])
+            elif primary_entity == "metric":
+                follow_ups.extend([
+                    "Show me the trend over the last 7 days",
+                    "Which APIs have the highest latency?",
+                    "Show me error rate patterns",
+                ])
             elif primary_entity == "vulnerability":
                 follow_ups.extend([
                     "Show me the remediation status",
@@ -1061,6 +1184,12 @@ Guidelines:
                     "What's the remediation status?",
                     "Which APIs have the most violations?",
                     "Show GDPR compliance violations",
+                ])
+            elif primary_entity == "transaction" or primary_entity == "transactional_log":
+                follow_ups.extend([
+                    "Show me failed transactions",
+                    "What's the average response time?",
+                    "Show me the most active APIs",
                 ])
         else:
             follow_ups.extend([

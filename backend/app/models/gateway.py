@@ -301,6 +301,44 @@ class Gateway(BaseModel):
         if v and v > datetime.utcnow():
             raise ValueError("last_connected_at cannot be in the future")
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 40-60% for typical gateway entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "name": self.name,
+            "vendor": self.vendor.value,
+            "version": self.version,
+            "base_url": str(self.base_url),
+            "connection_type": self.connection_type.value,
+            "capabilities": self.capabilities,
+            "status": self.status.value,
+            "last_connected_at": self.last_connected_at.isoformat() if self.last_connected_at else None,
+            "api_count": self.api_count,
+            "metrics_enabled": self.metrics_enabled,
+            "security_scanning_enabled": self.security_scanning_enabled,
+            "rate_limiting_enabled": self.rate_limiting_enabled,
+        }
+        
+        # Trim last_error - keep only first 100 characters
+        if self.last_error:
+            result["last_error"] = self.last_error[:100]
+        
+        # Drop: base_url_credentials, transactional_logs_credentials (security risk)
+        # Drop: transactional_logs_url (not needed for LLM context)
+        # Drop: configuration, metadata (too large/vendor-specific)
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""

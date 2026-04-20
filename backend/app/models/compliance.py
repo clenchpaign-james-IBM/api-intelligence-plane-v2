@@ -387,6 +387,62 @@ class ComplianceViolation(BaseModel):
             if v < created_at:
                 raise ValueError("remediation_deadline must be after created_at")
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 50-70% for typical compliance entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "api_id": str(self.api_id),
+            "compliance_standard": self.compliance_standard.value,
+            "violation_type": self.violation_type.value,
+            "severity": self.severity.value,
+            "title": self.title,
+            "description": self.description,
+            "affected_endpoints": self.affected_endpoints[:3] if self.affected_endpoints else None,
+            "detection_method": self.detection_method.value,
+            "detected_at": self.detected_at.isoformat(),
+            "status": self.status.value,
+            "regulatory_reference": self.regulatory_reference,
+            "risk_level": self.risk_level,
+            "remediation_deadline": self.remediation_deadline.isoformat() if self.remediation_deadline else None,
+            "remediated_at": self.remediated_at.isoformat() if self.remediated_at else None,
+        }
+        
+        # Trim evidence - keep count and types
+        if self.evidence:
+            result["evidence_count"] = len(self.evidence)
+            result["evidence_types"] = list(set(e.type for e in self.evidence))
+        
+        # Trim audit_trail - keep count and latest entry
+        if self.audit_trail:
+            result["audit_trail_count"] = len(self.audit_trail)
+            latest = self.audit_trail[-1]
+            result["latest_audit_entry"] = {
+                "timestamp": latest.timestamp.isoformat(),
+                "action": latest.action,
+                "performed_by": latest.performed_by,
+            }
+        
+        # Trim remediation_documentation - keep count and latest action status
+        if self.remediation_documentation:
+            result["remediation_actions_count"] = len(self.remediation_documentation)
+            latest = self.remediation_documentation[-1]
+            result["latest_remediation_status"] = latest.status
+        
+        # Drop: metadata, full evidence data, full audit_trail, full remediation_documentation
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""

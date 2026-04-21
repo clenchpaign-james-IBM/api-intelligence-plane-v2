@@ -11,7 +11,7 @@ from typing import List, Literal
 import random
 import math
 
-from app.models.metric import Metric
+from app.models.base.metric import Metric
 
 
 MetricPattern = Literal["stable", "degrading", "spiking", "volatile", "recovering"]

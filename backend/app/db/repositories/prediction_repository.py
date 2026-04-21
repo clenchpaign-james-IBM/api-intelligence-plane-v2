@@ -65,6 +65,7 @@ class PredictionRepository(BaseRepository[Prediction]):
 
     def list_predictions(
         self,
+        gateway_id: Optional[str] = None,
         api_id: Optional[str] = None,
         severity: Optional[PredictionSeverity] = None,
         status: Optional[PredictionStatus] = None,
@@ -75,7 +76,8 @@ class PredictionRepository(BaseRepository[Prediction]):
         List predictions with filters
 
         Args:
-            api_id: Filter by API ID
+            gateway_id: Filter by Gateway ID (primary dimension)
+            api_id: Filter by API ID (secondary dimension)
             severity: Filter by severity level
             status: Filter by prediction status
             page: Page number (1-indexed)
@@ -86,6 +88,8 @@ class PredictionRepository(BaseRepository[Prediction]):
         """
         must_clauses = []
 
+        if gateway_id:
+            must_clauses.append({"term": {"gateway_id": gateway_id}})
         if api_id:
             must_clauses.append({"term": {"api_id": api_id}})
         if severity:

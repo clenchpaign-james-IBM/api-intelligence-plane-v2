@@ -13,7 +13,21 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class PredictionType(str, Enum):
-    """Type of prediction."""
+    """Type of API failure or issue being predicted.
+    
+    Categorizes predictions based on the nature of the anticipated problem,
+    enabling targeted preventive actions and appropriate alerting.
+    
+    Attributes:
+        FAILURE: Complete API failure or outage prediction - API will become unavailable
+                or return errors for most/all requests.
+        DEGRADATION: Performance degradation prediction - API will experience increased
+                    latency, reduced throughput, or elevated error rates.
+        CAPACITY: Capacity limit prediction - API will reach resource limits (rate limits,
+                 connection pools, memory) causing request rejections.
+        SECURITY: Security incident prediction - Potential security breach, attack pattern,
+                 or vulnerability exploitation detected.
+    """
 
     FAILURE = "failure"
     DEGRADATION = "degradation"
@@ -22,7 +36,21 @@ class PredictionType(str, Enum):
 
 
 class PredictionSeverity(str, Enum):
-    """Impact severity."""
+    """Predicted impact severity of the anticipated issue.
+    
+    Indicates the expected business and operational impact if the predicted
+    event occurs, guiding prioritization of preventive actions.
+    
+    Attributes:
+        CRITICAL: Severe impact - Complete service outage, data loss, or security breach
+                 affecting multiple systems or users. Requires immediate action.
+        HIGH: Significant impact - Major performance degradation or partial outage
+             affecting substantial user base. Requires urgent attention.
+        MEDIUM: Moderate impact - Noticeable performance issues or intermittent errors
+               affecting some users. Should be addressed promptly.
+        LOW: Minor impact - Slight performance degradation or isolated issues with
+            minimal user impact. Can be addressed during normal operations.
+    """
 
     CRITICAL = "critical"
     HIGH = "high"
@@ -31,7 +59,22 @@ class PredictionSeverity(str, Enum):
 
 
 class PredictionStatus(str, Enum):
-    """Prediction status."""
+    """Current status of the prediction.
+    
+    Tracks the lifecycle of a prediction from creation through resolution,
+    enabling accuracy measurement and model improvement.
+    
+    Attributes:
+        ACTIVE: Prediction is active and the predicted event has not yet occurred
+               or been prevented. Monitoring continues.
+        RESOLVED: Predicted event was prevented through proactive intervention,
+                 or the prediction window has passed without incident.
+        FALSE_POSITIVE: Predicted event did not occur and was incorrectly predicted.
+                       Used for model accuracy tracking and improvement.
+        EXPIRED: Prediction window has passed without the event occurring and without
+                preventive action. Different from false_positive as it may indicate
+                natural resolution or insufficient data.
+    """
 
     ACTIVE = "active"
     RESOLVED = "resolved"
@@ -40,7 +83,19 @@ class PredictionStatus(str, Enum):
 
 
 class ActualOutcome(str, Enum):
-    """What actually happened."""
+    """Actual outcome after the prediction window.
+    
+    Records what actually happened, enabling prediction accuracy measurement
+    and machine learning model refinement.
+    
+    Attributes:
+        OCCURRED: The predicted event actually occurred as anticipated. Validates
+                 the prediction accuracy.
+        PREVENTED: The predicted event was prevented through proactive intervention
+                  based on the prediction. Demonstrates prediction value.
+        FALSE_ALARM: The predicted event did not occur and was a false prediction.
+                    Used for model accuracy tracking and tuning.
+    """
 
     OCCURRED = "occurred"
     PREVENTED = "prevented"
@@ -74,13 +129,47 @@ class ContributingFactorType(str, Enum):
 
 
 class ContributingFactor(BaseModel):
-    """Factor leading to prediction."""
+    """Factor contributing to the prediction.
+    
+    Represents a specific metric or condition that contributes to the prediction,
+    providing transparency into the prediction reasoning and enabling targeted
+    remediation actions.
+    
+    Attributes:
+        factor: Type of contributing factor from the ContributingFactorType enum.
+        current_value: Current measured value of the metric (e.g., 0.15 for 15% error rate,
+                      350.0 for 350ms response time).
+        threshold: Threshold value that defines the acceptable limit for this metric.
+                  Values exceeding this threshold contribute to the prediction.
+        trend: Direction of change for this metric. Valid values: 'increasing',
+              'decreasing', 'stable'. Indicates whether the situation is worsening.
+        weight: Relative importance of this factor in the prediction (0.0 to 1.0).
+               Higher weights indicate stronger contribution to the prediction.
+               All weights across factors should sum to approximately 1.0.
+    """
 
-    factor: ContributingFactorType = Field(..., description="Factor type")
-    current_value: float = Field(..., description="Current value")
-    threshold: float = Field(..., description="Threshold value")
-    trend: str = Field(..., description="Trend direction (increasing, decreasing, stable)")
-    weight: float = Field(..., ge=0, le=1, description="Factor weight (0-1)")
+    factor: ContributingFactorType = Field(
+        ...,
+        description="Type of contributing factor from the ContributingFactorType enum."
+    )
+    current_value: float = Field(
+        ...,
+        description="Current measured value of the metric (e.g., 0.15 for 15% error rate, 350.0 for 350ms response time)."
+    )
+    threshold: float = Field(
+        ...,
+        description="Threshold value that defines the acceptable limit for this metric. Values exceeding this threshold contribute to the prediction."
+    )
+    trend: str = Field(
+        ...,
+        description="Direction of change for this metric. Valid values: 'increasing', 'decreasing', 'stable'. Indicates whether the situation is worsening."
+    )
+    weight: float = Field(
+        ...,
+        ge=0,
+        le=1,
+        description="Relative importance of this factor in the prediction (0.0 to 1.0). Higher weights indicate stronger contribution to the prediction. All weights across factors should sum to approximately 1.0."
+    )
 
 
 class Prediction(BaseModel):
@@ -107,6 +196,7 @@ class Prediction(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
+    gateway_id: UUID = Field(..., description="Gateway where API is deployed")
     api_id: UUID = Field(..., description="Target API")
     api_name: Optional[str] = Field(None, description="API name (enriched from inventory)")
     prediction_type: PredictionType = Field(..., description="Type of prediction")
@@ -198,6 +288,54 @@ class Prediction(BaseModel):
                         f"accuracy_score ({v}) should be approximately {calculated_accuracy}"
                     )
         return v
+    
+    def to_llm_dict(self) -> dict[str, Any]:
+        """
+        Generate LLM-optimized dictionary representation.
+        
+        Trims large/redundant fields to reduce token count while maintaining
+        essential context for natural language response generation.
+        
+        Estimated reduction: 20-30% for typical prediction entities.
+        
+        Returns:
+            Trimmed dictionary suitable for LLM context
+        """
+        result = {
+            "id": str(self.id),
+            "gateway_id": str(self.gateway_id),
+            "api_id": str(self.api_id),
+            "api_name": self.api_name,
+            "prediction_type": self.prediction_type.value,
+            "predicted_at": self.predicted_at.isoformat(),
+            "predicted_time": self.predicted_time.isoformat(),
+            "confidence_score": self.confidence_score,
+            "severity": self.severity.value,
+            "status": self.status.value,
+            "actual_outcome": self.actual_outcome.value if self.actual_outcome else None,
+            "actual_time": self.actual_time.isoformat() if self.actual_time else None,
+            "accuracy_score": self.accuracy_score,
+            "model_version": self.model_version,
+        }
+        
+        # Trim contributing_factors - keep only factor, current_value, trend
+        result["contributing_factors"] = [
+            {
+                "factor": cf.factor.value,
+                "current_value": cf.current_value,
+                "trend": cf.trend,
+            }
+            for cf in self.contributing_factors
+        ]
+        
+        # Trim recommended_actions - keep first 3 only
+        result["recommended_actions"] = self.recommended_actions[:3]
+        if len(self.recommended_actions) > 3:
+            result["recommended_actions_total"] = len(self.recommended_actions)
+        
+        # Drop: metadata, threshold and weight from contributing_factors
+        
+        return result
 
     class Config:
         """Pydantic model configuration."""
@@ -205,6 +343,7 @@ class Prediction(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440003",
+                "gateway_id": "550e8400-e29b-41d4-a716-446655440000",
                 "api_id": "550e8400-e29b-41d4-a716-446655440001",
                 "prediction_type": "failure",
                 "predicted_at": "2026-03-09T10:00:00Z",

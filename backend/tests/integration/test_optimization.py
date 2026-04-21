@@ -19,8 +19,8 @@ from app.db.repositories.recommendation_repository import RecommendationReposito
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
 from app.services.optimization_service import OptimizationService
-from app.models.metric import Metric
-from app.models.api import (
+from app.models.base.metric import Metric
+from app.models.base.api import (
     API,
     APIStatus,
     AuthenticationType,
@@ -230,6 +230,7 @@ class TestOptimizationRecommendations:
         """Test that slow response times generate optimization recommendations."""
         # Generate recommendations for the test API
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -268,6 +269,7 @@ class TestOptimizationRecommendations:
     ):
         """Test caching recommendation generation for slow API."""
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -307,6 +309,7 @@ class TestOptimizationRecommendations:
     ):
         """Test connection pooling recommendation for high throughput API."""
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -337,6 +340,7 @@ class TestOptimizationRecommendations:
         """Test that recommendations are stored in OpenSearch."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -363,6 +367,7 @@ class TestOptimizationRecommendations:
     ):
         """Test that priority is correctly determined from impact."""
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -400,12 +405,14 @@ class TestOptimizationRecommendations:
         """Test that min_impact filter works correctly."""
         # Generate with high threshold
         high_threshold_recs = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=40.0
         )
         
         # Generate with low threshold
         low_threshold_recs = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -436,6 +443,7 @@ class TestRecommendationValidation:
         """Test recommendation validation after implementation."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -469,6 +477,7 @@ class TestRecommendationValidation:
         """Test recommendation statistics calculation."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -505,6 +514,7 @@ class TestRateLimitingRecommendations:
         """Test that high throughput generates rate limiting recommendations."""
         # Generate recommendations for the test API
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -547,6 +557,7 @@ class TestRateLimitingRecommendations:
     ):
         """Test rate limiting recommendation contains proper configuration details."""
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -595,6 +606,7 @@ class TestPolicyApplication:
         """Test applying caching policy to Gateway."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -632,6 +644,7 @@ class TestPolicyApplication:
         """Test applying compression policy to Gateway."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -669,6 +682,7 @@ class TestPolicyApplication:
         """Test applying rate limiting policy to Gateway."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )
@@ -706,6 +720,7 @@ class TestPolicyApplication:
         """Test complete policy application workflow."""
         # Generate recommendations
         recommendations = await optimization_service.generate_recommendations_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_impact=10.0
         )

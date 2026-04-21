@@ -24,7 +24,6 @@ const ImplementationTracker = ({ recommendations, title = 'Implementation Progre
   const rejected = recommendations.filter(r => r.status === 'rejected').length;
   
   const completionPercentage = total > 0 ? (implemented / total) * 100 : 0;
-  const activePercentage = total > 0 ? ((implemented + inProgress) / total) * 100 : 0;
 
   // Calculate total savings from implemented recommendations
   const totalSavings = recommendations

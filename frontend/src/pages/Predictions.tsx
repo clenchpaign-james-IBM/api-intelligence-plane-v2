@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, TrendingUp } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { AlertTriangle, Bot, TrendingUp } from 'lucide-react';
 import PredictionCard from '../components/predictions/PredictionCard';
 import PredictionTimeline from '../components/predictions/PredictionTimeline';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import GatewaySelector from '../components/common/GatewaySelector';
 import { api } from '../services/api';
 import type { Prediction, PredictionSeverity, PredictionStatus } from '../types';
 
@@ -18,37 +20,43 @@ import type { Prediction, PredictionSeverity, PredictionStatus } from '../types'
  * - Detailed prediction cards
  */
 const Predictions = () => {
-  const [selectedSeverity, setSelectedSeverity] = useState<PredictionSeverity | 'all'>('all');
-  const [selectedStatus, setSelectedStatus] = useState<PredictionStatus | 'all'>('all');
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
+  const [selectedSeverity] = useState<PredictionSeverity | 'all'>('all');
+  const [selectedStatus] = useState<PredictionStatus | 'all'>('all');
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
 
-  // Fetch predictions
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['predictions', selectedSeverity, selectedStatus],
+  // Fetch predictions (filtered by gateway if selected)
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['predictions', selectedSeverity, selectedStatus, selectedGatewayId],
     queryFn: () => {
       const params: any = {};
       if (selectedSeverity !== 'all') params.severity = selectedSeverity;
       if (selectedStatus !== 'all') params.status = selectedStatus;
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.predictions.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refetch every minute
   });
 
-  // Generate new predictions (always AI-enhanced)
-  const handleGeneratePredictions = async () => {
-    setIsGenerating(true);
-    try {
-      // Always use AI-enhanced predictions since this is an AI-driven application
-      await api.predictions.generate({ use_ai: true });
-      refetch();
-    } catch (err) {
-      console.error('Failed to generate predictions:', err);
-      alert('Failed to generate predictions. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  // Calculate derived values BEFORE early returns to avoid hooks order issues
+  const predictions = data?.predictions || [];
+  const activePredictions = predictions.filter((p: Prediction) => p.status === 'active');
+  const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
+  const aiEnhancedCount = useMemo(
+    () =>
+      predictions.filter(
+        (p: Prediction) =>
+          Boolean((p as Prediction & { metadata?: Record<string, unknown> }).metadata?.ai_enhanced)
+      ).length,
+    [predictions]
+  );
 
   // Loading state
   if (isLoading) {
@@ -63,47 +71,39 @@ const Predictions = () => {
   if (error) {
     return (
       <div className="p-6">
-        <Error
-          message="Failed to load predictions"
-          details={error as Error}
-        />
+        <Error message="Failed to load predictions" />
       </div>
     );
   }
 
-  const predictions = data?.predictions || [];
-  const total = data?.total || 0;
-  const activePredictions = predictions.filter((p: Prediction) => p.status === 'active');
-  const criticalCount = predictions.filter((p: Prediction) => p.severity === 'critical').length;
-
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
+      <div>
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">API Failure Predictions</h1>
             <p className="mt-2 text-sm text-gray-600">
-              AI-powered predictions of potential API failures 24-48 hours in advance
+              Scheduler-generated predictions of potential API failures 24-48 hours in advance
             </p>
           </div>
-          <button
-            onClick={handleGeneratePredictions}
-            disabled={isGenerating}
-            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-              isGenerating
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            } text-white`}
-          >
-            <TrendingUp className="w-5 h-5" />
-            {isGenerating ? 'Generating...' : 'Generate Predictions'}
-          </button>
+          <div className="max-w-md rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            Predictions are generated by scheduled backend jobs using a single flow:
+            rule-based detection followed by AI enhancement for each prediction.
+          </div>
         </div>
+      </div>
 
-        {/* Stats */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
+      {/* Gateway Selector */}
+      <GatewaySelector
+        selectedGatewayId={selectedGatewayId}
+        onGatewayChange={handleGatewayChange}
+        showAllOption={true}
+      />
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Active Predictions</p>
@@ -111,8 +111,8 @@ const Predictions = () => {
               </div>
               <AlertTriangle className="w-8 h-8 text-yellow-500" />
             </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Critical Severity</p>
@@ -120,8 +120,8 @@ const Predictions = () => {
               </div>
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Predictions</p>
@@ -129,7 +129,15 @@ const Predictions = () => {
               </div>
               <TrendingUp className="w-8 h-8 text-blue-500" />
             </div>
-          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">AI-Enhanced Predictions</p>
+                <p className="text-2xl font-bold text-indigo-600">{aiEnhancedCount}</p>
+              </div>
+              <Bot className="w-8 h-8 text-indigo-500" />
+            </div>
         </div>
       </div>
 

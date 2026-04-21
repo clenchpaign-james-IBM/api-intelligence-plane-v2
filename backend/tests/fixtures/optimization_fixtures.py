@@ -19,6 +19,7 @@ from app.models.recommendation import (
 
 def create_sample_recommendation(
     api_id: str | None = None,
+    gateway_id: str | None = None,
     recommendation_type: RecommendationType = RecommendationType.CACHING,
     priority: RecommendationPriority = RecommendationPriority.HIGH,
     status: RecommendationStatus = RecommendationStatus.PENDING,
@@ -28,6 +29,7 @@ def create_sample_recommendation(
     
     Args:
         api_id: Target API ID (generates random if None)
+        gateway_id: Gateway ID (generates random if None)
         recommendation_type: Type of optimization
         priority: Priority level
         status: Implementation status
@@ -38,6 +40,7 @@ def create_sample_recommendation(
     """
     defaults = {
         "id": str(uuid4()),
+        "gateway_id": gateway_id or str(uuid4()),
         "api_id": api_id or str(uuid4()),
         "recommendation_type": recommendation_type,
         "priority": priority,

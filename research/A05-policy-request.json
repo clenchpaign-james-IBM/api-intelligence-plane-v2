@@ -1,0 +1,47 @@
+{
+    "policy": {
+        "id": "ae33bbd4-0ae6-4e3a-8924-911564f5378c",
+        "names": [
+            {
+                "value": "Default Policy for API HostNameStrict",
+                "locale": "English"
+            }
+        ],
+        "descriptions": [
+            {
+                "value": "",
+                "locale": "English"
+            }
+        ],
+        "policyEnforcements": [
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "9dd81270-356f-4311-a31f-8f64543e5aaf"
+                    }
+                ],
+                "stageKey": "transport"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "39f5cc33-489e-4e8b-9d20-e1332b60e153"
+                    }
+                ],
+                "stageKey": "requestPayloadProcessing"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "c57d2a6f-09ef-4373-a712-19fa9c43ea18"
+                    }
+                ],
+                "stageKey": "routing"
+            }
+        ],
+        "policyScope": "SERVICE",
+        "global": false,
+        "active": false,
+        "systemPolicy": false
+    }
+}

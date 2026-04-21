@@ -65,8 +65,9 @@ class DiscoveryMCPServer(BaseMCPServer):
                 dict: Health status including backend connectivity
             """
             try:
-                # Test backend connectivity by making a simple request
-                await self.backend_client.list_apis(page=1, page_size=1)
+                # Test backend connectivity by making a simple request to gateways endpoint
+                response = await self.backend_client.client.get("/gateways", params={"page": 1, "page_size": 1})
+                response.raise_for_status()
                 backend_status = "connected"
             except Exception as e:
                 logger.error(f"Backend health check failed: {e}")
@@ -122,16 +123,16 @@ class DiscoveryMCPServer(BaseMCPServer):
         
         @self.tool(description="Retrieve complete API inventory with filtering")
         async def get_api_inventory(
-            gateway_id: Optional[str] = None,
+            gateway_id: str,
             status: Optional[str] = None,
             is_shadow: Optional[bool] = None,
             health_score_min: Optional[float] = None,
             limit: int = 100
         ) -> dict[str, Any]:
-            """Get API inventory with optional filters.
+            """Get API inventory with optional filters for a specific gateway.
             
             Args:
-                gateway_id: Filter by gateway UUID
+                gateway_id: Gateway UUID (required)
                 status: Filter by status (active, inactive, deprecated, failed)
                 is_shadow: Filter shadow APIs
                 health_score_min: Minimum health score filter
@@ -145,25 +146,52 @@ class DiscoveryMCPServer(BaseMCPServer):
             )
         
         @self.tool(description="Search APIs using natural language or structured queries")
-        async def search_apis(query: str, filters: Optional[dict] = None) -> dict[str, Any]:
-            """Search APIs by name, path, or tags.
+        async def search_apis(gateway_id: str, query: str, filters: Optional[dict] = None) -> dict[str, Any]:
+            """Search APIs by name, path, or tags within a specific gateway.
             
             Note: This is a simplified search that uses the backend's list API.
             For more advanced search, the backend would need a dedicated search endpoint.
             
             Args:
+                gateway_id: Gateway UUID (required)
                 query: Search query (name, path, tags)
                 filters: Additional filters to apply
                 
             Returns:
                 dict: Search results with relevance scores
             """
-            return await self._search_apis_impl(query, filters)
+            return await self._search_apis_impl(gateway_id, query, filters)
 
     async def initialize(self) -> None:
         """Initialize server resources."""
         await super().initialize()
         logger.info("Discovery server initialized and ready")
+    
+    def _create_error_response(
+        self,
+        error: Exception,
+        error_code: str,
+        default_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Create standardized error response.
+        
+        Args:
+            error: The exception that occurred
+            error_code: Error code for categorization
+            default_data: Default data fields for this response type
+            
+        Returns:
+            dict: Standardized error response
+        """
+        return {
+            "success": False,
+            "error": {
+                "code": error_code,
+                "message": str(error),
+                "type": type(error).__name__
+            },
+            **default_data
+        }
     
     async def _discover_apis_impl(self, gateway_id: str, force_refresh: bool = False) -> dict[str, Any]:
         """Implementation of discover_apis tool.
@@ -181,14 +209,17 @@ class DiscoveryMCPServer(BaseMCPServer):
             # Validate UUID format
             try:
                 UUID(gateway_id)
-            except ValueError:
-                return {
-                    "discovered_count": 0,
-                    "shadow_apis_count": 0,
-                    "apis": [],
-                    "discovery_time_ms": 0,
-                    "error": f"Invalid gateway_id format: {gateway_id}"
-                }
+            except ValueError as e:
+                return self._create_error_response(
+                    error=e,
+                    error_code="INVALID_GATEWAY_ID",
+                    default_data={
+                        "discovered_count": 0,
+                        "shadow_apis_count": 0,
+                        "apis": [],
+                        "discovery_time_ms": 0
+                    }
+                )
             
             # Get APIs from backend for this gateway
             response = await self.backend_client.list_apis(
@@ -221,17 +252,20 @@ class DiscoveryMCPServer(BaseMCPServer):
             
         except Exception as e:
             logger.error(f"Error discovering APIs: {e}")
-            return {
-                "discovered_count": 0,
-                "shadow_apis_count": 0,
-                "apis": [],
-                "discovery_time_ms": 0,
-                "error": str(e)
-            }
+            return self._create_error_response(
+                error=e,
+                error_code="DISCOVERY_FAILED",
+                default_data={
+                    "discovered_count": 0,
+                    "shadow_apis_count": 0,
+                    "apis": [],
+                    "discovery_time_ms": 0
+                }
+            )
     
     async def _get_api_inventory_impl(
         self,
-        gateway_id: Optional[str] = None,
+        gateway_id: str,
         status: Optional[str] = None,
         is_shadow: Optional[bool] = None,
         health_score_min: Optional[float] = None,
@@ -240,7 +274,7 @@ class DiscoveryMCPServer(BaseMCPServer):
         """Implementation of get_api_inventory tool.
         
         Args:
-            gateway_id: Filter by gateway UUID
+            gateway_id: Gateway UUID (required)
             status: Filter by status (active, inactive, deprecated, failed)
             is_shadow: Filter shadow APIs
             health_score_min: Minimum health score filter
@@ -250,22 +284,16 @@ class DiscoveryMCPServer(BaseMCPServer):
             dict: API inventory with filtering applied
         """
         try:
-            # Get APIs from backend with filters
+            # Get APIs from backend with filters (including health_score_min)
             response = await self.backend_client.list_apis(
                 gateway_id=gateway_id,
                 status=status,
                 is_shadow=is_shadow,
+                health_score_min=health_score_min,  # Backend handles filtering
                 page_size=min(limit, 1000)
             )
             
             apis = response.get("items", [])
-            
-            # Apply health score filter if specified (client-side filtering)
-            if health_score_min is not None:
-                apis = [
-                    api for api in apis
-                    if api.get("health_score", 0) >= health_score_min
-                ]
             
             return {
                 "total_count": response.get("total", 0),
@@ -275,89 +303,61 @@ class DiscoveryMCPServer(BaseMCPServer):
             
         except Exception as e:
             logger.error(f"Error getting API inventory: {e}")
-            return {
-                "total_count": 0,
-                "filtered_count": 0,
-                "apis": [],
-                "error": str(e)
-            }
+            return self._create_error_response(
+                error=e,
+                error_code="INVENTORY_FETCH_FAILED",
+                default_data={
+                    "total_count": 0,
+                    "filtered_count": 0,
+                    "apis": []
+                }
+            )
     
-    async def _search_apis_impl(self, query: str, filters: Optional[dict] = None) -> dict[str, Any]:
+    async def _search_apis_impl(self, gateway_id: str, query: str, filters: Optional[dict] = None) -> dict[str, Any]:
         """Implementation of search_apis tool.
         
-        Note: This is a simplified implementation that filters results client-side.
-        For production, the backend should provide a dedicated search endpoint.
+        Uses backend's OpenSearch full-text search for efficient and scalable searching.
         
         Args:
-            query: Search query (name, path, tags)
-            filters: Additional filters to apply
+            gateway_id: Gateway UUID (required)
+            query: Search query (name, path, tags, description)
+            filters: Additional filters to apply (status, is_shadow)
             
         Returns:
-            dict: Search results with relevance scores
+            dict: Search results with relevance scores from OpenSearch
         """
         try:
-            # Get all APIs (or filtered by gateway if specified)
-            gateway_id = filters.get("gateway_id") if filters else None
+            # Extract filters
             status = filters.get("status") if filters else None
             is_shadow = filters.get("is_shadow") if filters else None
+            limit = filters.get("limit", 100) if filters else 100
             
-            response = await self.backend_client.list_apis(
+            # Use backend search endpoint
+            response = await self.backend_client.search_apis(
                 gateway_id=gateway_id,
+                query=query,
+                limit=limit,
                 status=status,
-                is_shadow=is_shadow,
-                page_size=1000
+                is_shadow=is_shadow
             )
             
-            apis = response.get("items", [])
-            
-            # Simple client-side search (case-insensitive substring match)
-            query_lower = query.lower()
-            results = []
-            
-            for api in apis:
-                score = 0.0
-                
-                # Check name match (highest weight)
-                if query_lower in api.get("name", "").lower():
-                    score += 3.0
-                
-                # Check base_path match (medium weight)
-                if query_lower in api.get("base_path", "").lower():
-                    score += 2.0
-                
-                # Check description match (low weight)
-                if query_lower in api.get("description", "").lower():
-                    score += 1.0
-                
-                # Check tags match (medium weight)
-                tags = api.get("tags", [])
-                if any(query_lower in tag.lower() for tag in tags):
-                    score += 2.0
-                
-                if score > 0:
-                    results.append({
-                        "api": api,
-                        "relevance_score": score
-                    })
-            
-            # Sort by relevance score (descending)
-            results.sort(key=lambda x: x["relevance_score"], reverse=True)
-            
-            # Limit to top 100 results
-            results = results[:100]
-            
             return {
-                "results": results,
-                "total_results": len(results)
+                "results": response.get("results", []),
+                "total_results": response.get("total", 0),
+                "query": query
             }
             
         except Exception as e:
             logger.error(f"Error searching APIs: {e}")
-            return {
-                "results": [],
-                "total_results": 0,
-                "error": str(e)
-            }
+            return self._create_error_response(
+                error=e,
+                error_code="SEARCH_FAILED",
+                default_data={
+                    "results": [],
+                    "total_results": 0,
+                    "query": query
+                }
+            )
 
     async def cleanup(self) -> None:
         """Cleanup server resources."""

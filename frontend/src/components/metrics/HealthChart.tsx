@@ -1,6 +1,6 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../common/Card';
-import type { TimeSeriesDataPoint } from '../../types';
+import type { Metric } from '../../types';
 
 /**
  * Health Metrics Chart Component
@@ -12,12 +12,15 @@ import type { TimeSeriesDataPoint } from '../../types';
  * - Availability
  */
 
+type HealthMetricKey = 'response_time' | 'error_rate' | 'throughput' | 'availability';
+
 interface HealthChartProps {
-  data: TimeSeriesDataPoint[];
+  data: Metric[];
   title?: string;
   subtitle?: string;
-  metrics?: ('response_time' | 'error_rate' | 'throughput' | 'availability')[];
+  metrics?: HealthMetricKey[];
   height?: number;
+  timeBucket?: string;
 }
 
 const HealthChart = ({
@@ -26,6 +29,7 @@ const HealthChart = ({
   subtitle = 'Time-series performance data',
   metrics = ['response_time', 'error_rate'],
   height = 300,
+  timeBucket,
 }: HealthChartProps) => {
   // Format timestamp for display
   const formatTimestamp = (timestamp: string) => {
@@ -37,17 +41,25 @@ const HealthChart = ({
     });
   };
 
+  const subtitleWithBucket = timeBucket ? `${subtitle} • Bucket: ${timeBucket}` : subtitle;
+
   // Format data for chart
-  const chartData = data.map((point) => ({
-    timestamp: formatTimestamp(point.timestamp),
-    fullTimestamp: point.timestamp,
-    responseTimeP50: point.response_time_p50,
-    responseTimeP95: point.response_time_p95,
-    responseTimeP99: point.response_time_p99,
-    errorRate: point.error_rate * 100, // Convert to percentage
-    throughput: point.throughput,
-    availability: point.availability,
-  }));
+  const chartData = data.map((point) => {
+    const totalRequests = point.request_count ?? 0
+    const errorCount = (point.status_4xx_count ?? 0) + (point.status_5xx_count ?? 0)
+    const successCount = point.success_count ?? Math.max(totalRequests - errorCount, 0)
+
+    return {
+      timestamp: formatTimestamp(point.timestamp),
+      fullTimestamp: point.timestamp,
+      responseTimeP50: point.response_time_p50 ?? point.response_time_avg ?? 0,
+      responseTimeP95: point.response_time_p95 ?? point.response_time_avg ?? 0,
+      responseTimeP99: point.response_time_p99 ?? point.response_time_avg ?? 0,
+      errorRate: totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0,
+      throughput: point.throughput ?? 0,
+      availability: totalRequests > 0 ? (successCount / totalRequests) * 100 : 100,
+    };
+  });
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -73,7 +85,7 @@ const HealthChart = ({
 
   if (!data || data.length === 0) {
     return (
-      <Card title={title} subtitle={subtitle}>
+      <Card title={title} subtitle={subtitleWithBucket}>
         <div className="flex items-center justify-center h-64 text-gray-500">
           No metrics data available
         </div>
@@ -82,7 +94,7 @@ const HealthChart = ({
   }
 
   return (
-    <Card title={title} subtitle={subtitle}>
+    <Card title={title} subtitle={subtitleWithBucket}>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

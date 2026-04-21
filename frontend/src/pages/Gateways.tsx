@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus, ArrowLeft } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Clock, RefreshCw, Plus, ArrowLeft, Loader, X, Trash2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
@@ -24,7 +24,15 @@ const Gateways = () => {
   const { gatewayId } = useParams<{ gatewayId?: string }>();
   const [selectedGateway, setSelectedGateway] = useState<Gateway | null>(null);
   const [syncingGateway, setSyncingGateway] = useState<string | null>(null);
+  const [connectingGateway, setConnectingGateway] = useState<string | null>(null);
+  const [disconnectingGateway, setDisconnectingGateway] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedGateways, setSelectedGateways] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bulkSyncStatus, setBulkSyncStatus] = useState<{
+    isRunning: boolean;
+    results?: any;
+  }>({ isRunning: false });
 
   // Fetch gateways
   const { data, isLoading, error, refetch } = useQuery({
@@ -46,14 +54,96 @@ const Gateways = () => {
   // Sync gateway mutation
   const syncMutation = useMutation({
     mutationFn: (gatewayId: string) => api.gateways.sync(gatewayId),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['gateways'] });
       setSyncingGateway(null);
+      // Show success message with details
+      const message = `Sync completed: ${data.apis_discovered} APIs discovered (${data.new_apis} new, ${data.updated_apis} updated)`;
+      alert(message);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       console.error('Sync failed:', error);
       setSyncingGateway(null);
-      alert('Failed to sync gateway. Please try again.');
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to sync gateway. Please try again.';
+      alert(`Sync failed: ${errorMessage}`);
+    },
+  });
+
+  // Bulk sync mutation
+  const bulkSyncMutation = useMutation({
+    mutationFn: ({ gatewayIds, forceRefresh }: { gatewayIds: string[]; forceRefresh: boolean }) =>
+      api.gateways.bulkSync(gatewayIds, forceRefresh),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setBulkSyncStatus({ isRunning: false, results: data });
+      setSelectedGateways(new Set());
+      // Auto-hide results after 10 seconds
+      setTimeout(() => {
+        setBulkSyncStatus({ isRunning: false });
+      }, 10000);
+    },
+    onError: (error: any) => {
+      console.error('Bulk sync failed:', error);
+      setBulkSyncStatus({ isRunning: false });
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to sync gateways. Please try again.';
+      alert(`Bulk sync failed: ${errorMessage}`);
+    },
+  });
+
+  // Delete gateway mutation
+  const deleteMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.delete(gatewayId),
+    onSuccess: (_, gatewayId) => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setSelectedGateways((prev) => {
+        const next = new Set(prev);
+        next.delete(gatewayId);
+        return next;
+      });
+      if (selectedGateway?.id === gatewayId) {
+        setSelectedGateway(null);
+        navigate('/gateways');
+      }
+    },
+    onError: (error: any) => {
+      console.error('Delete failed:', error);
+      // Show detailed error message from backend
+      const errorMessage = error.details?.detail || error.message || 'Failed to delete gateway. Please try again.';
+      alert(`Delete failed: ${errorMessage}`);
+    },
+  });
+
+  // Connect gateway mutation
+  const connectMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.connect(gatewayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setConnectingGateway(null);
+      alert('Gateway connected successfully');
+    },
+    onError: (error: any) => {
+      console.error('Connect failed:', error);
+      setConnectingGateway(null);
+      const errorMessage = error.details?.detail || error.message || 'Failed to connect gateway. Please try again.';
+      alert(`Connect failed: ${errorMessage}`);
+    },
+  });
+
+  // Disconnect gateway mutation
+  const disconnectMutation = useMutation({
+    mutationFn: (gatewayId: string) => api.gateways.disconnect(gatewayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateways'] });
+      setDisconnectingGateway(null);
+      alert('Gateway disconnected successfully');
+    },
+    onError: (error: any) => {
+      console.error('Disconnect failed:', error);
+      setDisconnectingGateway(null);
+      const errorMessage = error.details?.detail || error.message || 'Failed to disconnect gateway. Please try again.';
+      alert(`Disconnect failed: ${errorMessage}`);
     },
   });
 
@@ -61,6 +151,65 @@ const Gateways = () => {
   const handleSync = (gatewayId: string) => {
     setSyncingGateway(gatewayId);
     syncMutation.mutate(gatewayId);
+  };
+
+  // Handle connect
+  const handleConnect = (gatewayId: string) => {
+    setConnectingGateway(gatewayId);
+    connectMutation.mutate(gatewayId);
+  };
+
+  // Handle disconnect
+  const handleDisconnect = (gatewayId: string) => {
+    const gateway = data?.items.find((g: Gateway) => g.id === gatewayId);
+    const confirmed = window.confirm(
+      `Disconnect from gateway "${gateway?.name}"? The gateway will remain registered but inactive.`
+    );
+    if (!confirmed) return;
+    setDisconnectingGateway(gatewayId);
+    disconnectMutation.mutate(gatewayId);
+  };
+
+  // Handle delete
+  const handleDelete = (gateway: Gateway) => {
+    const confirmed = window.confirm(
+      `Delete gateway "${gateway.name}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+    deleteMutation.mutate(gateway.id);
+  };
+
+  // Handle bulk sync
+  const handleBulkSync = (forceRefresh: boolean = false) => {
+    if (selectedGateways.size === 0) {
+      alert('Please select at least one gateway to sync');
+      return;
+    }
+    setBulkSyncStatus({ isRunning: true });
+    bulkSyncMutation.mutate({
+      gatewayIds: Array.from(selectedGateways),
+      forceRefresh,
+    });
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedGateways.size === gateways.length) {
+      setSelectedGateways(new Set());
+    } else {
+      setSelectedGateways(new Set(gateways.map((g: Gateway) => g.id)));
+    }
+  };
+
+  // Handle select gateway
+  const handleSelectGateway = (gatewayId: string) => {
+    const newSelected = new Set(selectedGateways);
+    if (newSelected.has(gatewayId)) {
+      newSelected.delete(gatewayId);
+    } else {
+      newSelected.add(gatewayId);
+    }
+    setSelectedGateways(newSelected);
   };
 
   // Handle view details
@@ -80,7 +229,6 @@ const Gateways = () => {
       case 'connected': return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'disconnected': return <Clock className="w-5 h-5 text-gray-600" />;
       case 'error': return <XCircle className="w-5 h-5 text-red-600" />;
-      case 'maintenance': return <Server className="w-5 h-5 text-yellow-600" />;
       default: return <Server className="w-5 h-5 text-gray-600" />;
     }
   };
@@ -91,7 +239,6 @@ const Gateways = () => {
       case 'connected': return 'bg-green-100 text-green-800';
       case 'disconnected': return 'bg-gray-100 text-gray-800';
       case 'error': return 'bg-red-100 text-red-800';
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -100,6 +247,7 @@ const Gateways = () => {
   const getVendorColor = (vendor: string) => {
     switch (vendor) {
       case 'native': return 'bg-blue-100 text-blue-800';
+      case 'webmethods': return 'bg-green-100 text-green-800';
       case 'kong': return 'bg-purple-100 text-purple-800';
       case 'apigee': return 'bg-orange-100 text-orange-800';
       case 'aws': return 'bg-yellow-100 text-yellow-800';
@@ -148,7 +296,13 @@ const Gateways = () => {
         <GatewayCard
           gateway={selectedGateway}
           onSync={handleSync}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          onDelete={handleDelete}
           isSyncing={syncingGateway === selectedGateway.id}
+          isConnecting={connectingGateway === selectedGateway.id}
+          isDisconnecting={disconnectingGateway === selectedGateway.id}
+          isDeleting={deleteMutation.isPending && deleteMutation.variables === selectedGateway.id}
         />
       </div>
     );
@@ -165,6 +319,33 @@ const Gateways = () => {
           </p>
         </div>
         <div className="flex gap-3">
+          {selectedGateways.size > 0 && (
+            <>
+              <button
+                onClick={() => handleBulkSync(false)}
+                disabled={bulkSyncStatus.isRunning}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkSyncStatus.isRunning ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Syncing {selectedGateways.size}...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Sync Selected ({selectedGateways.size})
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setSelectedGateways(new Set())}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Clear Selection
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowAddForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -173,11 +354,19 @@ const Gateways = () => {
             Add Gateway
           </button>
           <button
-            onClick={() => refetch()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await refetch();
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -231,8 +420,87 @@ const Gateways = () => {
         </Card>
       </div>
 
+      {/* Bulk Sync Results */}
+      {bulkSyncStatus.results && (
+        <Card padding="md">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Bulk Sync Results</h3>
+              <button
+                onClick={() => setBulkSyncStatus({ isRunning: false })}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-gray-600">Total</p>
+                <p className="text-xl font-bold text-gray-900">{bulkSyncStatus.results.total}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Successful</p>
+                <p className="text-xl font-bold text-green-600">{bulkSyncStatus.results.successful}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Failed</p>
+                <p className="text-xl font-bold text-red-600">{bulkSyncStatus.results.failed}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Duration</p>
+                <p className="text-xl font-bold text-blue-600">{bulkSyncStatus.results.duration_seconds?.toFixed(2)}s</p>
+              </div>
+            </div>
+            {bulkSyncStatus.results.results && bulkSyncStatus.results.results.length > 0 && (
+              <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
+                {bulkSyncStatus.results.results.map((result: any, index: number) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg border ${
+                      result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {result.success ? (
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-600" />
+                        )}
+                        <span className="font-medium text-gray-900">{result.gateway_name}</span>
+                      </div>
+                      {result.apis_discovered !== undefined && (
+                        <span className="text-sm text-gray-600">
+                          {result.apis_discovered} APIs discovered
+                        </span>
+                      )}
+                    </div>
+                    {result.error && (
+                      <p className="text-sm text-red-700 mt-1">{result.error}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Gateway List */}
       <div className="space-y-4">
+        {gateways.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
+            <input
+              type="checkbox"
+              checked={selectedGateways.size === gateways.length && gateways.length > 0}
+              onChange={handleSelectAll}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              {selectedGateways.size === gateways.length ? 'Deselect All' : 'Select All'}
+            </span>
+          </div>
+        )}
         {gateways.length === 0 ? (
           <div className="col-span-full">
             <Card padding="lg">
@@ -255,12 +523,20 @@ const Gateways = () => {
           gateways.map((gateway: Gateway) => (
             <Card key={gateway.id} padding="md">
               <div className="flex items-center gap-4">
+                {/* Checkbox */}
+                <input
+                  type="checkbox"
+                  checked={selectedGateways.has(gateway.id)}
+                  onChange={() => handleSelectGateway(gateway.id)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                />
+                
                 {/* Status Icon & Basic Info */}
                 <div className="flex items-center gap-3 flex-shrink-0">
                   {getStatusIcon(gateway.status)}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{gateway.name}</h3>
-                    <p className="text-sm text-gray-600">{gateway.connection_url}</p>
+                    <p className="text-sm text-gray-600">{gateway.base_url}</p>
                   </div>
                 </div>
 
@@ -323,6 +599,14 @@ const Gateways = () => {
                     className="px-3 py-1 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors text-xs flex items-center gap-1"
                   >
                     View Details
+                  </button>
+                  <button
+                    onClick={() => handleDelete(gateway)}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === gateway.id}
+                    className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    {deleteMutation.isPending && deleteMutation.variables === gateway.id ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>

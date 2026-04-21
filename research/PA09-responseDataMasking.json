@@ -1,0 +1,83 @@
+{
+    "policyAction": {
+        "id": "519acd2b-9393-4a44-835b-0ea264e55027",
+        "names": [
+            {
+                "value": "Data Masking",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "responseDataMasking",
+        "parameters": [
+            {
+                "templateKey": "jpathMasking",
+                "parameters": [
+                    {
+                        "templateKey": "maskingCriteria",
+                        "parameters": [
+                            {
+                                "templateKey": "action",
+                                "values": [
+                                    "SOME_STRING"
+                                ]
+                            },
+                            {
+                                "templateKey": "maskingType",
+                                "values": [
+                                    "mask"
+                                ]
+                            },
+                            {
+                                "templateKey": "maskValue",
+                                "values": [
+                                    "***********"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "templateKey": "regexMasking",
+                "parameters": [
+                    {
+                        "templateKey": "maskingCriteria",
+                        "parameters": [
+                            {
+                                "templateKey": "action",
+                                "values": [
+                                    "SOME_STRING"
+                                ]
+                            },
+                            {
+                                "templateKey": "maskingType",
+                                "values": [
+                                    "mask"
+                                ]
+                            },
+                            {
+                                "templateKey": "maskValue",
+                                "values": [
+                                    "***********"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "templateKey": "sameForTransactionalLogging",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "applyForPayload",
+                "values": [
+                    "true"
+                ]
+            }
+        ],
+        "active": false
+    }
+}

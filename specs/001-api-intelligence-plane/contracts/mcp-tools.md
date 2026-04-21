@@ -650,8 +650,9 @@ Response: {
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["caching", "query_optimization", "resource_allocation", "compression"]
-      }
+        "enum": ["caching", "compression", "rate_limiting"]
+      },
+      "description": "Optional optimization areas to include in the response. If omitted, all generated optimization recommendation types are returned."
     },
     "min_impact_percentage": {
       "type": "number",

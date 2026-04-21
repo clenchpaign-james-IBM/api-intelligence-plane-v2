@@ -17,33 +17,79 @@ logger = logging.getLogger(__name__)
 
 async def run_prediction_job() -> Dict[str, Any]:
     """
-    Generate failure predictions for all active APIs.
+    Generate failure predictions for all APIs across all gateways.
     
     This job is scheduled to run every 15 minutes to analyze metrics
     and generate predictions for potential API failures 24-48 hours
     in advance. Predictions are stored in OpenSearch for monitoring.
     
+    Iterates over all gateways and generates predictions for each gateway's APIs.
+    
     Returns:
         dict: Job execution results with statistics
     """
-    logger.info("Starting scheduled prediction generation job")
+    logger.info("Starting scheduled prediction generation job (gateway-scoped)")
     
     try:
         # Initialize dependencies
+        from app.db.repositories.gateway_repository import GatewayRepository
+        
         prediction_repo = PredictionRepository()
         metrics_repo = MetricsRepository()
         api_repo = APIRepository()
-        
+        gateway_repo = GatewayRepository()
+
+        llm_service = None
+        try:
+            from app.services.llm_service import LLMService
+            from app.config import settings
+
+            llm_service = LLMService(settings)
+        except Exception as e:
+            logger.info(f"LLM service not available for scheduled prediction job: {e}")
+
         prediction_service = PredictionService(
             prediction_repository=prediction_repo,
             metrics_repository=metrics_repo,
             api_repository=api_repo,
+            llm_service=llm_service,
         )
         
-        # Generate predictions for all APIs
-        result = prediction_service.generate_predictions_for_all_apis(
-            min_confidence=0.7
-        )
+        # Get all gateways
+        gateways, _ = gateway_repo.list_all(size=1000)
+        
+        # Aggregate results across all gateways
+        total_apis = 0
+        total_analyzed = 0
+        total_predictions = 0
+        all_errors = []
+        
+        for gateway in gateways:
+            try:
+                logger.info(f"Generating predictions for gateway {gateway.id} ({gateway.name})")
+                gateway_result = prediction_service.generate_predictions_for_gateway(
+                    gateway_id=gateway.id,
+                    min_confidence=0.7
+                )
+                total_apis += gateway_result["total_apis"]
+                total_analyzed += gateway_result["apis_analyzed"]
+                total_predictions += gateway_result["predictions_generated"]
+                all_errors.extend(gateway_result.get("errors", []))
+            except Exception as e:
+                logger.error(f"Failed to generate predictions for gateway {gateway.id}: {e}")
+                all_errors.append({
+                    "gateway_id": str(gateway.id),
+                    "gateway_name": gateway.name,
+                    "error": str(e),
+                })
+        
+        result = {
+            "total_gateways": len(gateways),
+            "total_apis": total_apis,
+            "apis_analyzed": total_analyzed,
+            "predictions_generated": total_predictions,
+            "errors": all_errors,
+        }
         
         # Expire old predictions
         expired_count = prediction_service.expire_old_predictions()

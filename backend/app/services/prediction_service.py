@@ -22,7 +22,7 @@ from app.models.prediction import (
     ContributingFactor,
     ContributingFactorType,
 )
-from app.models.metric import Metric
+from app.models.base.metric import Metric, TimeBucket
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class PredictionService:
         prediction_repository: PredictionRepository,
         metrics_repository: MetricsRepository,
         api_repository: APIRepository,
-        llm_service: Optional[Any] = None,
+        llm_service: Any = None,
     ):
         """
         Initialize the Prediction Service.
@@ -58,7 +58,7 @@ class PredictionService:
             prediction_repository: Repository for prediction operations
             metrics_repository: Repository for metrics operations
             api_repository: Repository for API operations
-            llm_service: Optional LLM service for AI-enhanced predictions
+            llm_service: Optional LLM service for AI enhancement
         """
         self.prediction_repo = prediction_repository
         self.metrics_repo = metrics_repository
@@ -67,205 +67,68 @@ class PredictionService:
         self._prediction_agent = None
 
     def generate_predictions_for_api(
-        self, api_id: UUID, min_confidence: float = 0.7
+        self, gateway_id: UUID, api_id: UUID, min_confidence: float = 0.7
     ) -> List[Prediction]:
         """
-        Generate failure predictions for a specific API.
-        
-        AI enhancement is automatically applied based on:
-        - PREDICTION_AI_ENABLED configuration
-        - PREDICTION_AI_THRESHOLD configuration
-        - Prediction confidence scores
+        Generate and persist predictions for a specific API within a gateway context.
+
+        The prediction flow is single-path:
+        1. Generate rule-based predictions
+        2. Apply AI enhancement metadata when available
+        3. Persist predictions with graceful fallback to rule-based metadata
 
         Args:
-            api_id: API UUID
+            gateway_id: Gateway UUID (primary scope dimension)
+            api_id: API UUID (secondary scope dimension)
             min_confidence: Minimum confidence threshold (0-1)
 
         Returns:
             List of generated predictions
         """
-        logger.info(f"Generating predictions for API {api_id}")
+        logger.info(f"Generating predictions for API {api_id} in gateway {gateway_id}")
 
-        # Get API details
-        api = self.api_repo.get(str(api_id))
-        if not api:
-            logger.warning(f"API {api_id} not found")
+        api, metrics = self._get_api_and_metrics(gateway_id, api_id)
+        if not api or metrics is None:
             return []
 
-        # Get historical metrics for trend analysis
-        end_time = datetime.utcnow()
-        start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
-        
-        metrics, _ = self.metrics_repo.find_by_api(
+        predictions = self._build_rule_based_predictions(
+            gateway_id=gateway_id,
             api_id=api_id,
-            start_time=start_time,
-            end_time=end_time,
+            metrics=metrics,
+            min_confidence=min_confidence,
         )
-
-        if len(metrics) < 10:  # Need sufficient data points
-            logger.info(f"Insufficient metrics data for API {api_id} (only {len(metrics)} points)")
+        if not predictions:
             return []
 
-        # Analyze metrics and generate predictions
-        predictions = []
-
-        # Check for failure prediction
-        failure_prediction = self._analyze_failure_risk(api_id, metrics)
-        if failure_prediction and failure_prediction.confidence_score >= min_confidence:
-            predictions.append(failure_prediction)
-
-        # Check for degradation prediction
-        degradation_prediction = self._analyze_degradation_risk(api_id, metrics)
-        if degradation_prediction and degradation_prediction.confidence_score >= min_confidence:
-            predictions.append(degradation_prediction)
-
-        # Check for capacity prediction
-        capacity_prediction = self._analyze_capacity_risk(api_id, metrics)
-        if capacity_prediction and capacity_prediction.confidence_score >= min_confidence:
-            predictions.append(capacity_prediction)
-
-        # Determine if AI enhancement should be used (internal logic only)
-        should_use_ai = self._should_use_ai_enhancement(predictions, use_ai_override=None)
-        
-        # Store predictions
-        for prediction in predictions:
-            try:
-                self.prediction_repo.create_prediction(prediction)
-                logger.info(
-                    f"Created {prediction.prediction_type.value} prediction for API {api_id} "
-                    f"with confidence {prediction.confidence_score:.2f}"
-                    f"{' (AI enhancement available)' if should_use_ai else ''}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to store prediction: {e}")
+        self._apply_ai_enhancement(
+            api_id=api_id,
+            api_name=api.name,
+            metrics=metrics,
+            predictions=predictions,
+        )
+        self._store_predictions(api_id=api_id, predictions=predictions)
 
         return predictions
-    
-    async def generate_ai_enhanced_predictions(
-        self,
-        api_id: UUID,
-        min_confidence: float = 0.7,
+
+    def generate_predictions_for_gateway(
+        self, gateway_id: UUID, min_confidence: float = 0.7
     ) -> Dict[str, Any]:
         """
-        Generate AI-enhanced predictions with LLM analysis.
-        
-        Args:
-            api_id: API UUID
-            min_confidence: Minimum confidence threshold (0-1)
-            
-        Returns:
-            Dict with predictions and AI analysis
-        """
-        logger.info(f"Generating AI-enhanced predictions for API {api_id}")
-        
-        # Check if AI is enabled
-        if not settings.PREDICTION_AI_ENABLED:
-            logger.info("AI-enhanced predictions disabled by configuration")
-            predictions = self.generate_predictions_for_api(api_id, min_confidence)
-            api = self.api_repo.get(str(api_id))
-            return {
-                "api_id": str(api_id),
-                "api_name": api.name if api else "Unknown",
-                "predictions": [
-                    {
-                        "id": str(p.id),
-                        "prediction_type": p.prediction_type.value,
-                        "confidence_score": p.confidence_score,
-                        "severity": p.severity.value,
-                        "predicted_time": p.predicted_time.isoformat(),
-                    }
-                    for p in predictions
-                ],
-                "ai_disabled": True,
-            }
-        
-        # Get API details
-        api = self.api_repo.get(str(api_id))
-        if not api:
-            logger.warning(f"API {api_id} not found")
-            return {
-                "error": "API not found",
-                "predictions": [],
-            }
-        
-        # Get historical metrics
-        end_time = datetime.utcnow()
-        start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
-        
-        metrics, _ = self.metrics_repo.find_by_api(
-            api_id=api_id,
-            start_time=start_time,
-            end_time=end_time,
-        )
-        
-        if len(metrics) < 10:
-            logger.info(f"Insufficient metrics data for API {api_id}")
-            return {
-                "error": "Insufficient metrics data",
-                "predictions": [],
-            }
-        
-        # Try AI-enhanced generation if available
-        if self.llm_service and settings.PREDICTION_AI_ENABLED:
-            try:
-                # Lazy load prediction agent
-                if self._prediction_agent is None:
-                    from app.agents.prediction_agent import PredictionAgent
-                    self._prediction_agent = PredictionAgent(
-                        llm_service=self.llm_service,
-                        prediction_service=self,
-                    )
-                
-                # Generate AI-enhanced predictions
-                result = await self._prediction_agent.generate_enhanced_predictions(
-                    api_id=api_id,
-                    api_name=api.name,
-                    metrics=metrics,
-                )
-                
-                logger.info(f"Generated AI-enhanced predictions for API {api_id}")
-                return result
-                
-            except Exception as e:
-                logger.error(f"AI-enhanced prediction failed, falling back to rule-based: {e}")
-        
-        # Fallback to rule-based predictions
-        predictions = self.generate_predictions_for_api(api_id, min_confidence)
-        
-        return {
-            "api_id": str(api_id),
-            "api_name": api.name,
-            "predictions": [
-                {
-                    "id": str(p.id),
-                    "prediction_type": p.prediction_type.value,
-                    "confidence_score": p.confidence_score,
-                    "severity": p.severity.value,
-                    "predicted_time": p.predicted_time.isoformat(),
-                }
-                for p in predictions
-            ],
-            "fallback_mode": True,
-        }
-
-    def generate_predictions_for_all_apis(
-        self, min_confidence: float = 0.7
-    ) -> Dict[str, Any]:
-        """
-        Generate predictions for all active APIs.
+        Generate predictions for all APIs within a specific gateway.
 
         Args:
+            gateway_id: Gateway UUID (primary scope dimension)
             min_confidence: Minimum confidence threshold (0-1)
 
         Returns:
             Dict with generation results
         """
-        logger.info("Generating predictions for all APIs")
+        logger.info(f"Generating predictions for all APIs in gateway {gateway_id}")
 
-        # Get all active APIs
-        apis, total = self.api_repo.list_all(size=1000)
+        apis, _ = self.api_repo.find_by_gateway(gateway_id, size=1000)
 
         results = {
+            "gateway_id": str(gateway_id),
             "total_apis": len(apis),
             "apis_analyzed": 0,
             "predictions_generated": 0,
@@ -274,7 +137,7 @@ class PredictionService:
 
         for api in apis:
             try:
-                predictions = self.generate_predictions_for_api(api.id, min_confidence)
+                predictions = self.generate_predictions_for_api(gateway_id, api.id, min_confidence)
                 results["apis_analyzed"] += 1
                 results["predictions_generated"] += len(predictions)
             except Exception as e:
@@ -292,18 +155,282 @@ class PredictionService:
 
         return results
 
-    def _analyze_failure_risk(
-        self, api_id: UUID, metrics: List[Metric]
-    ) -> Optional[Prediction]:
-        """
-        Analyze metrics for failure risk.
+    def _get_api_and_metrics(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+    ) -> tuple[Optional[Any], Optional[List[Metric]]]:
+        """Fetch API details and historical metrics for prediction analysis."""
+        api = self.api_repo.get(str(api_id))
+        if not api:
+            logger.warning(f"API {api_id} not found")
+            return None, None
+        
+        # Verify API belongs to gateway
+        if api.gateway_id != gateway_id:
+            logger.warning(f"API {api_id} does not belong to gateway {gateway_id}")
+            return None, None
+
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=self.TREND_WINDOW_HOURS)
+
+        metrics, _ = self.metrics_repo.find_by_api_with_bucket(
+            api_id=api_id,
+            start_time=start_time,
+            end_time=end_time,
+            time_bucket=TimeBucket.ONE_HOUR,
+        )
+
+        if len(metrics) < 1:
+            logger.info(f"Insufficient metrics data for API {api_id} (only {len(metrics)} points)")
+            return api, None
+
+        return api, metrics
+
+    def _build_rule_based_predictions(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        metrics: List[Metric],
+        min_confidence: float,
+    ) -> List[Prediction]:
+        """Build rule-based predictions before AI enhancement."""
+        predictions: List[Prediction] = []
+
+        failure_prediction = self._analyze_failure_risk(gateway_id, api_id, metrics)
+        if failure_prediction and failure_prediction.confidence_score >= min_confidence:
+            predictions.append(failure_prediction)
+
+        degradation_prediction = self._analyze_degradation_risk(gateway_id, api_id, metrics)
+        if degradation_prediction and degradation_prediction.confidence_score >= min_confidence:
+            predictions.append(degradation_prediction)
+
+        capacity_prediction = self._analyze_capacity_risk(gateway_id, api_id, metrics)
+        if capacity_prediction and capacity_prediction.confidence_score >= min_confidence:
+            predictions.append(capacity_prediction)
+
+        return predictions
+
+    def _apply_ai_enhancement(
+        self,
+        api_id: UUID,
+        api_name: Optional[str],
+        metrics: List[Metric],
+        predictions: List[Prediction],
+    ) -> None:
+        """Enhance predictions with AI-generated analysis and explanations.
+
+        This method enriches rule-based predictions with LLM-generated insights by:
+        1. Generating an overall metrics analysis for the API
+        2. Creating detailed explanations for each individual prediction
+        3. Attaching AI metadata to prediction objects for downstream consumption
+
+        The method implements graceful degradation:
+        - If LLM service is unavailable, predictions are marked as non-AI-enhanced
+        - If AI analysis fails, predictions retain rule-based data with error metadata
+        - Individual prediction explanation failures don't block other predictions
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            api_id: Unique identifier of the API being analyzed
+            api_name: Human-readable name of the API (optional, used in prompts)
+            metrics: Historical metrics data used for AI analysis context
+            predictions: List of rule-based predictions to enhance (modified in-place)
 
         Returns:
-            Prediction if failure risk detected, None otherwise
+            None. Predictions are modified in-place with AI enhancement metadata.
+
+        Side Effects:
+            - Modifies prediction.metadata dict for each prediction in the list
+            - Lazily initializes self._prediction_agent if not already created
+            - Logs warnings/errors for AI service failures
+
+        Metadata Added:
+            - ai_enhanced (bool): True if AI enhancement succeeded
+            - ai_analysis (str): Overall metrics analysis (if successful)
+            - ai_explanation (str): Prediction-specific explanation (if successful)
+            - ai_recommended_actions (List[str]): AI-refined action recommendations
+            - ai_enhancement_error (str): Error message (if enhancement failed)
+
+        Example:
+            >>> predictions = self._generate_rule_based_predictions(...)
+            >>> self._apply_ai_enhancement(api_id, "Payment API", metrics, predictions)
+            >>> # predictions[0].metadata now contains AI insights
+        """
+        if not predictions:
+            return
+
+        for prediction in predictions:
+            prediction.metadata = dict(prediction.metadata or {})
+
+        if not self.llm_service:
+            logger.info(f"LLM service unavailable for API {api_id}; storing rule-based predictions only")
+            for prediction in predictions:
+                metadata = dict(prediction.metadata or {})
+                metadata["ai_enhanced"] = False
+                metadata["ai_enhancement_error"] = "LLM service unavailable"
+                prediction.metadata = metadata
+            return
+
+        try:
+            if self._prediction_agent is None:
+                from app.agents.prediction_agent import PredictionAgent
+
+                self._prediction_agent = PredictionAgent(
+                    llm_service=self.llm_service,
+                    prediction_service=self,
+                )
+
+            analysis = "AI analysis unavailable"
+            try:
+                metrics_summary = self._prediction_agent._prepare_metrics_summary(metrics)
+                analysis_response = self.llm_service.generate_sync(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an expert API reliability engineer. Analyze API metrics "
+                                "and summarize the most important operational risks, likely failure "
+                                "patterns, and practical preventive actions."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Analyze metrics for API '{api_name or f'API {str(api_id)[:8]}'}':\n\n"
+                                f"{metrics_summary}"
+                            ),
+                        },
+                    ],
+                    temperature=0.3,
+                    max_tokens=400,
+                )
+                analysis = analysis_response.get("content", analysis)
+            except Exception as analysis_error:
+                logger.warning(f"AI metrics analysis failed for API {api_id}: {analysis_error}")
+
+            enhanced_predictions = []
+            for prediction in predictions:
+                explanation = "AI explanation unavailable"
+                try:
+                    explanation = self.llm_service.generate_sync(
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an expert API reliability engineer. Explain the prediction "
+                                    "clearly, concisely, and provide practical next steps."
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"API: {api_name or f'API {str(api_id)[:8]}'}\n"
+                                    f"Prediction Type: {prediction.prediction_type.value}\n"
+                                    f"Severity: {prediction.severity.value}\n"
+                                    f"Confidence: {prediction.confidence_score:.2%}\n"
+                                    f"Predicted Time: {prediction.predicted_time.isoformat()}\n"
+                                    f"Contributing Factors: "
+                                    f"{', '.join(str(f.factor.value) for f in prediction.contributing_factors)}\n"
+                                    f"Recommended Actions: {'; '.join(prediction.recommended_actions)}\n"
+                                    f"Metrics Analysis: {analysis}"
+                                ),
+                            },
+                        ],
+                        temperature=0.4,
+                        max_tokens=300,
+                    ).get("content", explanation)
+                except Exception as explanation_error:
+                    logger.warning(
+                        f"AI explanation failed for prediction {prediction.id}: {explanation_error}"
+                    )
+
+                enhanced_predictions.append(
+                    {
+                        "prediction_type": prediction.prediction_type.value,
+                        "analysis": analysis,
+                        "explanation": explanation,
+                        "recommended_actions": prediction.recommended_actions,
+                    }
+                )
+            predictions_by_type = {
+                prediction.prediction_type.value: prediction for prediction in predictions
+            }
+
+            for enhanced_prediction in enhanced_predictions:
+                prediction_type = enhanced_prediction.get("prediction_type")
+                prediction = predictions_by_type.get(prediction_type)
+                if not prediction:
+                    continue
+
+                metadata = dict(prediction.metadata or {})
+                metadata["ai_enhanced"] = True
+                metadata["ai_analysis"] = enhanced_prediction.get("analysis")
+                metadata["ai_explanation"] = enhanced_prediction.get("explanation")
+                metadata["ai_recommended_actions"] = enhanced_prediction.get(
+                    "recommended_actions"
+                )
+                prediction.metadata = metadata
+
+        except Exception as e:
+            logger.error(f"AI enhancement failed for API {api_id}: {e}")
+            for prediction in predictions:
+                metadata = dict(prediction.metadata or {})
+                metadata["ai_enhanced"] = False
+                metadata["ai_enhancement_error"] = str(e)
+                prediction.metadata = metadata
+
+    def _store_predictions(self, api_id: UUID, predictions: List[Prediction]) -> None:
+        """Persist predictions after enhancement."""
+        for prediction in predictions:
+            try:
+                self.prediction_repo.create_prediction(prediction)
+                logger.info(
+                    f"Created {prediction.prediction_type.value} prediction for API {api_id} "
+                    f"with confidence {prediction.confidence_score:.2f}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to store prediction: {e}")
+
+    def _analyze_failure_risk(
+        self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
+    ) -> Optional[Prediction]:
+        """
+        Analyze metrics for imminent API failure risk using multi-factor trend analysis.
+
+        This method detects critical conditions that indicate an API is at risk of complete
+        failure within the prediction window (48 hours). It evaluates three key indicators:
+        error rates, response times, and availability, each weighted by severity.
+
+        Algorithm:
+            1. Analyze error rate trend - checks if current error rate exceeds 10% threshold
+               and is increasing (weight: up to 0.4)
+            2. Analyze response time degradation - checks if P95 response time exceeds 2000ms
+               threshold and is increasing (weight: up to 0.3)
+            3. Analyze availability drops - checks if availability falls below 95% threshold
+               and is decreasing (weight: up to 0.3)
+            4. Calculate overall confidence by summing weights (capped at 1.0)
+            5. Determine severity based on confidence and contributing factors
+            6. Generate recommended actions based on identified issues
+
+        Thresholds:
+            - ERROR_RATE_THRESHOLD: 10% (0.10)
+            - RESPONSE_TIME_P95_THRESHOLD: 2000ms
+            - AVAILABILITY_THRESHOLD: 95.0%
+
+        Args:
+            gateway_id: Gateway UUID for scoping the prediction
+            api_id: API UUID to analyze
+            metrics: Historical metrics from the trend analysis window (24 hours)
+
+        Returns:
+            Prediction object with type FAILURE if risk detected, None if no significant
+            risk factors are present. The prediction includes confidence score, severity,
+            contributing factors with weights, and recommended remediation actions.
+
+        Example:
+            If an API shows 15% error rate (increasing), 2500ms P95 response time
+            (increasing), and 92% availability (decreasing), this would generate a
+            high-confidence FAILURE prediction with all three contributing factors.
         """
         contributing_factors = []
         confidence_weights = []
@@ -380,8 +507,14 @@ class PredictionService:
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         return Prediction(
+            gateway_id=gateway_id,
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.FAILURE,
             predicted_at=predicted_at,
             predicted_time=predicted_time,
@@ -398,17 +531,45 @@ class PredictionService:
         )
 
     def _analyze_degradation_risk(
-        self, api_id: UUID, metrics: List[Metric]
+        self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
     ) -> Optional[Prediction]:
         """
-        Analyze metrics for performance degradation risk.
+        Analyze metrics for performance degradation risk using trend analysis.
+
+        This method detects gradual performance decline patterns that indicate
+        an API is degrading over time. It identifies issues before they become
+        critical failures by analyzing trends in response times, throughput,
+        and error rates.
+
+        Algorithm:
+            1. Analyze response time increase - checks if P50 response time shows upward
+               trend and exceeds 150% of historical average, indicating gradual slowdown
+               (weight: 0.35)
+            2. Analyze throughput decline - checks if throughput shows downward trend
+               and drops below 70% of historical average, indicating capacity issues
+               (weight: 0.25)
+            3. Analyze error rate increase - checks if error rate shows upward trend
+               and is between 5% and critical threshold (10%), indicating emerging issues
+               (weight: 0.20)
+            4. Calculate overall confidence by summing weights (capped at 1.0)
+            5. Determine severity based on confidence and contributing factors
+            6. Generate recommended actions based on identified degradation patterns
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            gateway_id: Gateway UUID for the API being analyzed
+            api_id: API UUID to analyze for degradation risk
+            metrics: Historical metrics list ordered chronologically for trend analysis
 
         Returns:
-            Prediction if degradation risk detected, None otherwise
+            Prediction object with DEGRADATION type if risk detected, None otherwise.
+            Prediction includes confidence score, severity level, contributing factors,
+            and recommended remediation actions.
+
+        Example:
+            >>> metrics = [Metric(response_time_p50=100, ...), Metric(response_time_p50=150, ...)]
+            >>> prediction = service._analyze_degradation_risk(gateway_id, api_id, metrics)
+            >>> if prediction:
+            ...     print(f"Degradation risk: {prediction.confidence_score:.2%}")
         """
         contributing_factors = []
         confidence_weights = []
@@ -478,11 +639,17 @@ class PredictionService:
         severity = self._determine_severity(confidence, contributing_factors)
         recommended_actions = self._generate_recommended_actions(contributing_factors)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
         return Prediction(
+            gateway_id=gateway_id,
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.DEGRADATION,
             predicted_at=predicted_at,
             predicted_time=predicted_time,
@@ -499,17 +666,44 @@ class PredictionService:
         )
 
     def _analyze_capacity_risk(
-        self, api_id: UUID, metrics: List[Metric]
+        self, gateway_id: UUID, api_id: UUID, metrics: List[Metric]
     ) -> Optional[Prediction]:
         """
-        Analyze metrics for capacity/scaling risk.
+        Analyze metrics for capacity and scaling risk using load growth patterns.
+
+        This method detects when an API is approaching or exceeding its capacity limits
+        due to rapid traffic growth or degrading performance under load. It identifies
+        scaling needs before they impact service quality.
+
+        Algorithm:
+            1. Analyze request count growth - checks if request volume shows upward trend
+               and exceeds 200% of historical average, indicating rapid traffic growth
+               (weight: 0.40)
+            2. Analyze response time under load - checks if P99 response time shows upward
+               trend and exceeds 5000ms threshold, indicating system strain under load
+               (weight: 0.30)
+            3. Calculate overall confidence by summing weights (capped at 1.0)
+            4. Determine severity based on confidence and contributing factors
+            5. Generate recommended actions for capacity planning and scaling
+
+        Thresholds:
+            - Request growth: 200% of historical average
+            - RESPONSE_TIME_P99_THRESHOLD: 5000ms
 
         Args:
-            api_id: API UUID
-            metrics: Historical metrics
+            gateway_id: Gateway UUID for scoping the prediction
+            api_id: API UUID to analyze
+            metrics: Historical metrics from the trend analysis window (24 hours)
 
         Returns:
-            Prediction if capacity risk detected, None otherwise
+            Prediction object with type CAPACITY if risk detected, None if no capacity
+            constraints are identified. The prediction includes confidence score, severity,
+            contributing factors with weights, and recommended scaling actions.
+
+        Example:
+            If an API's request volume doubles from 10,000 to 25,000 requests (150% increase
+            above average) and P99 response time increases from 3000ms to 6000ms under this
+            load, this would generate a CAPACITY prediction indicating the need for scaling.
         """
         contributing_factors = []
         confidence_weights = []
@@ -560,11 +754,17 @@ class PredictionService:
         severity = self._determine_severity(confidence, contributing_factors)
         recommended_actions = self._generate_recommended_actions(contributing_factors)
 
+        # Get API name for enrichment
+        api = self.api_repo.get(str(api_id))
+        api_name = api.name if api else None
+        
         predicted_at = datetime.utcnow()
         predicted_time = predicted_at + timedelta(hours=self.PREDICTION_WINDOW_HOURS)
 
         return Prediction(
+            gateway_id=gateway_id,
             api_id=api_id,
+            api_name=api_name,
             prediction_type=PredictionType.CAPACITY,
             predicted_at=predicted_at,
             predicted_time=predicted_time,
@@ -635,37 +835,6 @@ class PredictionService:
         else:
             return PredictionSeverity.LOW
 
-    def _should_use_ai_enhancement(
-        self, predictions: List[Prediction], use_ai_override: Optional[bool]
-    ) -> bool:
-        """
-        Determine if AI enhancement should be used for predictions.
-        
-        Args:
-            predictions: List of generated predictions
-            use_ai_override: User override (True/False/None)
-            
-        Returns:
-            True if AI enhancement should be used
-        """
-        # If user explicitly requested or disabled AI, honor that
-        if use_ai_override is not None:
-            return use_ai_override
-        
-        # Check if AI is globally enabled
-        if not settings.PREDICTION_AI_ENABLED:
-            return False
-        
-        # Check if LLM service is available
-        if not self.llm_service:
-            return False
-        
-        # Use AI if any prediction exceeds the confidence threshold
-        return any(
-            p.confidence_score >= settings.PREDICTION_AI_THRESHOLD
-            for p in predictions
-        )
-    
     def _generate_recommended_actions(
         self, factors: List[ContributingFactor]
     ) -> List[str]:

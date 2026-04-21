@@ -14,7 +14,7 @@ from app.config import Settings
 from app.db.repositories.api_repository import APIRepository
 from app.db.repositories.compliance_repository import ComplianceRepository
 from app.db.repositories.gateway_repository import GatewayRepository
-from app.models.api import API
+from app.models.base.api import API, PolicyActionType
 from app.models.compliance import (
     ComplianceViolation,
     ComplianceStandard,
@@ -80,25 +80,31 @@ class ComplianceService:
 
     async def scan_api_compliance(
         self,
+        gateway_id: UUID,
         api_id: UUID,
         standards: Optional[List[ComplianceStandard]] = None,
     ) -> Dict[str, Any]:
         """Scan API for compliance violations using AI-driven analysis.
 
         Args:
-            api_id: API to scan
+            gateway_id: Gateway UUID (primary scope dimension)
+            api_id: API to scan (secondary scope dimension)
             standards: Optional list of specific standards to check (default: all 5)
 
         Returns:
             Scan results with violations, evidence, and audit trail
         """
         try:
-            logger.info(f"Starting compliance scan for API: {api_id}")
+            logger.info(f"Starting compliance scan for API {api_id} in gateway {gateway_id}")
 
             # Get API details
             api = self.api_repository.get(str(api_id))
             if not api:
                 raise ValueError(f"API not found: {api_id}")
+            
+            # Verify API belongs to gateway
+            if api.gateway_id != gateway_id:
+                raise ValueError(f"API {api_id} does not belong to gateway {gateway_id}")
 
             # Perform AI-driven compliance analysis
             # Note: ComplianceAgent.analyze_api_compliance only takes 'api' parameter
@@ -132,6 +138,7 @@ class ComplianceService:
 
             return {
                 "scan_id": str(UUID(int=0)),  # Generate proper scan ID
+                "gateway_id": str(gateway_id),
                 "api_id": str(api_id),
                 "api_name": api.name,
                 "scan_completed_at": datetime.utcnow().isoformat(),
@@ -151,35 +158,32 @@ class ComplianceService:
             logger.error(f"Compliance scan failed for API {api_id}: {str(e)}")
             raise
 
-    async def scan_all_apis(
+    async def scan_gateway_apis(
         self,
+        gateway_id: UUID,
         standards: Optional[List[ComplianceStandard]] = None,
     ) -> Dict[str, Any]:
-        """Scan all active APIs for compliance violations.
+        """Scan all APIs within a specific gateway for compliance violations.
 
         Args:
+            gateway_id: Gateway UUID (primary scope dimension)
             standards: Optional list of specific standards to check
 
         Returns:
-            Aggregated scan results
+            Aggregated scan results for the gateway
         """
         try:
-            logger.info("Starting compliance scan for all APIs")
+            logger.info(f"Starting compliance scan for all APIs in gateway {gateway_id}")
 
-            # Get all active APIs
-            from opensearchpy import OpenSearch
-            response = self.api_repository.client.search(
-                index=self.api_repository.index_name,
-                body={"query": {"match_all": {}}, "size": 1000}
-            )
-            apis = [self.api_repository.model_class(**hit["_source"]) for hit in response["hits"]["hits"]]
+            # Get all APIs for this gateway
+            apis, _ = self.api_repository.find_by_gateway(gateway_id, size=1000)
             
             scan_results = []
             total_violations = 0
 
             for api in apis:
                 try:
-                    result = await self.scan_api_compliance(api.id, standards)
+                    result = await self.scan_api_compliance(gateway_id, api.id, standards)
                     scan_results.append(result)
                     total_violations += result["violations_found"]
                 except Exception as e:
@@ -192,6 +196,7 @@ class ComplianceService:
             )
 
             return {
+                "gateway_id": str(gateway_id),
                 "scan_completed_at": datetime.utcnow().isoformat(),
                 "apis_scanned": len(scan_results),
                 "total_violations": total_violations,
@@ -489,5 +494,106 @@ Recommend addressing violations needing audit attention within 30 days.
         # Default: 90 days from now
         next_audit = datetime.utcnow() + timedelta(days=90)
         return next_audit.isoformat()
+
+    def check_compliance_policies(self, api: API) -> List[Dict[str, Any]]:
+        """Check API policy_actions for compliance violations.
+
+        Analyzes the vendor-neutral policy_actions array to identify:
+        - Missing data masking policies (GDPR, HIPAA compliance)
+        - Missing logging policies (audit trail requirements)
+        - Missing authentication/authorization (access control)
+        - Missing encryption policies (data protection)
+
+        Args:
+            api: API object with policy_actions array
+
+        Returns:
+            List of compliance issues found
+        """
+        issues = []
+        
+        # Extract policy action types and configs from the API
+        policy_types = set()
+        policy_configs: Dict[PolicyActionType, Any] = {}
+        if api.policy_actions:
+            for action in api.policy_actions:
+                policy_types.add(action.action_type)
+                if action.enabled and action.config is not None:
+                    policy_configs[action.action_type] = action.config
+        
+        # Check for data masking (GDPR, HIPAA)
+        data_masking_config = policy_configs.get(PolicyActionType.DATA_MASKING)
+        if PolicyActionType.DATA_MASKING not in policy_types or not data_masking_config:
+            issues.append({
+                "type": "missing_data_masking",
+                "severity": "high",
+                "message": "API lacks data masking policy (GDPR/HIPAA requirement)",
+                "standards": ["GDPR", "HIPAA"],
+                "recommendation": "Add DATA_MASKING policy action to protect sensitive data"
+            })
+        
+        # Check for logging (audit trail)
+        logging_config = policy_configs.get(PolicyActionType.LOGGING)
+        if PolicyActionType.LOGGING not in policy_types or not logging_config:
+            issues.append({
+                "type": "missing_logging",
+                "severity": "medium",
+                "message": "API lacks logging policy (audit trail requirement)",
+                "standards": ["SOC2", "PCI_DSS"],
+                "recommendation": "Add LOGGING policy action for audit compliance"
+            })
+        
+        # Check for authentication
+        authentication_config = policy_configs.get(PolicyActionType.AUTHENTICATION)
+        if PolicyActionType.AUTHENTICATION not in policy_types or not authentication_config:
+            issues.append({
+                "type": "missing_authentication",
+                "severity": "critical",
+                "message": "API lacks authentication policy (access control requirement)",
+                "standards": ["SOC2", "ISO27001", "PCI_DSS"],
+                "recommendation": "Add AUTHENTICATION policy action to secure API access"
+            })
+        
+        # Check for authorization
+        authorization_config = policy_configs.get(PolicyActionType.AUTHORIZATION)
+        if PolicyActionType.AUTHORIZATION not in policy_types or not authorization_config:
+            issues.append({
+                "type": "missing_authorization",
+                "severity": "high",
+                "message": "API lacks authorization policy (access control requirement)",
+                "standards": ["SOC2", "ISO27001"],
+                "recommendation": "Add AUTHORIZATION policy action for role-based access control"
+            })
+        
+        # Check for TLS/encryption
+        tls_config = policy_configs.get(PolicyActionType.TLS)
+        if (
+            PolicyActionType.TLS not in policy_types
+            or not tls_config
+            or (
+                hasattr(tls_config, "enforce_tls")
+                and not tls_config.enforce_tls
+            )
+        ):
+            issues.append({
+                "type": "missing_tls",
+                "severity": "critical",
+                "message": "API lacks TLS policy (data protection requirement)",
+                "standards": ["PCI_DSS", "HIPAA", "GDPR"],
+                "recommendation": "Add TLS policy action to encrypt data in transit"
+            })
+        
+        # Check for validation (input sanitization)
+        validation_config = policy_configs.get(PolicyActionType.VALIDATION)
+        if PolicyActionType.VALIDATION not in policy_types or not validation_config:
+            issues.append({
+                "type": "missing_validation",
+                "severity": "medium",
+                "message": "API lacks validation policy (security requirement)",
+                "standards": ["OWASP", "PCI_DSS"],
+                "recommendation": "Add VALIDATION policy action to prevent injection attacks"
+            })
+        
+        return issues
 
 # Made with Bob

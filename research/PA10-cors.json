@@ -1,0 +1,61 @@
+{
+    "policyAction": {
+        "id": "c49a7fca-7e70-4f32-9495-8222c89ee558",
+        "names": [
+            {
+                "value": "CORS",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "cors",
+        "parameters": [
+            {
+                "templateKey": "corsAttributes",
+                "parameters": [
+                    {
+                        "templateKey": "allowedOrigins",
+                        "values": [
+                            "test1"
+                        ]
+                    },
+                    {
+                        "templateKey": "allowHeaders",
+                        "values": [
+                            "test2"
+                        ]
+                    },
+                    {
+                        "templateKey": "exposeHeaders",
+                        "values": [
+                            "test3"
+                        ]
+                    },
+                    {
+                        "templateKey": "allowCredentials",
+                        "values": [
+                            "false"
+                        ]
+                    },
+                    {
+                        "templateKey": "allowMethods",
+                        "values": [
+                            "GET",
+                            "POST",
+                            "PUT",
+                            "DELETE",
+                            "PATCH",
+                            "HEAD"
+                        ]
+                    },
+                    {
+                        "templateKey": "maxAge",
+                        "values": [
+                            "10"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "active": false
+    }
+}

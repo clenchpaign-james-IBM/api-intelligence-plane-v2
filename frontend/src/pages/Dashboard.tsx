@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, Server, Zap, Plus } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
+import GatewaySelector from '../components/common/GatewaySelector';
 import AddGatewayForm from '../components/gateways/AddGatewayForm';
+import TimeRangeSelector, { type TimeRangeValue } from '../components/common/TimeRangeSelector';
 import { api } from '../services/api';
+import { metricsService } from '../services/metrics';
+import { securityService } from '../services/security';
+import { optimizationService } from '../services/optimization';
 import type { DashboardStats, API, Gateway } from '../types';
 
 /**
  * Dashboard Page
- * 
+ *
  * Displays overview of the API Intelligence Plane system:
  * - Key metrics and statistics
  * - API health overview
@@ -19,40 +24,101 @@ import type { DashboardStats, API, Gateway } from '../types';
  * - Recent alerts and recommendations
  */
 const Dashboard = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [showAddGatewayForm, setShowAddGatewayForm] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>({
+    range: '24h',
+    start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    end: new Date(),
+  });
 
-  // Fetch dashboard data
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+    // Update URL if needed (optional - can navigate to gateway-specific route)
+    // if (newGatewayId) {
+    //   navigate(`/?gateway=${newGatewayId}`);
+    // } else {
+    //   navigate('/');
+    // }
+  };
+
+  // Fetch dashboard data (filtered by gateway if selected)
   const { data: apis, isLoading: apisLoading, error: apisError } = useQuery({
-    queryKey: ['apis'],
-    queryFn: () => api.apis.list(),
+    queryKey: ['apis', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return api.apis.list(params);
+    },
+    staleTime: 0, // Always fetch fresh data
   });
 
   const { data: gateways, isLoading: gatewaysLoading, error: gatewaysError, refetch: refetchGateways } = useQuery({
     queryKey: ['gateways'],
     queryFn: () => api.gateways.list(),
+    staleTime: 0, // Always fetch fresh data
+  });
+
+  // Fetch metrics summary (filtered by gateway if selected)
+  const { data: metricsSummary, isLoading: metricsLoading } = useQuery({
+    queryKey: ['metrics-summary', timeRange, selectedGatewayId],
+    queryFn: () => {
+      const params: any = {
+        start_time: timeRange.start?.toISOString(),
+        end_time: timeRange.end?.toISOString(),
+      };
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return metricsService.getSummary(params);
+    },
+    staleTime: 0, // Always fetch fresh data
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch security summary (filtered by gateway if selected)
+  const { data: securitySummary, isLoading: securityLoading } = useQuery({
+    queryKey: ['security-summary', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return securityService.getSummary(params);
+    },
+    staleTime: 0, // Always fetch fresh data
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Fetch optimization summary (filtered by gateway if selected)
+  const { data: optimizationSummary, isLoading: optimizationLoading } = useQuery({
+    queryKey: ['optimization-summary', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return optimizationService.getSummary(params);
+    },
+    staleTime: 0, // Always fetch fresh data
+    refetchInterval: 60000, // Refresh every minute
   });
 
   // Calculate dashboard statistics
   const stats: DashboardStats = {
     total_apis: apis?.items?.length || 0,
     active_apis: apis?.items?.filter((a: API) => a.status === 'active').length || 0,
-    shadow_apis: apis?.items?.filter((a: API) => a.is_shadow).length || 0,
+    shadow_apis: apis?.items?.filter((a: API) => a.intelligence_metadata?.is_shadow).length || 0,
     total_gateways: gateways?.items?.length || 0,
     active_gateways: gateways?.items?.filter((g: Gateway) => g.status === 'connected').length || 0,
     avg_health_score: apis?.items?.length
-      ? apis.items.reduce((sum: number, a: API) => sum + a.health_score, 0) / apis.items.length
+      ? apis.items.reduce((sum: number, a: API) => sum + (a.intelligence_metadata?.health_score ?? 0), 0) / apis.items.length
       : 0,
-    avg_response_time: apis?.items?.length
-      ? apis.items.reduce((sum: number, a: API) => sum + a.current_metrics.response_time_p95, 0) / apis.items.length
-      : 0,
-    total_requests_24h: 0, // Would come from metrics aggregation
-    error_rate_24h: 0, // Would come from metrics aggregation
-    critical_vulnerabilities: 0, // Would come from security scan
-    high_priority_recommendations: 0, // Would come from recommendations
+    avg_response_time: metricsSummary?.avg_response_time || 0,
+    total_requests_24h: metricsSummary?.total_requests_24h || 0,
+    error_rate_24h: metricsSummary?.avg_error_rate || 0,
+    critical_vulnerabilities: securitySummary?.critical_vulnerabilities || 0,
+    high_priority_recommendations: optimizationSummary?.high_priority_recommendations || 0,
   };
 
   // Loading state
-  if (apisLoading || gatewaysLoading) {
+  if (apisLoading || gatewaysLoading || metricsLoading || securityLoading || optimizationLoading) {
     return (
       <div className="p-6">
         <Loading message="Loading dashboard..." />
@@ -75,11 +141,21 @@ const Dashboard = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Page Header */}
-      <div>
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-2 text-sm text-gray-600">
           Overview of your API infrastructure and health metrics
         </p>
+      </div>
+
+      {/* Gateway and Time Range Selectors */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GatewaySelector
+          selectedGatewayId={selectedGatewayId}
+          onGatewayChange={handleGatewayChange}
+          showAllOption={true}
+        />
+        <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
       {/* Key Metrics Grid */}
@@ -175,7 +251,7 @@ const Dashboard = () => {
         <Card title="Top Performing APIs" subtitle="Highest health scores">
           <div className="space-y-3">
             {apis?.items
-              ?.sort((a: API, b: API) => b.health_score - a.health_score)
+              ?.sort((a: API, b: API) => (b.intelligence_metadata?.health_score ?? 0) - (a.intelligence_metadata?.health_score ?? 0))
               .slice(0, 5)
               .map((api: API) => (
                 <Link
@@ -190,13 +266,13 @@ const Dashboard = () => {
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">
-                        {api.health_score.toFixed(1)}
+                        {(api.intelligence_metadata?.health_score ?? 0).toFixed(1)}
                       </p>
                       <p className="text-xs text-gray-500">Health Score</p>
                     </div>
                     <div className={`w-3 h-3 rounded-full ${
-                      api.health_score >= 80 ? 'bg-green-500' :
-                      api.health_score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                      (api.intelligence_metadata?.health_score ?? 0) >= 80 ? 'bg-green-500' :
+                      (api.intelligence_metadata?.health_score ?? 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                   </div>
                 </Link>
@@ -211,8 +287,8 @@ const Dashboard = () => {
         <Card title="APIs Needing Attention" subtitle="Low health scores or issues">
           <div className="space-y-3">
             {apis?.items
-              ?.filter((a: API) => a.health_score < 70 || a.status === 'failed')
-              .sort((a: API, b: API) => a.health_score - b.health_score)
+              ?.filter((a: API) => (a.intelligence_metadata?.health_score ?? 0) < 70 || a.status === 'failed')
+              .sort((a: API, b: API) => (a.intelligence_metadata?.health_score ?? 0) - (b.intelligence_metadata?.health_score ?? 0))
               .slice(0, 5)
               .map((api: API) => (
                 <Link
@@ -227,7 +303,7 @@ const Dashboard = () => {
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <p className="text-sm font-medium text-red-600">
-                        {api.health_score.toFixed(1)}
+                        {(api.intelligence_metadata?.health_score ?? 0).toFixed(1)}
                       </p>
                       <p className="text-xs text-gray-500">Health Score</p>
                     </div>
@@ -235,7 +311,7 @@ const Dashboard = () => {
                   </div>
                 </Link>
               ))}
-            {(!apis?.items || apis.items.filter((a: API) => a.health_score < 70).length === 0) && (
+            {(!apis?.items || apis.items.filter((a: API) => (a.intelligence_metadata?.health_score ?? 0) < 70).length === 0) && (
               <p className="text-center text-green-600 py-4">
                 All APIs are performing well! 🎉
               </p>
@@ -265,7 +341,7 @@ const Dashboard = () => {
                 </span>
               </div>
               <p className="text-sm text-gray-600 mb-2">{gateway.vendor}</p>
-              <p className="text-xs text-gray-500 truncate">{gateway.connection_url}</p>
+              <p className="text-xs text-gray-500 truncate">{gateway.base_url}</p>
               {gateway.last_connected_at && (
                 <p className="text-xs text-gray-400 mt-2">
                   Last connected: {new Date(gateway.last_connected_at).toLocaleString()}

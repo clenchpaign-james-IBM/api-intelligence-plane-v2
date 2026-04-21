@@ -56,7 +56,7 @@ async def recreate_indices():
     print("RECREATING OPTIMIZATION INDICES")
     print("=" * 80)
     
-    from app.db.migrations import (
+    from app.db.schemas import (
         create_optimization_recommendations_index,
         create_rate_limit_policies_index,
     )

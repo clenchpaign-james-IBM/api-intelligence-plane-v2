@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { X, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { api } from '../../services/api';
 import Button from '../common/Button';
 import Card from '../common/Card';
@@ -20,24 +20,41 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     name: '',
-    vendor: 'native' as GatewayVendor,
+    vendor: 'webmethods' as GatewayVendor,
     version: '',
-    connection_url: '',
+    base_url: '',
+    transactional_logs_url: '',
     connection_type: 'rest_api' as ConnectionType,
-    credential_type: 'api_key',
-    api_key: '',
-    username: '',
-    password: '',
-    token: '',
+    base_url_credential_type: 'none',
+    base_url_api_key: '',
+    base_url_username: '',
+    base_url_password: '',
+    base_url_token: '',
+    transactional_logs_credential_type: 'none',
+    transactional_logs_api_key: '',
+    transactional_logs_username: '',
+    transactional_logs_password: '',
+    transactional_logs_token: '',
     capabilities: ['discovery', 'metrics'],
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [connectionTest, setConnectionTest] = useState<{
+    status: 'idle' | 'testing' | 'success' | 'error';
+    message?: string;
+    latency?: number;
+  }>({ status: 'idle' });
 
   // Create gateway mutation
   const createMutation = useMutation({
     mutationFn: (data: any) => api.gateways.create(data),
-    onSuccess: () => {
+    onSuccess: async (gateway: any) => {
+      // Automatically trigger sync after successful creation
+      try {
+        await api.gateways.sync(gateway.id);
+      } catch (error) {
+        console.warn('Initial sync failed, but gateway was created:', error);
+      }
       queryClient.invalidateQueries({ queryKey: ['gateways'] });
       onSuccess?.();
       onClose();
@@ -48,21 +65,83 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
     },
   });
 
+  // Test connection mutation
+  const testConnectionMutation = useMutation({
+    mutationFn: (data: any) => api.gateways.testConnection(data),
+    onSuccess: (response: any) => {
+      // Check if connection was actually successful
+      if (response.connected) {
+        setConnectionTest({
+          status: 'success',
+          message: response.message || 'Connection successful',
+          latency: response.latency_ms,
+        });
+      } else {
+        // Backend returned connected: false
+        setConnectionTest({
+          status: 'error',
+          message: response.message || response.error || 'Connection failed',
+        });
+      }
+    },
+    onError: (error: any) => {
+      setConnectionTest({
+        status: 'error',
+        message: error.response?.data?.detail || error.message || 'Connection failed',
+      });
+    },
+  });
+
+  const handleTestConnection = () => {
+    // Validate required fields before testing
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.base_url.trim()) newErrors.base_url = 'Base URL is required';
+    
+    // Validate base URL credentials based on type
+    if (formData.base_url_credential_type === 'api_key' && !formData.base_url_api_key.trim()) {
+      newErrors.base_url_api_key = 'API Key is required for base URL';
+    } else if (formData.base_url_credential_type === 'basic' && (!formData.base_url_username.trim() || !formData.base_url_password.trim())) {
+      newErrors.base_url_credentials = 'Username and password are required for base URL';
+    } else if (formData.base_url_credential_type === 'bearer' && !formData.base_url_token.trim()) {
+      newErrors.base_url_token = 'Bearer token is required for base URL';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setConnectionTest({ status: 'testing' });
+    testConnectionMutation.mutate(formData);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate required fields
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.connection_url.trim()) newErrors.connection_url = 'Connection URL is required';
+    if (!formData.base_url.trim()) newErrors.base_url = 'Base URL is required';
     
-    // Validate credentials based on type
-    if (formData.credential_type === 'api_key' && !formData.api_key.trim()) {
-      newErrors.api_key = 'API Key is required';
-    } else if (formData.credential_type === 'basic' && (!formData.username.trim() || !formData.password.trim())) {
-      newErrors.credentials = 'Username and password are required';
-    } else if (formData.credential_type === 'bearer' && !formData.token.trim()) {
-      newErrors.token = 'Bearer token is required';
+    // Validate base URL credentials based on type
+    if (formData.base_url_credential_type === 'api_key' && !formData.base_url_api_key.trim()) {
+      newErrors.base_url_api_key = 'API Key is required for base URL';
+    } else if (formData.base_url_credential_type === 'basic' && (!formData.base_url_username.trim() || !formData.base_url_password.trim())) {
+      newErrors.base_url_credentials = 'Username and password are required for base URL';
+    } else if (formData.base_url_credential_type === 'bearer' && !formData.base_url_token.trim()) {
+      newErrors.base_url_token = 'Bearer token is required for base URL';
+    }
+    
+    // Validate transactional logs credentials if URL is provided
+    if (formData.transactional_logs_url.trim()) {
+      if (formData.transactional_logs_credential_type === 'api_key' && !formData.transactional_logs_api_key.trim()) {
+        newErrors.transactional_logs_api_key = 'API Key is required for transactional logs';
+      } else if (formData.transactional_logs_credential_type === 'basic' && (!formData.transactional_logs_username.trim() || !formData.transactional_logs_password.trim())) {
+        newErrors.transactional_logs_credentials = 'Username and password are required for transactional logs';
+      } else if (formData.transactional_logs_credential_type === 'bearer' && !formData.transactional_logs_token.trim()) {
+        newErrors.transactional_logs_token = 'Bearer token is required for transactional logs';
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -131,6 +210,7 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="native">Native</option>
+                  <option value="webmethods">WebMethods</option>
                   <option value="kong">Kong</option>
                   <option value="apigee">Apigee</option>
                   <option value="aws">AWS API Gateway</option>
@@ -160,18 +240,33 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Connection URL *
+                Base URL *
               </label>
               <input
                 type="url"
-                value={formData.connection_url}
-                onChange={(e) => handleChange('connection_url', e.target.value)}
+                value={formData.base_url}
+                onChange={(e) => handleChange('base_url', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.connection_url ? 'border-red-500' : 'border-gray-300'
+                  errors.base_url ? 'border-red-500' : 'border-gray-300'
                 }`}
-                placeholder="https://api.example.com"
+                placeholder="https://gateway.example.com:5555"
               />
-              {errors.connection_url && <p className="mt-1 text-sm text-red-600">{errors.connection_url}</p>}
+              <p className="mt-1 text-xs text-gray-500">Primary endpoint for APIs, Policies, and PolicyActions</p>
+              {errors.base_url && <p className="mt-1 text-sm text-red-600">{errors.base_url}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Transactional Logs URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={formData.transactional_logs_url}
+                onChange={(e) => handleChange('transactional_logs_url', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="https://analytics.example.com/logs"
+              />
+              <p className="mt-1 text-xs text-gray-500">Separate endpoint for analytics data (if different from base URL)</p>
             </div>
 
             <div>
@@ -190,44 +285,45 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             </div>
           </div>
 
-          {/* Credentials */}
+          {/* Base URL Credentials */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Credentials</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Base URL Credentials</h3>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Credential Type
               </label>
               <select
-                value={formData.credential_type}
-                onChange={(e) => handleChange('credential_type', e.target.value)}
+                value={formData.base_url_credential_type}
+                onChange={(e) => handleChange('base_url_credential_type', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
+                <option value="none">No Authentication</option>
                 <option value="api_key">API Key</option>
                 <option value="basic">Basic Auth</option>
                 <option value="bearer">Bearer Token</option>
               </select>
             </div>
 
-            {formData.credential_type === 'api_key' && (
+            {formData.base_url_credential_type === 'api_key' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   API Key *
                 </label>
                 <input
                   type="password"
-                  value={formData.api_key}
-                  onChange={(e) => handleChange('api_key', e.target.value)}
+                  value={formData.base_url_api_key}
+                  onChange={(e) => handleChange('base_url_api_key', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.api_key ? 'border-red-500' : 'border-gray-300'
+                    errors.base_url_api_key ? 'border-red-500' : 'border-gray-300'
                   }`}
                   placeholder="Enter API key"
                 />
-                {errors.api_key && <p className="mt-1 text-sm text-red-600">{errors.api_key}</p>}
+                {errors.base_url_api_key && <p className="mt-1 text-sm text-red-600">{errors.base_url_api_key}</p>}
               </div>
             )}
 
-            {formData.credential_type === 'basic' && (
+            {formData.base_url_credential_type === 'basic' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -235,8 +331,8 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
                   </label>
                   <input
                     type="text"
-                    value={formData.username}
-                    onChange={(e) => handleChange('username', e.target.value)}
+                    value={formData.base_url_username}
+                    onChange={(e) => handleChange('base_url_username', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Username"
                   />
@@ -247,34 +343,163 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
                   </label>
                   <input
                     type="password"
-                    value={formData.password}
-                    onChange={(e) => handleChange('password', e.target.value)}
+                    value={formData.base_url_password}
+                    onChange={(e) => handleChange('base_url_password', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Password"
                   />
                 </div>
-                {errors.credentials && <p className="col-span-2 text-sm text-red-600">{errors.credentials}</p>}
+                {errors.base_url_credentials && <p className="col-span-2 text-sm text-red-600">{errors.base_url_credentials}</p>}
               </div>
             )}
 
-            {formData.credential_type === 'bearer' && (
+            {formData.base_url_credential_type === 'bearer' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bearer Token *
                 </label>
                 <input
                   type="password"
-                  value={formData.token}
-                  onChange={(e) => handleChange('token', e.target.value)}
+                  value={formData.base_url_token}
+                  onChange={(e) => handleChange('base_url_token', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.token ? 'border-red-500' : 'border-gray-300'
+                    errors.base_url_token ? 'border-red-500' : 'border-gray-300'
                   }`}
                   placeholder="Enter bearer token"
                 />
-                {errors.token && <p className="mt-1 text-sm text-red-600">{errors.token}</p>}
+                {errors.base_url_token && <p className="mt-1 text-sm text-red-600">{errors.base_url_token}</p>}
               </div>
             )}
           </div>
+
+          {/* Transactional Logs Credentials */}
+          {formData.transactional_logs_url && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Transactional Logs Credentials (Optional)</h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Credential Type
+                </label>
+                <select
+                  value={formData.transactional_logs_credential_type}
+                  onChange={(e) => handleChange('transactional_logs_credential_type', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="none">No Authentication</option>
+                  <option value="api_key">API Key</option>
+                  <option value="basic">Basic Auth</option>
+                  <option value="bearer">Bearer Token</option>
+                </select>
+              </div>
+
+              {formData.transactional_logs_credential_type === 'api_key' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    API Key *
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.transactional_logs_api_key}
+                    onChange={(e) => handleChange('transactional_logs_api_key', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.transactional_logs_api_key ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter API key"
+                  />
+                  {errors.transactional_logs_api_key && <p className="mt-1 text-sm text-red-600">{errors.transactional_logs_api_key}</p>}
+                </div>
+              )}
+
+              {formData.transactional_logs_credential_type === 'basic' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.transactional_logs_username}
+                      onChange={(e) => handleChange('transactional_logs_username', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.transactional_logs_password}
+                      onChange={(e) => handleChange('transactional_logs_password', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Password"
+                    />
+                  </div>
+                  {errors.transactional_logs_credentials && <p className="col-span-2 text-sm text-red-600">{errors.transactional_logs_credentials}</p>}
+                </div>
+              )}
+
+              {formData.transactional_logs_credential_type === 'bearer' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bearer Token *
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.transactional_logs_token}
+                    onChange={(e) => handleChange('transactional_logs_token', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.transactional_logs_token ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter bearer token"
+                  />
+                  {errors.transactional_logs_token && <p className="mt-1 text-sm text-red-600">{errors.transactional_logs_token}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Connection Test Status */}
+          {connectionTest.status !== 'idle' && (
+            <div className={`p-4 border rounded-lg ${
+              connectionTest.status === 'success' ? 'bg-green-50 border-green-200' :
+              connectionTest.status === 'error' ? 'bg-red-50 border-red-200' :
+              'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {connectionTest.status === 'testing' && <Loader className="w-5 h-5 text-blue-600 animate-spin" />}
+                {connectionTest.status === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {connectionTest.status === 'error' && <XCircle className="w-5 h-5 text-red-600" />}
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    connectionTest.status === 'success' ? 'text-green-800' :
+                    connectionTest.status === 'error' ? 'text-red-800' :
+                    'text-blue-800'
+                  }`}>
+                    {connectionTest.status === 'testing' ? 'Testing connection...' :
+                     connectionTest.status === 'success' ? 'Connection successful!' :
+                     'Connection failed'}
+                  </p>
+                  {connectionTest.message && (
+                    <p className={`text-xs mt-1 ${
+                      connectionTest.status === 'success' ? 'text-green-700' :
+                      connectionTest.status === 'error' ? 'text-red-700' :
+                      'text-blue-700'
+                    }`}>
+                      {connectionTest.message}
+                    </p>
+                  )}
+                  {connectionTest.latency && (
+                    <p className="text-xs mt-1 text-green-700">
+                      Latency: {connectionTest.latency}ms
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Submit Error */}
           {errors.submit && (
@@ -288,6 +513,15 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             <Button
               type="button"
               variant="secondary"
+              onClick={handleTestConnection}
+              disabled={testConnectionMutation.isPending}
+              className="flex-1"
+            >
+              {testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               onClick={onClose}
               className="flex-1"
             >
@@ -296,7 +530,7 @@ const AddGatewayForm = ({ onClose, onSuccess }: AddGatewayFormProps) => {
             <Button
               type="submit"
               variant="primary"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || connectionTest.status === 'testing'}
               className="flex-1"
             >
               {createMutation.isPending ? 'Adding...' : 'Add Gateway'}

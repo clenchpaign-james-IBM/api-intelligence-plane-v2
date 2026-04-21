@@ -1,0 +1,106 @@
+{
+    "policy": {
+        "id": "3a056993-f18d-41dd-a7fd-f8015c552bab",
+        "names": [
+            {
+                "value": "Default Policy for API Swagger Petstore - OpenAPI 3.0",
+                "locale": "English"
+            }
+        ],
+        "descriptions": [
+            {
+                "value": "",
+                "locale": "English"
+            }
+        ],
+        "policyEnforcements": [
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "cddf64a5-7962-4998-861a-41cbd0cf05d9",
+                        "order": null
+                    }
+                ],
+                "stageKey": "transport"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "e91847b7-4a0f-43ff-b0e1-fdefa8a902eb",
+                        "order": null
+                    }
+                ],
+                "stageKey": "routing"
+            }
+        ],
+        "policyScope": "SERVICE",
+        "stageEnforcements": [
+            {
+                "policyActions": [
+                    {
+                        "id": "cddf64a5-7962-4998-861a-41cbd0cf05d9",
+                        "names": [
+                            {
+                                "value": "Enable HTTP / HTTPS",
+                                "locale": "en"
+                            }
+                        ],
+                        "descriptions": [
+                            {
+                                "value": "",
+                                "locale": "English"
+                            }
+                        ],
+                        "templateKey": "entryProtocolPolicy",
+                        "parameters": [
+                            {
+                                "templateKey": "protocol",
+                                "values": [
+                                    "https"
+                                ]
+                            }
+                        ],
+                        "active": false,
+                        "_docType": "policyactions"
+                    }
+                ],
+                "stageKey": "transport"
+            },
+            {
+                "policyActions": [
+                    {
+                        "id": "e91847b7-4a0f-43ff-b0e1-fdefa8a902eb",
+                        "names": [
+                            {
+                                "value": "Straight Through Routing",
+                                "locale": "en"
+                            }
+                        ],
+                        "descriptions": [
+                            {
+                                "value": "",
+                                "locale": "English"
+                            }
+                        ],
+                        "templateKey": "straightThroughRouting",
+                        "parameters": [
+                            {
+                                "templateKey": "endpointUri",
+                                "values": [
+                                    "https://petstore3.swagger.io/api/v3/${sys:resource_path}"
+                                ]
+                            }
+                        ],
+                        "active": false,
+                        "_docType": "policyactions"
+                    }
+                ],
+                "stageKey": "routing"
+            }
+        ],
+        "global": false,
+        "active": false,
+        "systemPolicy": false,
+        "_docType": "uipolicy"
+    }
+}

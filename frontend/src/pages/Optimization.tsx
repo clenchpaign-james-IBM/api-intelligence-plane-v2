@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import { Zap, TrendingUp, Filter } from 'lucide-react';
 import Loading from '../components/common/Loading';
 import Error from '../components/common/Error';
-import RecommendationCard from '../components/optimization/RecommendationCard';
+import GatewaySelector from '../components/common/GatewaySelector';
+import { RecommendationCard } from '../components/optimization/RecommendationCard';
+import { RecommendationDetail } from '../components/optimization/RecommendationDetail';
 import { api } from '../services/api';
+import type { OptimizationRecommendation } from '../types/optimization';
 import type {
-  Recommendation,
   RecommendationPriority,
   RecommendationStatus,
   RecommendationType
@@ -24,24 +27,33 @@ import type {
  * - Policy application to Gateway
  */
 const Optimization = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedPriority, setSelectedPriority] = useState<RecommendationPriority | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<RecommendationStatus | 'all'>('all');
   const [selectedType, setSelectedType] = useState<RecommendationType | 'all'>('all');
-  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   
   const queryClient = useQueryClient();
 
-  // Fetch recommendations
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
+
+  // Fetch recommendations (filtered by gateway if selected)
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['recommendations', selectedPriority, selectedStatus, selectedType],
+    queryKey: ['recommendations', selectedPriority, selectedStatus, selectedType, selectedGatewayId],
     queryFn: () => {
       const params: any = {};
       if (selectedPriority !== 'all') params.priority = selectedPriority;
       if (selectedStatus !== 'all') params.status = selectedStatus;
       if (selectedType !== 'all') params.recommendation_type = selectedType;
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
       return api.recommendations.list(params);
     },
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000, // Refetch every minute
   });
 
@@ -49,18 +61,53 @@ const Optimization = () => {
   const { data: stats } = useQuery({
     queryKey: ['recommendation-stats'],
     queryFn: () => api.recommendations.stats(),
+    staleTime: 0, // Always fetch fresh data
     refetchInterval: 60000,
   });
 
   // Apply policy mutation (creates or updates policy in Gateway)
   const applyMutation = useMutation({
-    mutationFn: (recommendationId: string) => api.recommendations.apply(recommendationId),
-    onSuccess: () => {
+    mutationFn: ({ gatewayId, recommendationId }: { gatewayId: string; recommendationId: string }) =>
+      api.recommendations.applyToGateway(gatewayId, recommendationId),
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['recommendations'] });
-      alert('Policy applied to Gateway successfully! The policy has been created or updated in the Gateway.');
+      if (data.requires_manual_configuration) {
+        alert(`Manual Configuration Required:\n\n${data.message}\n\nInstructions:\n${data.instructions?.join('\n') || 'See recommendation details'}`);
+      } else {
+        alert('Policy applied to Gateway successfully! The policy has been created or updated in the Gateway.');
+      }
     },
     onError: (error: any) => {
       alert(`Failed to apply policy to Gateway: ${error.message || 'Unknown error'}`);
+    },
+  });
+
+  // Remove policy mutation
+  const removeMutation = useMutation({
+    mutationFn: ({ gatewayId, recommendationId }: { gatewayId: string; recommendationId: string }) =>
+      api.recommendations.removeFromGateway(gatewayId, recommendationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      alert('Policy removed from Gateway successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to remove policy from Gateway: ${error.message || 'Unknown error'}`);
+    },
+  });
+
+  // Validate recommendation mutation
+  const validateMutation = useMutation({
+    mutationFn: ({ gatewayId, recommendationId, validationWindowHours }: { gatewayId: string; recommendationId: string; validationWindowHours?: number }) =>
+      api.recommendations.validate(gatewayId, recommendationId, validationWindowHours || 24),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      const message = data.success
+        ? `Validation Successful!\n\nExpected: ${data.expected_improvement}%\nActual: ${data.actual_improvement}%\nImprovement: ${data.improvement_percentage}%\nConfidence: ${(data.confidence_score * 100).toFixed(1)}%`
+        : `Validation Failed:\n\n${data.message}`;
+      alert(message);
+    },
+    onError: (error: any) => {
+      alert(`Failed to validate recommendation: ${error.message || 'Unknown error'}`);
     },
   });
 
@@ -83,55 +130,24 @@ const Optimization = () => {
   }
 
   const recommendations = data?.recommendations || [];
-  const total = data?.total || 0;
-  const pendingCount = recommendations.filter((r: Recommendation) => r.status === 'pending').length;
-  const highPriorityCount = recommendations.filter((r: Recommendation) =>
+  const pendingCount = recommendations.filter((r: OptimizationRecommendation) => r.status === 'pending').length;
+  const highPriorityCount = recommendations.filter((r: OptimizationRecommendation) =>
     r.priority === 'critical' || r.priority === 'high'
   ).length;
   const avgImprovement = stats?.avg_improvement || 0;
 
   // Group recommendations by API
-  const groupedRecommendations: Record<string, Recommendation[]> = recommendations.reduce((acc: Record<string, Recommendation[]>, rec: Recommendation) => {
+  const groupedRecommendations: Record<string, OptimizationRecommendation[]> = recommendations.reduce((acc: Record<string, OptimizationRecommendation[]>, rec: OptimizationRecommendation) => {
     const apiKey = rec.api_name || rec.api_id;
     if (!acc[apiKey]) acc[apiKey] = [];
     acc[apiKey].push(rec);
     return acc;
-  }, {} as Record<string, Recommendation[]>);
-
-  // Priority badge color
-  const getPriorityColor = (priority: RecommendationPriority) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Status badge color
-  const getStatusColor = (status: RecommendationStatus) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'implemented': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-gray-100 text-gray-800';
-      case 'expired': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Type display name
-  const getTypeDisplayName = (type: RecommendationType) => {
-    return type.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
+  }, {} as Record<string, OptimizationRecommendation[]>);
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="mb-6">
+      <div>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Performance Optimization</h1>
@@ -158,6 +174,13 @@ const Optimization = () => {
           </div>
         </div>
       </div>
+      {/* Gateway Selector */}
+      <GatewaySelector
+        selectedGatewayId={selectedGatewayId}
+        onGatewayChange={handleGatewayChange}
+        showAllOption={true}
+      />
+
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -265,12 +288,11 @@ const Optimization = () => {
 
                 {/* Recommendations Grid for this API */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {apiRecs.map((recommendation: Recommendation) => (
+                  {apiRecs.map((recommendation: OptimizationRecommendation) => (
                     <RecommendationCard
                       key={recommendation.id}
                       recommendation={recommendation}
                       onClick={() => setSelectedRecommendation(recommendation)}
-                      onApply={(id) => applyMutation.mutate(id)}
                     />
                   ))}
                 </div>
@@ -291,12 +313,20 @@ const Optimization = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
-              <RecommendationCard
+              <RecommendationDetail
                 recommendation={selectedRecommendation}
-                detailed={true}
-                onApply={(id) => {
-                  applyMutation.mutate(id);
+                onApply={(gatewayId, recommendationId) => {
+                  applyMutation.mutate({ gatewayId, recommendationId });
                   setSelectedRecommendation(null);
+                }}
+                onRemove={(gatewayId, recommendationId) => {
+                  if (confirm('Are you sure you want to remove this policy from the gateway?')) {
+                    removeMutation.mutate({ gatewayId, recommendationId });
+                    setSelectedRecommendation(null);
+                  }
+                }}
+                onValidate={(gatewayId, recommendationId) => {
+                  validateMutation.mutate({ gatewayId, recommendationId });
                 }}
               />
 

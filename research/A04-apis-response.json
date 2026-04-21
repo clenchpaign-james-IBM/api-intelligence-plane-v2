@@ -1,0 +1,32 @@
+{
+	"apiResponse": [
+		{
+			"api": {
+				"apiName": "HostNameStrict",
+				"apiVersion": "1.0.27",
+				"apiDescription": "This is a sample Pet Store Server based on the OpenAPI 3.0 specification.  You can find out more about\nSwagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach!\nYou can now help us improve the API whether it's by making changes to the definition itself or to the code.\nThat way, with time, we can improve the API in general, and expose some of the new features in OAS3.\n\nSome useful links:\n- [The Pet Store repository](https://github.com/swagger-api/swagger-petstore)\n- [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)",
+				"isActive": true,
+				"type": "REST",
+				"tracingEnabled": false,
+				"publishedPortals": [],
+				"systemVersion": 1,
+				"id": "fb332069-89df-49ce-bbcd-ed5f93319611"
+			},
+			"responseStatus": "SUCCESS"
+		},
+		{
+			"api": {
+				"apiName": "Swagger Petstore - OpenAPI 3.0",
+				"apiVersion": "1.0.27",
+				"apiDescription": "This is a sample Pet Store Server based on the OpenAPI 3.0 specification.  You can find out more about\nSwagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach!\nYou can now help us improve the API whether it's by making changes to the definition itself or to the code.\nThat way, with time, we can improve the API in general, and expose some of the new features in OAS3.\n\nSome useful links:\n- [The Pet Store repository](https://github.com/swagger-api/swagger-petstore)\n- [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)",
+				"isActive": true,
+				"type": "REST",
+				"tracingEnabled": false,
+				"publishedPortals": [],
+				"systemVersion": 1,
+				"id": "d4f7537c-9a0c-444e-981c-9a269c5c912d"
+			},
+			"responseStatus": "SUCCESS"
+		}
+	]
+}

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from app.db.repositories.base import BaseRepository
-from app.models.api import API, APIStatus, DiscoveryMethod
+from app.models.base.api import API, APIStatus, DiscoveryMethod, PolicyAction, PolicyActionType
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "term": {
-                "is_shadow": True
+                "intelligence_metadata.is_shadow": True
             }
         }
         return self.search(query, size=size, from_=from_)
@@ -110,7 +110,7 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "term": {
-                "discovery_method": method.value
+                "intelligence_metadata.discovery_method": method.value
             }
         }
         return self.search(query, size=size, from_=from_)
@@ -185,13 +185,40 @@ class APIRepository(BaseRepository[API]):
         """
         query = {
             "range": {
-                "health_score": {
+                "intelligence_metadata.health_score": {
                     "lt": health_threshold
                 }
             }
         }
-        sort = [{"health_score": {"order": "asc"}}]
+        sort = [{"intelligence_metadata.health_score": {"order": "asc"}}]
         return self.search(query, size=size, from_=from_, sort=sort)
+    
+    def find_by_gateway_and_api_id(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+    ) -> Optional[API]:
+        """
+        Find API by gateway_id and api_id (unique key combination).
+        
+        Args:
+            gateway_id: Gateway UUID
+            api_id: API UUID
+            
+        Returns:
+            API if found, None otherwise
+        """
+        query: Dict[str, Any] = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": str(gateway_id)}},
+                    {"term": {"id": str(api_id)}}
+                ]
+            }
+        }
+        
+        results, _ = self.search(query, size=1)
+        return results[0] if results else None
     
     def find_by_base_path(
         self,
@@ -223,6 +250,118 @@ class APIRepository(BaseRepository[API]):
         
         results, _ = self.search(query, size=1)
         return results[0] if results else None
+    def find_by_request_path(
+        self,
+        request_path: str,
+        gateway_id: UUID,
+    ) -> Optional[API]:
+        """
+        Find API by matching request path against registered patterns.
+        
+        Uses path parsing and pattern matching to identify the API that handles
+        a given request path, accounting for gateway routing and path parameters.
+        
+        Args:
+            request_path: Full request path from transactional log
+                         (e.g., /gateway/users-api/v1/users/123/profile)
+            gateway_id: Gateway UUID
+        
+        Returns:
+            Matching API if found, None otherwise
+        
+        Algorithm:
+            1. Parse request_path to extract components (gateway_prefix, api_name, 
+               api_version, resource_path)
+            2. Query APIs by gateway_id, api_name, and api_version
+            3. For each candidate API, check if resource_path matches any endpoint
+            4. Return first matching API
+        
+        Example:
+            >>> repo = APIRepository()
+            >>> api = repo.find_by_request_path(
+            ...     "/gateway/users-api/v1/users/123/profile",
+            ...     gateway_id=UUID("...")
+            ... )
+        """
+        from app.utils.path_matcher import parse_request_path, matches_api_endpoints
+        
+        # Parse the request path
+        components = parse_request_path(request_path)
+        if not components:
+            logger.debug(f"Could not parse request path: {request_path}")
+            return None
+        
+        # Query candidate APIs by gateway_id, api_name, and api_version
+        query: Dict[str, Any] = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": str(gateway_id)}},
+                ]
+            }
+        }
+        
+        # Add api_name filter with multiple strategies
+        # Try exact match first, then fuzzy match
+        query["bool"]["should"] = [
+            # Exact match on name.keyword (if available)
+            {"term": {"name.keyword": components.api_name}},
+            # Case-insensitive match
+            {"match": {
+                "name": {
+                    "query": components.api_name,
+                    "operator": "and",
+                    "fuzziness": "AUTO"
+                }
+            }},
+            # Phrase match for names with spaces
+            {"match_phrase": {
+                "name": components.api_name
+            }}
+        ]
+        query["bool"]["minimum_should_match"] = 1
+        
+        # Add version filter as additional should clause
+        query["bool"]["should"].extend([
+            {"term": {"version_info.current_version": components.api_version}},
+            {"match": {"version_info.current_version": components.api_version}}
+        ])
+        
+        # Boost results that match both name and version
+        candidates, _ = self.search(query, size=20)
+        
+        # Filter candidates by version if we got results
+        if candidates and components.api_version:
+            version_matched = [
+                api for api in candidates
+                if hasattr(api, 'version_info') and
+                   hasattr(api.version_info, 'current_version') and
+                   api.version_info.current_version == components.api_version
+            ]
+            if version_matched:
+                candidates = version_matched
+        
+        if not candidates:
+            logger.debug(
+                f"No candidate APIs found for gateway={gateway_id}, "
+                f"api_name={components.api_name}, version={components.api_version}"
+            )
+            return None
+        
+        # Match resource path against API endpoints
+        for api in candidates:
+            if matches_api_endpoints(components.resource_path, api):
+                logger.debug(
+                    f"Matched request path {request_path} to API {api.name} "
+                    f"(id={api.id})"
+                )
+                return api
+        
+        logger.debug(
+            f"No API matched resource path {components.resource_path} "
+            f"from {len(candidates)} candidates"
+        )
+        return None
+    
     
     def advanced_search(
         self,
@@ -270,7 +409,7 @@ class APIRepository(BaseRepository[API]):
         # Shadow API filter
         if "is_shadow" in filters:
             must_clauses.append({
-                "term": {"is_shadow": filters["is_shadow"]}
+                "term": {"intelligence_metadata.is_shadow": filters["is_shadow"]}
             })
         
         # Health score range
@@ -281,7 +420,7 @@ class APIRepository(BaseRepository[API]):
             if "max_health_score" in filters:
                 range_query["lte"] = filters["max_health_score"]
             must_clauses.append({
-                "range": {"health_score": range_query}
+                "range": {"intelligence_metadata.health_score": range_query}
             })
         
         # Tags filter
@@ -330,20 +469,20 @@ class APIRepository(BaseRepository[API]):
             aggs = {
                 "total_apis": {"value_count": {"field": "id"}},
                 "shadow_apis": {
-                    "filter": {"term": {"is_shadow": True}}
+                    "filter": {"term": {"intelligence_metadata.is_shadow": True}}
                 },
                 "by_status": {
                     "terms": {"field": "status"}
                 },
                 "by_discovery_method": {
-                    "terms": {"field": "discovery_method"}
+                    "terms": {"field": "intelligence_metadata.discovery_method"}
                 },
                 "avg_health_score": {
-                    "avg": {"field": "health_score"}
+                    "avg": {"field": "intelligence_metadata.health_score"}
                 },
                 "health_distribution": {
                     "histogram": {
-                        "field": "health_score",
+                        "field": "intelligence_metadata.health_score",
                         "interval": 10
                     }
                 }
@@ -387,3 +526,104 @@ class APIRepository(BaseRepository[API]):
 
 
 # Made with Bob
+    
+    def derive_security_policies(self, api: API) -> List[PolicyAction]:
+        """
+        Derive security-related policy actions from an API's policy_actions array.
+        
+        Filters policy_actions for security-related types:
+        - AUTHENTICATION
+        - AUTHORIZATION
+        - TLS
+        - CORS
+        - VALIDATION
+        - DATA_MASKING
+        
+        Args:
+            api: API entity to analyze
+            
+        Returns:
+            List of security-related PolicyAction objects
+        """
+        # Define security-related policy types
+        security_types = {
+            PolicyActionType.AUTHENTICATION,
+            PolicyActionType.AUTHORIZATION,
+            PolicyActionType.TLS,
+            PolicyActionType.CORS,
+            PolicyActionType.VALIDATION,
+            PolicyActionType.DATA_MASKING,
+        }
+        
+        # Handle case where policy_actions might be None
+        if not api.policy_actions:
+            logger.info(f"API {api.id} has no policy actions")
+            return []
+        
+        # Filter policy actions for security types
+        security_policies = [
+            policy_action
+            for policy_action in api.policy_actions
+            if policy_action.action_type in security_types
+        ]
+        
+        logger.info(
+            f"Derived {len(security_policies)} security policies from API {api.id} "
+            f"(total policies: {len(api.policy_actions)})"
+        )
+        
+        return security_policies
+    
+    def find_apis_with_security_issues(
+        self,
+        size: int = 100,
+        from_: int = 0,
+    ) -> tuple[List[API], int]:
+        """
+        Find APIs with potential security issues (low security score).
+        
+        Args:
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of APIs with security issues, total count)
+        """
+        query = {
+            "range": {
+                "intelligence_metadata.security_score": {
+                    "lt": 70.0
+                }
+            }
+        }
+        sort = [{"intelligence_metadata.security_score": {"order": "asc"}}]
+        return self.search(query, size=size, from_=from_, sort=sort)
+    
+    def find_apis_by_policy_type(
+        self,
+        policy_type: str,
+        size: int = 100,
+        from_: int = 0,
+    ) -> tuple[List[API], int]:
+        """
+        Find APIs that have a specific policy action type applied.
+        
+        Args:
+            policy_type: PolicyActionType value to search for
+            size: Number of results to return
+            from_: Offset for pagination
+            
+        Returns:
+            Tuple of (list of APIs, total count)
+        """
+        query = {
+            "nested": {
+                "path": "policy_actions",
+                "query": {
+                    "term": {
+                        "policy_actions.action_type": policy_type
+                    }
+                }
+            }
+        }
+        return self.search(query, size=size, from_=from_)

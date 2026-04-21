@@ -5,12 +5,11 @@
  * Provides a chat-like interface for asking questions about APIs.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { QueryHistory } from '../components/query/QueryHistory';
 import { QueryInput } from '../components/query/QueryInput';
 import { useQuerySession } from '../hooks/useQuerySession';
 import Loading from '../components/common/Loading';
-import Error from '../components/common/Error';
 
 export const Query: React.FC = () => {
   const {
@@ -21,6 +20,7 @@ export const Query: React.FC = () => {
     executeQuery,
     loadSessionHistory,
     clearSession,
+    createNewSession,
   } = useQuerySession();
 
   const historyEndRef = useRef<HTMLDivElement>(null);
@@ -30,7 +30,7 @@ export const Query: React.FC = () => {
     console.log('[Query Page] Mount effect - sessionId:', sessionId, 'queries.length:', queries.length);
     if (sessionId && queries.length === 0) {
       // Only load if we don't have queries yet
-      loadSessionHistory().catch((err) => {
+      loadSessionHistory().catch(() => {
         // Ignore errors on initial load (session might not exist yet)
         console.log('[Query Page] No existing session history');
       });
@@ -65,6 +65,16 @@ export const Query: React.FC = () => {
     }
   };
 
+  const handleNewSession = async () => {
+    if (queries.length > 0) {
+      if (window.confirm('Start a new conversation? Current history will be saved but you will start fresh.')) {
+        await createNewSession();
+      }
+    } else {
+      await createNewSession();
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
@@ -84,6 +94,13 @@ export const Query: React.FC = () => {
                 Session: {sessionId.slice(0, 8)}...
               </div>
             )}
+            <button
+              onClick={handleNewSession}
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              New Session
+            </button>
             {queries.length > 0 && (
               <button
                 onClick={handleClearSession}

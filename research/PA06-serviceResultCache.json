@@ -1,0 +1,27 @@
+{
+    "policyAction": {
+        "id": "391b7c3d-6ec5-4499-b888-b5c14e349274",
+        "names": [
+            {
+                "value": "Service Result Cache",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "serviceResultCache",
+        "parameters": [
+            {
+                "templateKey": "ttl",
+                "values": [
+                    "1d"
+                ]
+            },
+            {
+                "templateKey": "max-payload-size",
+                "values": [
+                    "1000"
+                ]
+            }
+        ],
+        "active": false
+    }
+}

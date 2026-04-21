@@ -39,6 +39,39 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         """
         return self.create(recommendation)
 
+    def check_duplicate_recommendation(
+        self,
+        gateway_id: str,
+        api_id: str,
+        recommendation_type: RecommendationType,
+        status: RecommendationStatus = RecommendationStatus.PENDING,
+    ) -> Optional[OptimizationRecommendation]:
+        """
+        Check if a similar recommendation already exists for the API in the gateway
+
+        Args:
+            gateway_id: Gateway UUID
+            api_id: API UUID
+            recommendation_type: Type of recommendation
+            status: Status to check (default: PENDING)
+
+        Returns:
+            Existing recommendation if found, None otherwise
+        """
+        query = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": gateway_id}},
+                    {"term": {"api_id": api_id}},
+                    {"term": {"recommendation_type": recommendation_type.value}},
+                    {"term": {"status": status.value}},
+                ]
+            }
+        }
+
+        recommendations, _ = self.search(query=query, size=1)
+        return recommendations[0] if recommendations else None
+
     def get_recommendation(
         self, recommendation_id: str
     ) -> Optional[OptimizationRecommendation]:
@@ -55,6 +88,7 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
 
     def list_recommendations(
         self,
+        gateway_id: Optional[str] = None,
         api_id: Optional[str] = None,
         priority: Optional[RecommendationPriority] = None,
         status: Optional[RecommendationStatus] = None,
@@ -66,7 +100,8 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         List recommendations with filters
 
         Args:
-            api_id: Filter by API ID
+            gateway_id: Filter by Gateway ID (primary dimension)
+            api_id: Filter by API ID (secondary dimension)
             priority: Filter by priority level
             status: Filter by recommendation status
             recommendation_type: Filter by recommendation type
@@ -78,6 +113,8 @@ class RecommendationRepository(BaseRepository[OptimizationRecommendation]):
         """
         must_clauses = []
 
+        if gateway_id:
+            must_clauses.append({"term": {"gateway_id": gateway_id}})
         if api_id:
             must_clauses.append({"term": {"api_id": api_id}})
         if priority:

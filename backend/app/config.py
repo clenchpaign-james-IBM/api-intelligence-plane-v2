@@ -110,14 +110,6 @@ class Settings(BaseSettings):
         default=3, description="Maximum number of results to enhance with agents"
     )
     
-    # Prediction AI Settings
-    PREDICTION_AI_ENABLED: bool = Field(
-        default=True, description="Enable AI-enhanced predictions"
-    )
-    PREDICTION_AI_THRESHOLD: float = Field(
-        default=0.8, description="Confidence threshold for triggering AI enhancement"
-    )
-    
     # Optimization AI Settings
     OPTIMIZATION_AI_ENABLED: bool = Field(
         default=True, description="Enable AI-enhanced optimization recommendations"
@@ -141,20 +133,26 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = Field(
         default=True, description="Enable background scheduler"
     )
-    DISCOVERY_INTERVAL_MINUTES: int = Field(
-        default=5, description="API discovery interval in minutes"
+    API_DISCOVERY_INTERVAL_MINUTES: int = Field(
+        default=10, description="API discovery interval in minutes per gateway"
     )
     METRICS_INTERVAL_MINUTES: int = Field(
-        default=1, description="Metrics collection interval in minutes"
+        default=5, description="Metrics collection interval in minutes"
     )
     SECURITY_SCAN_INTERVAL_MINUTES: int = Field(
-        default=60, description="Security scan interval in minutes"
+        default=10, description="Security scan interval in minutes"
     )
     PREDICTION_INTERVAL_MINUTES: int = Field(
-        default=15, description="Prediction generation interval in minutes"
+        default=10, description="Prediction generation interval in minutes"
     )
     OPTIMIZATION_INTERVAL_MINUTES: int = Field(
-        default=30, description="Optimization analysis interval in minutes"
+        default=10, description="Optimization analysis interval in minutes"
+    )
+    TRANSACTIONAL_LOGS_INTERVAL_MINUTES: int = Field(
+        default=10, description="Transactional logs collection interval in minutes per gateway"
+    )
+    METRICS_AGGREGATION_BUCKET: str = Field(
+        default="10m", description="Default time bucket for metrics aggregation (1m, 5m, 1h, 1d)"
     )
     
     # TLS/SSL Settings

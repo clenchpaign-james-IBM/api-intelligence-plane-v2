@@ -43,13 +43,41 @@ export const gatewayService = {
   /**
    * Create a new gateway
    */
-  async create(gateway: Omit<Gateway, 'id' | 'created_at' | 'updated_at' | 'last_sync_at'>): Promise<Gateway> {
+  async create(gateway: any): Promise<Gateway> {
+    // Transform form data to backend API format
+    const requestData = {
+      name: gateway.name,
+      vendor: gateway.vendor,
+      version: gateway.version || null,
+      base_url: gateway.base_url,
+      transactional_logs_url: gateway.transactional_logs_url || null,
+      connection_type: gateway.connection_type,
+      
+      // Base URL credentials
+      base_url_credential_type: gateway.base_url_credential_type || 'none',
+      base_url_username: gateway.base_url_username || null,
+      base_url_password: gateway.base_url_password || null,
+      base_url_api_key: gateway.base_url_api_key || null,
+      base_url_token: gateway.base_url_token || null,
+      
+      // Transactional logs credentials
+      transactional_logs_credential_type: gateway.transactional_logs_credential_type || null,
+      transactional_logs_username: gateway.transactional_logs_username || null,
+      transactional_logs_password: gateway.transactional_logs_password || null,
+      transactional_logs_api_key: gateway.transactional_logs_api_key || null,
+      transactional_logs_token: gateway.transactional_logs_token || null,
+      
+      capabilities: gateway.capabilities || ['discovery', 'metrics'],
+      configuration: gateway.configuration || null,
+      metadata: gateway.metadata || null,
+    };
+
     const response = await fetch(`${API_BASE_URL}/api/v1/gateways`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(gateway),
+      body: JSON.stringify(requestData),
     });
 
     if (!response.ok) {

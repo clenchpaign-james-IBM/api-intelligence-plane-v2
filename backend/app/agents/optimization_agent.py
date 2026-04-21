@@ -1,8 +1,9 @@
 """
 Optimization Agent
 
-AI agent for enhanced optimization recommendation generation using LangChain/LangGraph.
-Provides LLM-powered analysis of performance patterns and recommendation prioritization.
+AI agent for hybrid optimization recommendation generation using LangChain/LangGraph.
+Provides LLM-powered analysis of performance patterns, recommendation enrichment,
+and prioritization.
 """
 
 import logging
@@ -22,7 +23,7 @@ except ImportError:
 from app.services.llm_service import LLMService
 from app.services.optimization_service import OptimizationService
 from app.models.recommendation import OptimizationRecommendation, RecommendationType
-from app.models.metric import Metric
+from app.models.base.metric import Metric
 
 logger = logging.getLogger(__name__)
 
@@ -30,19 +31,19 @@ logger = logging.getLogger(__name__)
 class OptimizationState(TypedDict):
     """State for optimization recommendation workflow."""
     
+    gateway_id: str
     api_id: str
     api_name: str
     metrics: List[Any]
     performance_analysis: str
     recommendations: List[Any]
-    enhanced_recommendations: List[Dict[str, Any]]
     prioritization: str
     error: str
 
 
 class OptimizationAgent:
     """
-    AI agent for enhanced optimization recommendation generation.
+    AI agent for hybrid optimization recommendation generation.
     
     Uses LangChain for LLM integration and LangGraph for workflow orchestration.
     """
@@ -96,35 +97,41 @@ class OptimizationAgent:
             logger.error(f"Failed to build LangGraph workflow: {e}")
             return None
     
-    async def generate_enhanced_recommendations(
+    async def generate_hybrid_recommendations(
         self,
+        gateway_id: UUID,
         api_id: UUID,
         api_name: str,
         metrics: List[Metric],
         focus_areas: Optional[List[RecommendationType]] = None,
+        min_impact: float = 10.0,
     ) -> Dict[str, Any]:
         """
-        Generate enhanced optimization recommendations with LLM analysis.
-        
+        Generate hybrid optimization recommendations with LLM analysis.
+
         Args:
+            gateway_id: Gateway UUID
             api_id: API UUID
             api_name: API name
             metrics: Historical metrics
             focus_areas: Specific optimization types to focus on
-            
+            min_impact: Minimum expected improvement percentage
+
         Returns:
-            Dict with recommendations and analysis
+            Dict with normalized recommendations and AI analysis
         """
-        logger.info(f"Generating enhanced optimization recommendations for API {api_name}")
+        logger.info(f"Generating hybrid optimization recommendations for API {api_name}")
         
         # Initialize state
+        self._current_min_impact = min_impact
+
         initial_state: OptimizationState = {
+            "gateway_id": str(gateway_id),
             "api_id": str(api_id),
             "api_name": api_name,
             "metrics": metrics,
             "performance_analysis": "",
             "recommendations": [],
-            "enhanced_recommendations": [],
             "prioritization": "",
             "error": "",
         }
@@ -145,7 +152,7 @@ class OptimizationAgent:
                 "api_id": str(api_id),
                 "api_name": api_name,
                 "performance_analysis": final_state.get("performance_analysis"),
-                "recommendations": final_state.get("enhanced_recommendations", []),
+                "recommendations": final_state.get("recommendations", []),
                 "prioritization": final_state.get("prioritization"),
                 "metrics_analyzed": len(metrics),
             }
@@ -171,7 +178,8 @@ class OptimizationAgent:
         """
         logger.info(f"Analyzing performance for API {state['api_name']}")
         
-        if not state["metrics"] or len(state["metrics"]) < 5:
+        # TODO Change to 10 after debugging
+        if not state["metrics"] or len(state["metrics"]) < 1:
             state["performance_analysis"] = "Insufficient metrics data for analysis"
             state["error"] = "Not enough metrics data points"
             return state
@@ -180,12 +188,13 @@ class OptimizationAgent:
         metrics_summary = self._prepare_metrics_summary(state["metrics"])
         
         # Create analysis prompt
-        system_prompt = """You are an expert performance optimization consultant. Analyze the provided metrics data and identify:
+        system_prompt = """You are an expert performance optimization consultant. Analyze vendor-neutral, time-bucketed API metrics and identify:
 1. Performance bottlenecks (response time, throughput, error rates)
 2. Resource utilization patterns
 3. Scalability concerns
 4. Optimization opportunities with highest impact
 5. Quick wins vs. long-term improvements
+6. Whether latency is dominated by gateway overhead, backend latency, cache performance, or traffic spikes
 
 Provide a concise, technical analysis focusing on actionable optimization opportunities."""
         
@@ -233,11 +242,14 @@ Identify the top optimization opportunities and their potential impact."""
         logger.info(f"Generating recommendations for API {state['api_name']}")
         
         try:
-            # Generate recommendations using optimization service
+            # Generate baseline recommendations using rule-based service logic
+            gateway_id = UUID(state["gateway_id"]) if isinstance(state["gateway_id"], str) else state["gateway_id"]
             api_id = UUID(state["api_id"]) if isinstance(state["api_id"], str) else state["api_id"]
-            recommendations = self.optimization_service.generate_recommendations_for_api(
+            recommendations = self.optimization_service._generate_rule_based_recommendations(
+                gateway_id=gateway_id,
                 api_id=api_id,
-                min_impact=10.0,
+                metrics=state["metrics"],
+                min_impact=getattr(self, "_current_min_impact", 10.0),
             )
             
             logger.info(
@@ -257,19 +269,19 @@ Identify the top optimization opportunities and their potential impact."""
         self, state: OptimizationState
     ) -> OptimizationState:
         """
-        Enhance recommendations with LLM-generated insights and explanations.
+        Enrich recommendations with LLM-generated insights and explanations.
         
         Args:
             state: Current workflow state
             
         Returns:
-            Updated state with enhanced recommendations
+            Updated state with normalized recommendations
         """
-        logger.info(f"Enhancing recommendations for API {state['api_name']}")
+        logger.info(f"Enriching recommendations for API {state['api_name']}")
         
         recommendations = state.get("recommendations", [])
         if not recommendations:
-            state["enhanced_recommendations"] = []
+            state["recommendations"] = []
             return state
         
         enhanced = []
@@ -277,7 +289,7 @@ Identify the top optimization opportunities and their potential impact."""
         for rec in recommendations:
             try:
                 # Create enhancement prompt
-                system_prompt = """You are an expert performance optimization consultant. 
+                system_prompt = """You are an expert performance optimization consultant.
 Enhance the given optimization recommendation by:
 1. Adding specific implementation details
 2. Identifying potential challenges and mitigation strategies
@@ -308,7 +320,22 @@ Provide enhanced implementation guidance and success metrics."""
                 
                 enhancement = response.get("content", "")
                 
-                # Create enhanced recommendation dict
+                # NEW: Update the actual recommendation in database with AI insights
+                from app.models.recommendation import AIContext
+                
+                ai_context = AIContext(
+                    performance_analysis=state.get("performance_analysis", ""),
+                    implementation_guidance=enhancement,
+                    generated_at=datetime.utcnow()
+                )
+                
+                # Persist to database
+                self.optimization_service.recommendation_repo.update(
+                    str(rec.id),
+                    {"ai_context": ai_context.dict()}
+                )
+                
+                # Merge AI enrichment into a normalized recommendation dict
                 enhanced_rec = {
                     "id": str(rec.id),
                     "api_id": str(rec.api_id),
@@ -351,9 +378,9 @@ Provide enhanced implementation guidance and success metrics."""
                     "error": f"Enhancement failed: {str(e)}",
                 })
         
-        logger.info(f"Enhanced {len(enhanced)} recommendations for API {state['api_name']}")
+        logger.info(f"Enriched {len(enhanced)} recommendations for API {state['api_name']}")
         
-        state["enhanced_recommendations"] = enhanced
+        state["recommendations"] = enhanced
         return state
     
     async def _prioritize_recommendations_node(
@@ -370,7 +397,7 @@ Provide enhanced implementation guidance and success metrics."""
         """
         logger.info(f"Prioritizing recommendations for API {state['api_name']}")
         
-        enhanced_recs = state.get("enhanced_recommendations", [])
+        enhanced_recs = state.get("recommendations", [])
         if not enhanced_recs:
             state["prioritization"] = "No recommendations to prioritize"
             return state
@@ -384,7 +411,7 @@ Provide enhanced implementation guidance and success metrics."""
         ])
         
         # Create prioritization prompt
-        system_prompt = """You are an expert performance optimization consultant. 
+        system_prompt = """You are an expert performance optimization consultant.
 Review the list of optimization recommendations and provide:
 1. Recommended implementation order
 2. Rationale for prioritization
@@ -418,6 +445,34 @@ Provide a clear implementation roadmap."""
             logger.info(f"Generated prioritization guidance for API {state['api_name']}")
             
             state["prioritization"] = prioritization
+            
+            # NEW: Update all recommendations with prioritization context
+            from app.models.recommendation import AIContext
+            
+            for rec in enhanced_recs:
+                rec_id = rec.get("id")
+                if rec_id:
+                    # Get existing recommendation
+                    recommendation = self.optimization_service.recommendation_repo.get(rec_id)
+                    if recommendation:
+                        # Update or create ai_context
+                        if recommendation.ai_context:
+                            ai_context_dict = recommendation.ai_context.dict()
+                            ai_context_dict["prioritization"] = prioritization
+                            ai_context_dict["generated_at"] = datetime.utcnow()
+                            ai_context = AIContext(**ai_context_dict)
+                        else:
+                            ai_context = AIContext(
+                                prioritization=prioritization,
+                                generated_at=datetime.utcnow()
+                            )
+                        
+                        # Update in database
+                        self.optimization_service.recommendation_repo.update(
+                            rec_id,
+                            {"ai_context": ai_context.dict()}
+                        )
+            
             return state
             
         except Exception as e:
@@ -428,10 +483,10 @@ Provide a clear implementation roadmap."""
     
     def _prepare_metrics_summary(self, metrics: List[Metric]) -> str:
         """
-        Prepare a summary of metrics for LLM analysis.
+        Prepare a summary of time-bucketed metrics for LLM analysis.
         
         Args:
-            metrics: List of metrics
+            metrics: List of time-bucketed metrics
             
         Returns:
             Formatted metrics summary
@@ -447,6 +502,13 @@ Provide a clear implementation roadmap."""
         avg_throughput = sum(m.throughput for m in metrics) / len(metrics)
         avg_availability = sum(m.availability for m in metrics) / len(metrics)
         
+        # Calculate cache metrics averages
+        avg_cache_hit_rate = sum(m.cache_hit_rate for m in metrics) / len(metrics)
+        
+        # Calculate timing breakdown averages
+        avg_gateway_time = sum(m.gateway_time_avg for m in metrics) / len(metrics)
+        avg_backend_time = sum(m.backend_time_avg for m in metrics) / len(metrics)
+        
         # Calculate trends (compare first half vs second half)
         mid = len(metrics) // 2
         first_half_p95 = sum(m.response_time_p95 for m in metrics[:mid]) / mid
@@ -457,23 +519,39 @@ Provide a clear implementation roadmap."""
         second_half_error = sum(m.error_rate for m in metrics[mid:]) / (len(metrics) - mid)
         error_trend = ((second_half_error - first_half_error) / first_half_error * 100) if first_half_error > 0 else 0
         
+        first_half_cache = sum(m.cache_hit_rate for m in metrics[:mid]) / mid
+        second_half_cache = sum(m.cache_hit_rate for m in metrics[mid:]) / (len(metrics) - mid)
+        cache_trend = ((second_half_cache - first_half_cache) / first_half_cache * 100) if first_half_cache > 0 else 0
+        
+        # Get time bucket info from first metric
+        time_bucket = metrics[0].time_bucket.value if hasattr(metrics[0], 'time_bucket') else "unknown"
+        
         summary = f"""
-Metrics Summary ({len(metrics)} data points):
+Metrics Summary ({len(metrics)} data points, {time_bucket} buckets):
 
 Response Times:
 - P50: {avg_p50:.1f}ms
 - P95: {avg_p95:.1f}ms (trend: {p95_trend:+.1f}%)
 - P99: {avg_p99:.1f}ms
 
-Error Rate: {avg_error_rate*100:.2f}% (trend: {error_trend:+.1f}%)
+Timing Breakdown:
+- Gateway Time: {avg_gateway_time:.1f}ms (avg)
+- Backend Time: {avg_backend_time:.1f}ms (avg)
+- Gateway Overhead: {(avg_gateway_time / avg_p95 * 100):.1f}% of total response time
+
+Cache Performance:
+- Hit Rate: {avg_cache_hit_rate:.1f}% (trend: {cache_trend:+.1f}%)
+- Potential for caching optimization: {'HIGH' if avg_cache_hit_rate < 50 else 'MEDIUM' if avg_cache_hit_rate < 80 else 'LOW'}
+
+Error Rate: {avg_error_rate:.2f}% (trend: {error_trend:+.1f}%)
 Throughput: {avg_throughput:.1f} req/s
 Availability: {avg_availability:.2f}%
 
 Recent Metrics (last 5):
 """
-        
+
         for i, m in enumerate(metrics[-5:], 1):
-            summary += f"\n{i}. P95: {m.response_time_p95:.0f}ms, Errors: {m.error_rate*100:.1f}%, Throughput: {m.throughput:.0f} req/s"
+            summary += f"\n{i}. P95: {m.response_time_p95:.0f}ms, Errors: {m.error_rate:.1f}%, Cache: {m.cache_hit_rate:.0f}%, Throughput: {m.throughput:.0f} req/s"
         
         return summary
 

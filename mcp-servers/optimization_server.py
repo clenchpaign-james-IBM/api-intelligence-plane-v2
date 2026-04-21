@@ -1,10 +1,11 @@
 """Optimization MCP Server for API Intelligence Plane.
 
-This MCP server provides tools for performance optimization, predictions, and
-rate limiting for APIs. It acts as a thin wrapper around the backend REST API,
-exposing tools that AI agents can use to interact with optimization functionality.
+This MCP server provides tools for performance optimization and rate limiting
+for APIs. It acts as a thin wrapper around the backend REST API, exposing tools
+that AI agents can use to interact with optimization functionality.
 
-Port: 8004
+External Port: 8004
+Internal Server Port: 8000
 Transport: Streamable HTTP
 """
 
@@ -30,7 +31,6 @@ class OptimizationMCPServer(BaseMCPServer):
     """MCP Server for API Optimization operations.
     
     Provides tools for:
-    - Generating failure predictions
     - Creating optimization recommendations
     - Managing rate limit policies
     - Analyzing rate limit effectiveness
@@ -66,8 +66,9 @@ class OptimizationMCPServer(BaseMCPServer):
                 dict: Health status including backend connectivity
             """
             try:
-                # Test backend connectivity
-                await self.backend_client.list_apis(page=1, page_size=1)
+                # Test backend connectivity by making a simple request to gateways endpoint
+                response = await self.backend_client.client.get("/gateways", params={"page": 1, "page_size": 1})
+                response.raise_for_status()
                 backend_status = "connected"
             except Exception as e:
                 logger.error(f"Backend health check failed: {e}")
@@ -91,155 +92,23 @@ class OptimizationMCPServer(BaseMCPServer):
             """
             info = self.get_server_info()
             info.update({
-                "port": 8004,
+                "external_port": 8004,
+                "internal_port": 8000,
                 "transport": "streamable-http",
                 "architecture": "thin_wrapper",
                 "backend_url": self.backend_client.base_url,
                 "capabilities": [
-                    "failure_prediction",
-                    "performance_optimization",
-                    "rate_limiting",
-                    "capacity_planning"
+                    "optimization_recommendations",
+                    "rate_limit_policy_management",
+                    "rate_limit_effectiveness_analysis"
                 ]
             })
             return info
         
-        # Prediction tools
-        @self.tool(description="Generate failure predictions for APIs")
-        async def generate_predictions(
-            api_id: Optional[str] = None,
-            prediction_window_hours: int = 48,
-            min_confidence: float = 0.7
-        ) -> dict[str, Any]:
-            """Generate failure predictions for APIs.
-            
-            Args:
-                api_id: Specific API UUID (empty = all APIs)
-                prediction_window_hours: Prediction time window (24-72 hours)
-                min_confidence: Minimum confidence threshold (0-1)
-                
-            Returns:
-                dict: Generated predictions with metadata
-            """
-            start_time = datetime.utcnow()
-            
-            try:
-                # Validate inputs
-                if prediction_window_hours < 24 or prediction_window_hours > 72:
-                    return {
-                        "success": False,
-                        "error": {
-                            "code": "INVALID_INPUT",
-                            "message": "prediction_window_hours must be between 24 and 72",
-                            "details": {"provided": prediction_window_hours}
-                        },
-                        "metadata": {"timestamp": start_time.isoformat()}
-                    }
-                
-                if min_confidence < 0 or min_confidence > 1:
-                    return {
-                        "success": False,
-                        "error": {
-                            "code": "INVALID_INPUT",
-                            "message": "min_confidence must be between 0 and 1",
-                            "details": {"provided": min_confidence}
-                        },
-                        "metadata": {"timestamp": start_time.isoformat()}
-                    }
-                
-                # Validate API ID if provided
-                if api_id:
-                    try:
-                        UUID(api_id)
-                    except ValueError:
-                        return {
-                            "success": False,
-                            "error": {
-                                "code": "INVALID_INPUT",
-                                "message": "Invalid API ID format",
-                                "details": {"api_id": api_id}
-                            },
-                            "metadata": {"timestamp": start_time.isoformat()}
-                        }
-                
-                # Trigger prediction generation via backend
-                result = await self.backend_client.generate_predictions(
-                    api_id=api_id,
-                    min_confidence=min_confidence,
-                    use_ai=False
-                )
-                
-                # Get generated predictions
-                predictions_response = await self.backend_client.list_predictions(
-                    api_id=api_id,
-                    status="active",
-                    page_size=1000
-                )
-                
-                predictions = predictions_response.get("predictions", [])
-                
-                # Filter by confidence
-                predictions = [
-                    p for p in predictions
-                    if p.get("confidence_score", 0) >= min_confidence
-                ]
-                
-                # Format predictions
-                formatted_predictions = [
-                    {
-                        "id": p.get("id"),
-                        "api_id": p.get("api_id"),
-                        "api_name": p.get("api_name", "Unknown"),
-                        "prediction_type": p.get("prediction_type"),
-                        "severity": p.get("severity"),
-                        "confidence": p.get("confidence_score"),
-                        "predicted_time": p.get("predicted_time"),
-                        "description": f"{p.get('prediction_type')} prediction with {p.get('severity')} severity",
-                        "recommended_actions": p.get("recommended_actions", []),
-                        "contributing_factors": [
-                            {
-                                "factor": f.get("factor"),
-                                "current_value": f.get("current_value"),
-                                "threshold": f.get("threshold")
-                            }
-                            for f in p.get("contributing_factors", [])
-                        ],
-                        "created_at": p.get("created_at")
-                    }
-                    for p in predictions
-                ]
-                
-                execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-                
-                return {
-                    "success": True,
-                    "data": {
-                        "predictions_generated": len(formatted_predictions),
-                        "predictions": formatted_predictions,
-                        "model_version": "1.0.0",
-                        "generated_at": datetime.utcnow().isoformat()
-                    },
-                    "metadata": {
-                        "execution_time_ms": execution_time,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                }
-                
-            except Exception as e:
-                logger.error(f"Error generating predictions: {e}", exc_info=True)
-                return {
-                    "success": False,
-                    "error": {
-                        "code": "PREDICTION_FAILED",
-                        "message": str(e),
-                        "details": {}
-                    },
-                    "metadata": {"timestamp": datetime.utcnow().isoformat()}
-                }
-        
         # Optimization recommendation tools
         @self.tool(description="Generate performance optimization recommendations")
         async def generate_optimization_recommendations(
+            gateway_id: str,
             api_id: str,
             focus_areas: Optional[List[str]] = None,
             min_impact_percentage: float = 10.0
@@ -247,8 +116,9 @@ class OptimizationMCPServer(BaseMCPServer):
             """Generate performance optimization recommendations.
             
             Args:
+                gateway_id: Gateway UUID
                 api_id: Target API UUID
-                focus_areas: Specific areas (caching, query_optimization, resource_allocation, compression)
+                focus_areas: Specific areas (caching, compression, rate_limiting)
                 min_impact_percentage: Minimum expected improvement (0-100)
                 
             Returns:
@@ -257,36 +127,48 @@ class OptimizationMCPServer(BaseMCPServer):
             start_time = datetime.utcnow()
             
             try:
-                # Validate API ID
+                # Validate UUIDs
                 try:
+                    UUID(gateway_id)
                     UUID(api_id)
-                except ValueError:
+                except ValueError as e:
                     return {
                         "success": False,
                         "error": {
                             "code": "INVALID_INPUT",
-                            "message": "Invalid API ID format",
-                            "details": {"api_id": api_id}
+                            "message": f"Invalid UUID format: {e}",
+                            "details": {"gateway_id": gateway_id, "api_id": api_id}
                         },
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
-                # Trigger recommendation generation via backend
+                # Trigger recommendation generation via backend unified hybrid flow
                 await self.backend_client.generate_recommendations(
+                    gateway_id=gateway_id,
                     api_id=api_id,
                     min_impact=min_impact_percentage,
-                    use_ai=False
                 )
                 
                 # Get generated recommendations
                 recommendations_response = await self.backend_client.list_recommendations(
+                    gateway_id=gateway_id,
                     api_id=api_id,
                     status="pending",
-                    recommendation_type=focus_areas[0] if focus_areas else None,
                     page_size=100
                 )
                 
                 recommendations = recommendations_response.get("recommendations", [])
+                
+                # Filter by focus areas if provided
+                if focus_areas:
+                    allowed_focus_areas = {"caching", "compression", "rate_limiting"}
+                    normalized_focus_areas = {
+                        area for area in focus_areas if area in allowed_focus_areas
+                    }
+                    recommendations = [
+                        r for r in recommendations
+                        if r.get("recommendation_type") in normalized_focus_areas
+                    ]
                 
                 # Filter by impact if needed
                 recommendations = [
@@ -342,6 +224,7 @@ class OptimizationMCPServer(BaseMCPServer):
         # Rate limiting tools
         @self.tool(description="Create or update rate limit policy")
         async def manage_rate_limit(
+            gateway_id: str,
             api_id: str,
             policy_type: str,
             limit_thresholds: dict[str, int],
@@ -350,6 +233,7 @@ class OptimizationMCPServer(BaseMCPServer):
             """Create or update rate limit policy.
             
             Args:
+                gateway_id: Gateway UUID
                 api_id: Target API UUID
                 policy_type: Policy type (fixed, adaptive, priority_based, burst_allowance)
                 limit_thresholds: Thresholds (requests_per_second, requests_per_minute, requests_per_hour)
@@ -386,16 +270,17 @@ class OptimizationMCPServer(BaseMCPServer):
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
-                # Validate API ID
+                # Validate UUIDs
                 try:
+                    UUID(gateway_id)
                     UUID(api_id)
-                except ValueError:
+                except ValueError as e:
                     return {
                         "success": False,
                         "error": {
                             "code": "INVALID_INPUT",
-                            "message": "Invalid API ID format",
-                            "details": {"api_id": api_id}
+                            "message": f"Invalid UUID format: {e}",
+                            "details": {"gateway_id": gateway_id, "api_id": api_id}
                         },
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
@@ -404,6 +289,7 @@ class OptimizationMCPServer(BaseMCPServer):
                 policy_name = f"{policy_type}-policy-{int(datetime.utcnow().timestamp())}"
                 
                 policy = await self.backend_client.create_rate_limit_policy(
+                    gateway_id=gateway_id,
                     api_id=api_id,
                     policy_name=policy_name,
                     policy_type=policy_type,
@@ -440,6 +326,7 @@ class OptimizationMCPServer(BaseMCPServer):
         
         @self.tool(description="Analyze effectiveness of rate limiting policies")
         async def analyze_rate_limit_effectiveness(
+            gateway_id: str,
             api_id: str,
             policy_id: Optional[str] = None,
             analysis_period_hours: int = 24
@@ -447,6 +334,7 @@ class OptimizationMCPServer(BaseMCPServer):
             """Analyze effectiveness of rate limiting policies.
             
             Args:
+                gateway_id: Gateway UUID
                 api_id: Target API UUID
                 policy_id: Specific policy UUID (optional)
                 analysis_period_hours: Analysis period in hours
@@ -457,22 +345,24 @@ class OptimizationMCPServer(BaseMCPServer):
             start_time = datetime.utcnow()
             
             try:
-                # Validate API ID
+                # Validate UUIDs
                 try:
+                    UUID(gateway_id)
                     UUID(api_id)
-                except ValueError:
+                except ValueError as e:
                     return {
                         "success": False,
                         "error": {
                             "code": "INVALID_INPUT",
-                            "message": "Invalid API ID format",
-                            "details": {"api_id": api_id}
+                            "message": f"Invalid UUID format: {e}",
+                            "details": {"gateway_id": gateway_id, "api_id": api_id}
                         },
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
                 
                 # Get policies for this API
                 policies_response = await self.backend_client.list_rate_limit_policies(
+                    gateway_id=gateway_id,
                     api_id=api_id,
                     status="active",
                     page_size=100
@@ -490,7 +380,7 @@ class OptimizationMCPServer(BaseMCPServer):
                         "error": {
                             "code": "NOT_FOUND",
                             "message": "No active rate limit policies found",
-                            "details": {"api_id": api_id, "policy_id": policy_id}
+                            "details": {"gateway_id": gateway_id, "api_id": api_id, "policy_id": policy_id}
                         },
                         "metadata": {"timestamp": start_time.isoformat()}
                     }
@@ -500,6 +390,7 @@ class OptimizationMCPServer(BaseMCPServer):
                 
                 # Get effectiveness analysis from backend
                 analysis = await self.backend_client.analyze_rate_limit_effectiveness(
+                    gateway_id=gateway_id,
                     policy_id=policy.get("id"),
                     analysis_period_hours=analysis_period_hours
                 )
@@ -556,7 +447,7 @@ def main():
     # Create server
     server = OptimizationMCPServer()
     
-    # Run MCP server on port 8000 (matches Docker port mapping)
+    # Run MCP server on internal port 8000; deployment may map external port 8004
     # FastMCP's built-in server will handle both MCP and health endpoints
     server.run(transport="streamable-http", port=8000)
 

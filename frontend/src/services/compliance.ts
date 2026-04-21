@@ -11,7 +11,6 @@ import type {
   ComplianceScanRequest,
   ComplianceScanResponse,
   CompliancePosture,
-  AuditReport,
   AuditReportRequest,
   AuditReportResponse,
   ComplianceStandard,
@@ -30,10 +29,11 @@ export const scanAPICompliance = async (
 };
 
 /**
- * Get all compliance violations with optional filters
+ * Get all compliance violations with optional filters (gateway-scoped)
  */
 export const getComplianceViolations = async (params?: {
   api_id?: string;
+  gateway_id?: string;
   standard?: ComplianceStandard;
   severity?: ComplianceSeverity;
   status?: ComplianceStatus;
@@ -68,10 +68,11 @@ export const getComplianceViolation = async (
 };
 
 /**
- * Get compliance posture (overall compliance metrics)
+ * Get compliance posture (overall compliance metrics) (gateway-scoped)
  */
 export const getCompliancePosture = async (params?: {
   api_id?: string;
+  gateway_id?: string;
   standard?: ComplianceStandard;
 }): Promise<CompliancePosture> => {
   try {

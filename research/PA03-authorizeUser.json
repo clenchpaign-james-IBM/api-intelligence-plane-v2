@@ -1,0 +1,34 @@
+{
+    "policyAction": {
+        "id": "5f69ce10-018c-4f4b-999d-0ce4b3d322b6",
+        "names": [
+            {
+                "value": "Authorize User",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "authorizeUser",
+        "parameters": [
+            {
+                "templateKey": "users",
+                "values": [
+                    "Administrator"
+                ]
+            },
+            {
+                "templateKey": "groups",
+                "values": [
+                    "Administrators",
+                    "API-Gateway-Administrators"
+                ]
+            },
+            {
+                "templateKey": "accessProfiles",
+                "values": [
+                    "Administrators"
+                ]
+            }
+        ],
+        "active": false
+    }
+}

@@ -8,7 +8,7 @@ import logging
 from typing import Type
 
 from app.adapters.base import BaseGatewayAdapter
-from app.adapters.native_gateway import NativeGatewayAdapter
+from app.adapters.webmethods_gateway import WebMethodsGatewayAdapter
 from app.models.gateway import Gateway, GatewayVendor
 
 logger = logging.getLogger(__name__)
@@ -21,15 +21,14 @@ class GatewayAdapterFactory:
     Gateway adapter based on the Gateway vendor configuration.
     """
 
-    # Registry of adapter classes by vendor
+    # Registry of adapter classes by vendor.
+    # Initial implementation phase is webMethods-only.
     _adapters: dict[GatewayVendor, Type[BaseGatewayAdapter]] = {
-        GatewayVendor.NATIVE: NativeGatewayAdapter,
-        # Additional adapters will be registered here as they are implemented
+        GatewayVendor.WEBMETHODS: WebMethodsGatewayAdapter,
+        # Future vendor adapters can be registered here when implemented.
+        # GatewayVendor.NATIVE: NativeGatewayAdapter,
         # GatewayVendor.KONG: KongGatewayAdapter,
         # GatewayVendor.APIGEE: ApigeeGatewayAdapter,
-        # GatewayVendor.AWS: AWSGatewayAdapter,
-        # GatewayVendor.AZURE: AzureGatewayAdapter,
-        # GatewayVendor.CUSTOM: CustomGatewayAdapter,
     }
 
     @classmethod
@@ -50,7 +49,7 @@ class GatewayAdapterFactory:
         if adapter_class is None:
             supported_vendors = ", ".join([v.value for v in cls._adapters.keys()])
             raise ValueError(
-                f"Unsupported Gateway vendor: {gateway.vendor.value}. "
+                f"Unsupported Gateway vendor for the current implementation phase: {gateway.vendor.value}. "
                 f"Supported vendors: {supported_vendors}"
             )
 

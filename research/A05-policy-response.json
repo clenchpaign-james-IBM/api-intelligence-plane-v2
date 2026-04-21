@@ -1,0 +1,100 @@
+{
+    "policy": {
+        "id": "ae33bbd4-0ae6-4e3a-8924-911564f5378c",
+        "names": [
+            {
+                "value": "Default Policy for API HostNameStrict",
+                "locale": "English"
+            }
+        ],
+        "descriptions": [
+            {
+                "value": "",
+                "locale": "English"
+            }
+        ],
+        "scope": {
+            "scopeConditions": []
+        },
+        "policyEnforcements": [
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "39f5cc33-489e-4e8b-9d20-e1332b60e153",
+                        "order": "0"
+                    },
+                    {
+                        "enforcementObjectId": "235e90f4-b3be-4886-987b-59ed1cb85e3f",
+                        "order": "1"
+                    }
+                ],
+                "stageKey": "requestPayloadProcessing"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "c57d2a6f-09ef-4373-a712-19fa9c43ea18",
+                        "order": "0"
+                    }
+                ],
+                "stageKey": "routing"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "70a30187-30ee-4264-9758-071ddbb30f0d",
+                        "order": "0"
+                    },
+                    {
+                        "enforcementObjectId": "7cee6042-b43e-45c6-ad2f-13dcbcf02e38",
+                        "order": "1"
+                    },
+                    {
+                        "enforcementObjectId": "391b7c3d-6ec5-4499-b888-b5c14e349274",
+                        "order": "2"
+                    }
+                ],
+                "stageKey": "LMT"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "d0bf40d6-e7b0-4b5f-876e-2f392bd7465c",
+                        "order": "0"
+                    },
+                    {
+                        "enforcementObjectId": "5f69ce10-018c-4f4b-999d-0ce4b3d322b6",
+                        "order": "1"
+                    }
+                ],
+                "stageKey": "IAM"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "9dd81270-356f-4311-a31f-8f64543e5aaf",
+                        "order": "0"
+                    }
+                ],
+                "stageKey": "transport"
+            },
+            {
+                "enforcements": [
+                    {
+                        "enforcementObjectId": "c49a7fca-7e70-4f32-9495-8222c89ee558",
+                        "order": "0"
+                    },
+                    {
+                        "enforcementObjectId": "519acd2b-9393-4a44-835b-0ea264e55027",
+                        "order": "1"
+                    }
+                ],
+                "stageKey": "responseProcessing"
+            }
+        ],
+        "policyScope": "SERVICE",
+        "global": false,
+        "active": false,
+        "systemPolicy": false
+    }
+}

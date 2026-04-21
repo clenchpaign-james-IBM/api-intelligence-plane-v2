@@ -18,33 +18,76 @@ logger = logging.getLogger(__name__)
 
 async def run_optimization_job() -> Dict[str, Any]:
     """
-    Generate optimization recommendations for all active APIs.
+    Generate optimization recommendations for all APIs across all gateways.
     
     This job is scheduled to run every 30 minutes to analyze metrics
     and generate performance optimization recommendations. Recommendations
     are stored in OpenSearch for review and implementation.
     
+    Iterates over all gateways and generates recommendations for each gateway's APIs.
+    
     Returns:
         dict: Job execution results with statistics
     """
-    logger.info("Starting scheduled optimization recommendation generation job")
+    logger.info("Starting scheduled optimization recommendation generation job (gateway-scoped)")
     
     try:
         # Initialize dependencies
+        from app.db.repositories.gateway_repository import GatewayRepository
+        
         recommendation_repo = RecommendationRepository()
         metrics_repo = MetricsRepository()
         api_repo = APIRepository()
+        gateway_repo = GatewayRepository()
         
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
         optimization_service = OptimizationService(
             recommendation_repository=recommendation_repo,
             metrics_repository=metrics_repo,
             api_repository=api_repo,
+            llm_service=llm_service,
         )
         
-        # Generate recommendations for all APIs
-        result = optimization_service.generate_recommendations_for_all_apis(
-            min_impact=10.0
-        )
+        # Get all gateways
+        gateways, _ = gateway_repo.list_all(size=1000)
+        
+        # Aggregate results across all gateways
+        total_apis = 0
+        total_analyzed = 0
+        total_recommendations = 0
+        all_errors = []
+        
+        for gateway in gateways:
+            try:
+                logger.info(f"Generating recommendations for gateway {gateway.id} ({gateway.name})")
+                gateway_result = await optimization_service.generate_recommendations_for_gateway(
+                    gateway_id=gateway.id,
+                    min_impact=10.0
+                )
+                total_apis += gateway_result["total_apis"]
+                total_analyzed += gateway_result["apis_analyzed"]
+                total_recommendations += gateway_result["recommendations_generated"]
+                all_errors.extend(gateway_result.get("errors", []))
+            except Exception as e:
+                logger.error(f"Failed to generate recommendations for gateway {gateway.id}: {e}")
+                all_errors.append({
+                    "gateway_id": str(gateway.id),
+                    "gateway_name": gateway.name,
+                    "error": str(e),
+                })
+        
+        result = {
+            "total_gateways": len(gateways),
+            "total_apis": total_apis,
+            "apis_analyzed": total_analyzed,
+            "recommendations_generated": total_recommendations,
+            "errors": all_errors,
+        }
         
         # Expire old recommendations
         expired_count = _expire_old_recommendations(recommendation_repo)

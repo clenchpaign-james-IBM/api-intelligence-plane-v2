@@ -191,6 +191,11 @@ docker-compose build --no-cache
 - **Strategy Pattern**: Gateway adapters for multi-vendor support
 - **Dependency Injection**: FastAPI dependencies
 - **Agent Pattern**: LangChain/LangGraph for AI workflows
+- **Policy Conversion Pattern**: Unified normalizer/denormalizer for vendor-neutral policy configs
+  - **Normalizer**: Vendor-specific → Vendor-neutral (structured Pydantic configs)
+  - **Denormalizer**: Vendor-neutral → Vendor-specific (supports both dict and structured)
+  - **Location**: `backend/app/utils/{vendor}/policy_normalizer.py` and `policy_denormalizer.py`
+  - **Benefits**: Type safety, single source of truth, backward compatibility
 
 ### Frontend
 - **Component-Based**: Reusable React components
@@ -223,6 +228,7 @@ docker-compose build --no-cache
 
 ## Recent Changes
 
+- 2026-04-14: Implemented unified policy conversion architecture (normalizer/denormalizer pattern)
 - 2026-03-11: Updated with comprehensive technology stack and architecture patterns
 - 2026-03-09: Added Python 3.11+ (Backend), JavaScript/TypeScript (Frontend), Java (Demo API Gateway)
 

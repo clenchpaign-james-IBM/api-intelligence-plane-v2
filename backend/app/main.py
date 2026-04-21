@@ -16,6 +16,7 @@ from app.utils.logging import setup_logging
 from app.middleware.error_handler import error_handler_middleware
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.db.client import get_opensearch_client
+from app.db.init_indices import initialize_all_infrastructure
 
 # Setup logging first
 setup_logging()
@@ -40,8 +41,26 @@ async def lifespan(app: FastAPI):
         os_client = get_opensearch_client()
         health = os_client.health_check()
         logger.info(f"OpenSearch connected: {health.get('status', 'unknown')}")
+        
+        # Initialize all infrastructure (indices, templates, ILM policies)
+        indices_results, ilm_results = initialize_all_infrastructure(
+            os_client.client,
+            force=False,  # Never force on startup
+            include_ilm=True,  # Include ILM policies
+            raise_on_error=False  # Don't crash app on initialization errors
+        )
+        
+        success_count = sum(indices_results.values())
+        total_count = len(indices_results)
+        logger.info(f"OpenSearch infrastructure initialized: {success_count}/{total_count} indices")
+        
+        if ilm_results:
+            ilm_success = sum(ilm_results.values())
+            ilm_total = len(ilm_results)
+            logger.info(f"ILM policies initialized: {ilm_success}/{ilm_total}")
+            
     except Exception as e:
-        logger.error(f"Failed to connect to OpenSearch: {e}")
+        logger.error(f"Failed to initialize OpenSearch: {e}")
         if settings.is_production:
             raise
     

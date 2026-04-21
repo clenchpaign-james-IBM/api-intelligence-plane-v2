@@ -42,7 +42,7 @@ class SecurityScheduler:
         # Security scan job - runs every 1 hour
         self.scheduler.add_job(
             func=self._run_security_scan,
-            trigger=IntervalTrigger(hours=1),
+            trigger=IntervalTrigger(minutes=5),
             id="security_scan",
             name="Security Scan - All APIs",
             replace_existing=True,
@@ -50,24 +50,24 @@ class SecurityScheduler:
         )
 
         # Automated remediation job - runs every 30 minutes
-        self.scheduler.add_job(
-            func=self._run_automated_remediation,
-            trigger=IntervalTrigger(minutes=30),
-            id="automated_remediation",
-            name="Automated Vulnerability Remediation",
-            replace_existing=True,
-            max_instances=1,
-        )
+        # self.scheduler.add_job(
+        #     func=self._run_automated_remediation,
+        #     trigger=IntervalTrigger(minutes=3),
+        #     id="automated_remediation",
+        #     name="Automated Vulnerability Remediation",
+        #     replace_existing=True,
+        #     max_instances=1,
+        # )
 
         # Remediation verification job - runs every 2 hours
-        self.scheduler.add_job(
-            func=self._verify_remediations,
-            trigger=IntervalTrigger(hours=2),
-            id="remediation_verification",
-            name="Remediation Verification",
-            replace_existing=True,
-            max_instances=1,
-        )
+        # self.scheduler.add_job(
+        #     func=self._verify_remediations,
+        #     trigger=IntervalTrigger(minutes=6),
+        #     id="remediation_verification",
+        #     name="Remediation Verification",
+        #     replace_existing=True,
+        #     max_instances=1,
+        # )
 
         # Security posture report - runs daily at 8 AM
         self.scheduler.add_job(
@@ -81,22 +81,45 @@ class SecurityScheduler:
         logger.info("Security scheduler jobs registered")
 
     async def _run_security_scan(self) -> None:
-        """Run security scan for all APIs.
+        """Run security scan for all APIs across all gateways.
         
         This job:
-        1. Scans all active APIs for security policy coverage
-        2. Uses AI-enhanced analysis with metrics
-        3. Stores detected vulnerabilities
-        4. Generates remediation plans
+        1. Iterates over all gateways
+        2. Scans each gateway's APIs for security policy coverage
+        3. Uses hybrid analysis (rule-based + AI-enhanced) with metrics
+        4. Stores detected vulnerabilities
+        5. Generates remediation plans
         """
         try:
-            logger.info("Starting scheduled security scan")
+            logger.info("Starting scheduled security scan (hybrid analysis, gateway-scoped)")
             start_time = datetime.utcnow()
 
-            # Run comprehensive security scan
-            result = await self.security_service.scan_all_apis(
-                use_ai_enhancement=True
-            )
+            # Get all gateways
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateways, _ = gateway_repo.list_all(size=1000)
+            
+            # Aggregate results across all gateways
+            total_apis_scanned = 0
+            total_vulnerabilities = 0
+            all_scan_results = []
+            
+            for gateway in gateways:
+                try:
+                    logger.info(f"Scanning gateway {gateway.id} ({gateway.name})")
+                    gateway_result = await self.security_service.scan_gateway_apis(gateway.id)
+                    total_apis_scanned += gateway_result["apis_scanned"]
+                    total_vulnerabilities += gateway_result["total_vulnerabilities"]
+                    all_scan_results.extend(gateway_result.get("scan_results", []))
+                except Exception as e:
+                    logger.error(f"Failed to scan gateway {gateway.id}: {e}")
+            
+            result = {
+                "total_gateways": len(gateways),
+                "apis_scanned": total_apis_scanned,
+                "total_vulnerabilities": total_vulnerabilities,
+                "scan_results": all_scan_results,
+            }
 
             duration = (datetime.utcnow() - start_time).total_seconds()
 

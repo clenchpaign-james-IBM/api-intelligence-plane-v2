@@ -4,30 +4,99 @@
  * These types match the backend data models and API responses.
  */
 
-// API Entity
+// API Entity (Vendor-Neutral)
 export interface API {
   id: string;
   gateway_id: string;
   name: string;
+  display_name?: string;
+  description?: string;
+  icon?: string;
   version?: string;
+  version_info?: VersionInfo;
+  type?: APIType;
+  maturity_state?: MaturityState;
+  groups?: string[];
   base_path: string;
   endpoints: Endpoint[];
   methods: string[];
   authentication_type: AuthenticationType;
   authentication_config?: Record<string, any>;
   ownership?: Ownership;
+  publishing?: PublishingInfo;
+  deployments?: DeploymentInfo[];
   tags?: string[];
+
+  // Vendor-neutral policy actions
+  policy_actions?: PolicyAction[];
+
+  // Intelligence metadata (AI-derived fields)
+  intelligence_metadata: IntelligenceMetadata;
+
+  // OpenAPI definition
+  api_definition?: APIDefinition;
+
+  // Vendor-specific metadata
+  vendor_metadata?: Record<string, any>;
+
+  status: APIStatus;
+  is_active?: boolean;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+// Intelligence Metadata (AI-derived fields)
+export interface IntelligenceMetadata {
   is_shadow: boolean;
   discovery_method: DiscoveryMethod;
   discovered_at: string;
   last_seen_at: string;
-  status: APIStatus;
   health_score: number;
-  current_metrics: CurrentMetrics;
-  security_policies?: SecurityPolicies;
-  metadata?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
+  risk_score?: number;
+  security_score?: number;
+  compliance_status?: Record<string, boolean>;
+  usage_trend?: string;
+  has_active_predictions?: boolean;
+}
+
+// Policy Action (Vendor-Neutral)
+export interface PolicyAction {
+  action_type: PolicyActionType;
+  enabled: boolean;
+  stage?: string;
+  config?: Record<string, any>;
+  vendor_config?: Record<string, any>;
+  name?: string;
+  description?: string;
+}
+
+export type PolicyActionType =
+  | 'authentication'
+  | 'authorization'
+  | 'rate_limiting'
+  | 'caching'
+  | 'logging'
+  | 'validation'
+  | 'transformation'
+  | 'cors'
+  | 'data_masking'
+  | 'compression'
+  | 'tls'
+  | 'custom';
+
+// OpenAPI Definition
+export interface APIDefinition {
+  type: string;
+  version?: string;
+  openapi_spec?: Record<string, any>;
+  swagger_version?: string;
+  base_path: string;
+  paths?: Record<string, any>;
+  schemas?: Record<string, any>;
+  security_schemes?: Record<string, any>;
+  vendor_extensions?: Record<string, any>;
 }
 
 export interface SecurityPolicies {
@@ -78,22 +147,50 @@ export interface Ownership {
   team?: string;
   contact?: string;
   repository?: string;
+  organization?: string;
+  department?: string;
 }
 
-export interface CurrentMetrics {
-  response_time_p50: number;
-  response_time_p95: number;
-  response_time_p99: number;
-  error_rate: number;
-  throughput: number;
-  availability: number;
-  last_error?: string;
-  measured_at: string;
+export interface VersionInfo {
+  current_version: string;
+  previous_version?: string;
+  next_version?: string;
+  system_version: number;
+  version_history?: string[];
 }
 
-export type AuthenticationType = 'none' | 'basic' | 'bearer' | 'oauth2' | 'api_key' | 'custom';
-export type DiscoveryMethod = 'registered' | 'traffic_analysis' | 'log_analysis';
+export interface PublishingInfo {
+  published_portals?: string[];
+  published_to_registry?: boolean;
+  catalog_name?: string;
+  catalog_id?: string;
+}
+
+export interface DeploymentInfo {
+  environment: string;
+  gateway_endpoints: Record<string, string>;
+  deployed_at?: string;
+  deployment_status?: string;
+}
+
+// Removed CurrentMetrics - metrics are now fetched separately with time buckets
+
+export type AuthenticationType =
+  | 'none'
+  | 'basic'
+  | 'bearer'
+  | 'oauth2'
+  | 'api_key'
+  | 'mtls'
+  | 'custom';
+export type DiscoveryMethod =
+  | 'registered'
+  | 'traffic_analysis'
+  | 'log_analysis'
+  | 'gateway_sync';
 export type APIStatus = 'active' | 'inactive' | 'deprecated' | 'failed';
+export type APIType = 'REST' | 'SOAP' | 'GRAPHQL' | 'WEBSOCKET' | 'GRPC' | 'ODATA';
+export type MaturityState = 'Beta' | 'Test' | 'Productive' | 'Deprecated' | 'Retired';
 
 // Gateway Entity
 export interface Gateway {
@@ -101,9 +198,11 @@ export interface Gateway {
   name: string;
   vendor: GatewayVendor;
   version?: string;
-  connection_url: string;
+  base_url: string;
+  transactional_logs_url?: string;
   connection_type: ConnectionType;
-  credentials: GatewayCredentials;
+  base_url_credentials?: GatewayCredentials;
+  transactional_logs_credentials?: GatewayCredentials;
   capabilities: string[];
   status: GatewayStatus;
   last_connected_at?: string;
@@ -127,7 +226,7 @@ export interface GatewayCredentials {
   [key: string]: any;
 }
 
-export type GatewayVendor = 'native' | 'kong' | 'apigee' | 'aws' | 'azure' | 'custom';
+export type GatewayVendor = 'native' | 'webmethods' | 'kong' | 'apigee' | 'aws' | 'azure' | 'custom';
 
 // Query Entity
 export interface Query {
@@ -194,22 +293,109 @@ export interface FeedbackRequest {
 export type ConnectionType = 'rest_api' | 'grpc' | 'graphql';
 export type GatewayStatus = 'connected' | 'disconnected' | 'error' | 'maintenance';
 
-// Metric Entity
+// Metric Entity (Time-Bucketed)
 export interface Metric {
   id: string;
   api_id: string;
   gateway_id: string;
+  application_id?: string;
   timestamp: string;
+  time_bucket: TimeBucket;
+  
+  // Request counts
+  request_count: number;
+  success_count: number;
+  failure_count: number;
+  
+  // Response times
+  response_time_avg: number;
   response_time_p50: number;
   response_time_p95: number;
   response_time_p99: number;
-  error_rate: number;
-  error_count: number;
-  request_count: number;
-  throughput: number;
-  availability: number;
-  status_codes: Record<string, number>;
+  response_time_min: number;
+  response_time_max: number;
+  
+  // Timing breakdown
+  gateway_time_avg: number;
+  backend_time_avg: number;
+  
+  // Cache metrics
+  cache_hit_rate: number;
+  cache_hit_count: number;
+  cache_miss_count: number;
+  cache_bypass_count: number;
+  
+  // Data transfer
+  total_data_size: number;
+  avg_request_size: number;
+  avg_response_size: number;
+  
+  // HTTP status codes
+  status_2xx_count: number;
+  status_3xx_count: number;
+  status_4xx_count: number;
+  status_5xx_count: number;
+  
+  // Per-endpoint breakdown
   endpoint_metrics?: EndpointMetric[];
+  
+  timeout_count: number;
+  throughput: number;
+  status_codes: Record<string, number>;
+
+  // Metadata
+  vendor_metadata?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type TimeBucket = '1m' | '5m' | '1h' | '1d';
+
+export interface ExternalCall {
+  call_type: 'http' | 'database' | 'cache' | 'messaging' | 'other';
+  target_service: string;
+  target_endpoint?: string;
+  duration_ms: number;
+  status_code?: number;
+  success: boolean;
+  error_message?: string;
+}
+
+export interface TransactionalLog {
+  id: string;
+  gateway_id: string;
+  api_id: string;
+  application_id?: string;
+  transaction_id?: string;
+  correlation_id?: string;
+  request_id?: string;
+  timestamp: string;
+  event_type: string;
+  event_status: string;
+  method?: string;
+  path?: string;
+  resource_path?: string;
+  operation_name?: string;
+  consumer_id?: string;
+  consumer_name?: string;
+  status_code?: number;
+  backend_status_code?: number;
+  latency_ms?: number;
+  backend_latency_ms?: number;
+  total_time_ms?: number;
+  request_size_bytes?: number;
+  response_size_bytes?: number;
+  cache_status?: string;
+  error_origin?: string;
+  error_message?: string;
+  client_ip?: string;
+  protocol?: string;
+  host?: string;
+  user_agent?: string;
+  region?: string;
+  environment?: string;
+  tags?: string[];
+  external_calls?: ExternalCall[];
   metadata?: Record<string, any>;
 }
 
@@ -281,6 +467,7 @@ export interface PredictionStatsResponse {
 // Vulnerability Entity
 export interface Vulnerability {
   id: string;
+  gateway_id: string;
   api_id: string;
   vulnerability_type: VulnerabilityType;
   severity: VulnerabilitySeverity;
@@ -296,10 +483,39 @@ export interface Vulnerability {
   status: VulnerabilityStatus;
   detected_at: string;
   resolved_at?: string;
-  compliance_violations?: ComplianceStandard[];
   metadata?: Record<string, any>;
+  
+  // Per-vulnerability remediation plan fields (Option B implementation)
+  recommended_remediation?: RecommendedRemediation;
+  recommended_priority?: string;
+  recommended_verification_steps?: string[];
+  recommended_estimated_time_hours?: number;
+  plan_generated_at?: string;
+  plan_source?: 'llm' | 'rule_based' | 'hybrid' | 'manual_override';
+  plan_version?: string;
+  plan_status?: 'generated' | 'reviewed' | 'approved' | 'superseded' | 'rejected';
+  
   created_at: string;
   updated_at: string;
+}
+
+// Recommended remediation structure
+export interface RecommendedRemediation {
+  vulnerability_id: string;
+  summary: string;
+  actions: RemediationPlanAction[];
+  dependencies?: string[];
+  rollback_plan?: string;
+  priority: string;
+  estimated_time_hours: number;
+  verification_steps: string[];
+}
+
+export interface RemediationPlanAction {
+  step: number;
+  action: string;
+  type: 'configuration' | 'policy' | 'upgrade';
+  estimated_minutes: number;
 }
 
 export type VulnerabilityType = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'compliance' | 'data_protection' | 'other';
@@ -362,9 +578,40 @@ export interface RemediationResponse {
   message?: string;
 }
 
+// Optimization Action Types
+export type OptimizationActionType = 'apply_policy' | 'remove_policy' | 'validate' | 'manual_configuration';
+export type OptimizationActionStatus = 'completed' | 'pending' | 'failed' | 'in_progress';
+
+// Optimization Action Entity
+export interface OptimizationAction {
+  action: string;
+  type: OptimizationActionType;
+  status: OptimizationActionStatus;
+  performed_at: string;
+  performed_by: string;
+  gateway_policy_id?: string;
+  error_message?: string;
+  metadata?: Record<string, any>;
+}
+
+// Validation Results
+export interface ActualImpact {
+  metric: string;
+  before_value: number;
+  after_value: number;
+  actual_improvement: number;
+}
+
+export interface ValidationResults {
+  actual_impact: ActualImpact;
+  success: boolean;
+  measured_at: string;
+}
+
 // Recommendation Entity
 export interface Recommendation {
   id: string;
+  gateway_id: string;
   api_id: string;
   api_name?: string;
   recommendation_type: RecommendationType;
@@ -376,7 +623,11 @@ export interface Recommendation {
   implementation_steps: string[];
   status: RecommendationStatus;
   implemented_at?: string;
+  validation_results?: ValidationResults;
+  remediation_actions?: OptimizationAction[];
   cost_savings?: number;
+  metadata?: Record<string, any>;
+  vendor_metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
   expires_at?: string;
@@ -563,7 +814,66 @@ export interface GatewayListResponse {
   total: number;
 }
 
-// Metrics Time Series Response
+// Metrics Response (Time-Bucketed)
+export interface MetricsResponse {
+  api_id: string;
+  time_bucket: TimeBucket;
+  time_series: TimeSeriesDataPoint[];
+  aggregated: AggregatedMetrics;
+  cache_metrics: CacheMetrics;
+  timing_breakdown: TimingBreakdown;
+  status_breakdown: StatusBreakdown;
+  total_data_points: number;
+}
+
+export interface TimeSeriesDataPoint {
+  timestamp: string;
+  time_bucket?: TimeBucket;
+  request_count: number;
+  success_count: number;
+  failure_count: number;
+  response_time_avg: number;
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  cache_hit_rate?: number;
+  gateway_time_avg?: number;
+  backend_time_avg?: number;
+  throughput?: number;
+  status_4xx_count?: number;
+  status_5xx_count?: number;
+}
+
+export interface AggregatedMetrics {
+  total_requests: number;
+  success_rate: number;
+  failure_rate: number;
+  avg_response_time: number;
+  p95_response_time: number;
+  p99_response_time: number;
+}
+
+export interface CacheMetrics {
+  avg_hit_rate: number;
+  total_hits: number;
+  total_misses: number;
+  total_bypasses: number;
+}
+
+export interface TimingBreakdown {
+  avg_gateway_time: number;
+  avg_backend_time: number;
+  gateway_overhead_pct: number;
+}
+
+export interface StatusBreakdown {
+  '2xx': number;
+  '3xx': number;
+  '4xx': number;
+  '5xx': number;
+}
+
+// Legacy - kept for backward compatibility during migration
 export interface MetricsTimeSeriesResponse {
   api_id: string;
   start: string;
@@ -571,17 +881,6 @@ export interface MetricsTimeSeriesResponse {
   interval_minutes: number;
   data_points: number;
   metrics: TimeSeriesDataPoint[];
-}
-
-export interface TimeSeriesDataPoint {
-  timestamp: string;
-  response_time_p50: number;
-  response_time_p95: number;
-  response_time_p99: number;
-  error_rate: number;
-  throughput: number;
-  availability: number;
-  sample_count?: number;
 }
 
 // Compliance Violation Entity

@@ -5,11 +5,12 @@ following the Strategy pattern for multi-vendor Gateway support.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, List, Optional
 
-from app.models.api import API
+from app.models.base.api import API, PolicyAction
 from app.models.gateway import Gateway
-from app.models.metric import Metric
+from app.models.base.metric import Metric
+from app.models.base.transaction import TransactionalLog
 
 
 class BaseGatewayAdapter(ABC):
@@ -93,48 +94,37 @@ class BaseGatewayAdapter(ABC):
         pass
 
     @abstractmethod
-    async def collect_metrics(
-        self, api_id: Optional[str] = None, time_range_minutes: int = 5
-    ) -> list[Metric]:
-        """Collect performance metrics from the Gateway.
+    async def get_transactional_logs(
+        self,
+        start_time: Optional[Any] = None,
+        end_time: Optional[Any] = None,
+    ) -> list[TransactionalLog]:
+        """Retrieve raw transactional log events from the Gateway (low-level method).
+
+        This is the low-level method with full control over time ranges.
+        For convenience, use [`collect_transactional_logs()`](backend/app/adapters/base.py:356)
+        which wraps this method with simplified parameters.
 
         Args:
-            api_id: Optional API identifier to filter metrics
-            time_range_minutes: Time range for metrics collection (default: 5 minutes)
+            start_time: Optional lower timestamp bound
+            end_time: Optional upper timestamp bound
 
         Returns:
-            list[Metric]: List of collected metrics
-
-        Raises:
-            RuntimeError: If not connected to Gateway
-        """
-        pass
-
-    @abstractmethod
-    async def get_api_logs(
-        self, api_id: str, limit: int = 100, time_range_minutes: int = 60
-    ) -> list[dict[str, Any]]:
-        """Retrieve API access logs from the Gateway.
-
-        Args:
-            api_id: API identifier
-            limit: Maximum number of log entries to retrieve
-            time_range_minutes: Time range for log retrieval
-
-        Returns:
-            list[dict]: List of log entries with timestamp, method, path, status, etc.
+            list[TransactionalLog]: Raw transactional events for analytics and drill-down
         """
         pass
 
     @abstractmethod
     async def apply_rate_limit_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply a rate limiting policy to an API.
+        """Apply a vendor-neutral rate limiting policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Rate limit policy configuration
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
+                Adapter implementations must translate [`PolicyAction`](backend/app/models/base/api.py:157)
+                to the target vendor format via [`_transform_from_policy_action()`](backend/app/adapters/base.py:499).
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -155,17 +145,15 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_caching_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply a caching policy to an API.
+        """Apply a vendor-neutral caching policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Caching policy configuration containing:
-                - ttl_seconds: Cache time-to-live in seconds
-                - cache_key_strategy: Strategy for generating cache keys
-                - invalidation_rules: Rules for cache invalidation
-                - vary_headers: Headers to include in cache key
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
+                Common cache settings should live in `config`; vendor-specific settings
+                must remain in `vendor_config` and be translated by the adapter.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -186,17 +174,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_compression_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply a compression policy to an API.
+        """Apply a vendor-neutral compression policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Compression policy configuration containing:
-                - compression_type: Type of compression (gzip, brotli, deflate)
-                - compression_level: Compression level (1-9)
-                - min_size_bytes: Minimum response size to compress
-                - content_types: List of content types to compress
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -217,17 +201,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_authentication_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply authentication policy to an API.
+        """Apply a vendor-neutral authentication policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Authentication policy configuration containing:
-                - auth_type: Type of authentication (oauth2, jwt, api_key, basic)
-                - provider: Authentication provider details
-                - scopes: Required scopes (for OAuth2)
-                - validation_rules: Token validation rules
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -236,17 +216,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_authorization_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply authorization policy to an API.
+        """Apply a vendor-neutral authorization policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Authorization policy configuration containing:
-                - policy_type: Type of authorization (rbac, abac, acl)
-                - roles: Role definitions
-                - permissions: Permission mappings
-                - rules: Authorization rules
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -255,17 +231,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_tls_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply TLS/SSL policy to an API.
+        """Apply a vendor-neutral TLS policy to an API.
 
         Args:
             api_id: API identifier
-            policy: TLS policy configuration containing:
-                - enforce_https: Force HTTPS only
-                - min_tls_version: Minimum TLS version (1.2, 1.3)
-                - cipher_suites: Allowed cipher suites
-                - hsts_enabled: Enable HSTS header
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -274,19 +246,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_cors_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply CORS policy to an API.
+        """Apply a vendor-neutral CORS policy to an API.
 
         Args:
             api_id: API identifier
-            policy: CORS policy configuration containing:
-                - allowed_origins: List of allowed origins
-                - allowed_methods: List of allowed HTTP methods
-                - allowed_headers: List of allowed headers
-                - expose_headers: Headers to expose
-                - max_age: Preflight cache duration
-                - allow_credentials: Allow credentials
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -295,17 +261,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_validation_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply input validation policy to an API.
+        """Apply a vendor-neutral validation policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Validation policy configuration containing:
-                - schema_validation: Enable schema validation
-                - content_type_validation: Validate content types
-                - size_limits: Request/response size limits
-                - sanitization_rules: Input sanitization rules
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -314,18 +276,13 @@ class BaseGatewayAdapter(ABC):
 
     @abstractmethod
     async def apply_security_headers_policy(
-        self, api_id: str, policy: dict[str, Any]
+        self, api_id: str, policy: PolicyAction
     ) -> bool:
-        """Apply security headers policy to an API.
+        """Apply a vendor-neutral security headers policy to an API.
 
         Args:
             api_id: API identifier
-            policy: Security headers configuration containing:
-                - hsts: Strict-Transport-Security header
-                - x_frame_options: X-Frame-Options header
-                - x_content_type_options: X-Content-Type-Options header
-                - csp: Content-Security-Policy header
-                - x_xss_protection: X-XSS-Protection header
+            policy: Vendor-neutral [`PolicyAction`](backend/app/models/base/api.py:157) model.
 
         Returns:
             bool: True if policy applied successfully, False otherwise
@@ -352,6 +309,118 @@ class BaseGatewayAdapter(ABC):
 
         Returns:
             list[str]: List of capability names (e.g., 'api_discovery', 'metrics_collection')
+        """
+        pass
+
+    # ========================================================================
+    # Transformation Methods (Added in Phase 0.5)
+    # ========================================================================
+
+    @abstractmethod
+    def _transform_to_api(self, vendor_data: Any) -> API:
+        """Transform vendor-specific API data to vendor-neutral API model.
+
+        This method must:
+        1. Map vendor-specific fields to standard API fields
+        2. Transform vendor policies to PolicyAction array
+        3. Populate vendor_metadata with vendor-specific fields
+        4. Populate intelligence_metadata with discovery information
+
+        Args:
+            vendor_data: Vendor-specific API data structure
+
+        Returns:
+            API: Vendor-neutral API model
+
+        Note:
+            - Store vendor-specific fields in vendor_metadata dict
+            - Use PolicyActionType enum for policy_actions
+            - Populate intelligence_metadata.discovery_method
+        """
+        pass
+
+    @abstractmethod
+    def _transform_to_metric(self, vendor_data: Any) -> Metric:
+        """Transform vendor-specific metric data to vendor-neutral Metric model.
+
+        This method must:
+        1. Map vendor-specific metric fields to standard Metric fields
+        2. Calculate percentiles if not provided
+        3. Populate vendor_metadata with vendor-specific metrics
+
+        Args:
+            vendor_data: Vendor-specific metric data structure
+
+        Returns:
+            Metric: Vendor-neutral Metric model
+
+        Note:
+            - Store vendor-specific metrics in vendor_metadata dict
+            - Ensure time_bucket is set appropriately
+        """
+        pass
+
+    @abstractmethod
+    def _transform_to_transactional_log(self, vendor_data: Any) -> TransactionalLog:
+        """Transform vendor-specific log data to vendor-neutral TransactionalLog model.
+
+        This method must:
+        1. Map vendor-specific log fields to standard TransactionalLog fields
+        2. Extract timing breakdown (gateway, backend, total)
+        3. Extract error information
+        4. Populate vendor_metadata with vendor-specific log data
+
+        Args:
+            vendor_data: Vendor-specific log data structure
+
+        Returns:
+            TransactionalLog: Vendor-neutral TransactionalLog model
+
+        Note:
+            - Store vendor-specific log fields in vendor_metadata dict
+            - Ensure all timing fields are in milliseconds
+        """
+        pass
+
+    @abstractmethod
+    def _transform_to_policy_action(self, vendor_data: Any) -> PolicyAction:
+        """Transform vendor-specific policy to vendor-neutral PolicyAction model.
+
+        This method must:
+        1. Map vendor policy type to PolicyActionType enum
+        2. Extract policy configuration to vendor_config dict
+        3. Set enabled status
+
+        Args:
+            vendor_data: Vendor-specific policy data structure
+
+        Returns:
+            PolicyAction: Vendor-neutral PolicyAction model
+
+        Note:
+            - Use PolicyActionType enum for action_type
+            - Store vendor-specific config in vendor_config dict
+        """
+        pass
+
+    @abstractmethod
+    def _transform_from_policy_action(self, policy_action: PolicyAction) -> Any:
+        """Transform vendor-neutral PolicyAction to vendor-specific policy format.
+
+        This method must:
+        1. Map PolicyActionType enum to vendor policy type
+        2. Extract vendor_config dict to vendor policy structure
+        3. Format for vendor API requests
+
+        Args:
+            policy_action: Vendor-neutral PolicyAction model
+
+        Returns:
+            Any: Vendor-specific policy data structure ready for API submission
+
+        Note:
+            - Extract vendor_config dict for vendor-specific parameters
+            - Format according to vendor API requirements
         """
         pass
 

@@ -65,8 +65,9 @@ class MetricsMCPServer(BaseMCPServer):
                 dict: Health status including backend connectivity
             """
             try:
-                # Test backend connectivity
-                await self.backend_client.list_apis(page=1, page_size=1)
+                # Test backend connectivity by making a simple request to gateways endpoint
+                response = await self.backend_client.client.get("/gateways", params={"page": 1, "page_size": 1})
+                response.raise_for_status()
                 backend_status = "connected"
             except Exception as e:
                 logger.error(f"Backend health check failed: {e}")
@@ -122,6 +123,7 @@ class MetricsMCPServer(BaseMCPServer):
         
         @self.tool(description="Retrieve time-series metrics for analysis")
         async def get_metrics_timeseries(
+            gateway_id: str,
             api_id: str,
             start_time: str,
             end_time: str,
@@ -131,6 +133,7 @@ class MetricsMCPServer(BaseMCPServer):
             """Get time-series metrics data.
             
             Args:
+                gateway_id: Gateway UUID
                 api_id: Target API UUID
                 start_time: Start of time range (ISO 8601)
                 end_time: End of time range (ISO 8601)
@@ -141,11 +144,12 @@ class MetricsMCPServer(BaseMCPServer):
                 dict: Time-series data points
             """
             return await self._get_metrics_timeseries_impl(
-                api_id, start_time, end_time, interval, metrics
+                gateway_id, api_id, start_time, end_time, interval, metrics
             )
         
         @self.tool(description="Analyze metric trends and patterns")
         async def analyze_trends(
+            gateway_id: str,
             api_id: str,
             metric: str,
             lookback_hours: int = 24
@@ -153,6 +157,7 @@ class MetricsMCPServer(BaseMCPServer):
             """Analyze trends for a specific metric.
             
             Args:
+                gateway_id: Gateway UUID
                 api_id: Target API UUID
                 metric: Metric to analyze (response_time, error_rate, throughput, availability)
                 lookback_hours: Hours to look back (1-720)
@@ -160,7 +165,7 @@ class MetricsMCPServer(BaseMCPServer):
             Returns:
                 dict: Trend analysis with anomalies and forecast
             """
-            return await self._analyze_trends_impl(api_id, metric, lookback_hours)
+            return await self._analyze_trends_impl(gateway_id, api_id, metric, lookback_hours)
 
     async def initialize(self) -> None:
         """Initialize server resources."""
@@ -265,6 +270,7 @@ class MetricsMCPServer(BaseMCPServer):
     
     async def _get_metrics_timeseries_impl(
         self,
+        gateway_id: str,
         api_id: str,
         start_time: str,
         end_time: str,
@@ -274,6 +280,7 @@ class MetricsMCPServer(BaseMCPServer):
         """Implementation of get_metrics_timeseries tool.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: Target API UUID
             start_time: Start time (ISO 8601)
             end_time: End time (ISO 8601)
@@ -284,10 +291,11 @@ class MetricsMCPServer(BaseMCPServer):
             dict: Time-series data
         """
         try:
-            # Validate UUID format
+            # Validate UUID formats
             try:
+                UUID(gateway_id)
                 UUID(api_id)
-            except ValueError:
+            except ValueError as e:
                 return {
                     "api_id": api_id,
                     "time_range": {
@@ -295,11 +303,12 @@ class MetricsMCPServer(BaseMCPServer):
                         "end": end_time
                     },
                     "data_points": [],
-                    "error": f"Invalid api_id format: {api_id}"
+                    "error": f"Invalid UUID format: {e}"
                 }
             
             # Get metrics from backend
             response = await self.backend_client.get_api_metrics(
+                gateway_id=gateway_id,
                 api_id=api_id,
                 start_time=start_time,
                 end_time=end_time,
@@ -344,11 +353,12 @@ class MetricsMCPServer(BaseMCPServer):
             }
     
     async def _analyze_trends_impl(
-        self, api_id: str, metric: str, lookback_hours: int = 24
+        self, gateway_id: str, api_id: str, metric: str, lookback_hours: int = 24
     ) -> dict[str, Any]:
         """Implementation of analyze_trends tool.
         
         Args:
+            gateway_id: Gateway UUID
             api_id: Target API UUID
             metric: Metric to analyze
             lookback_hours: Hours to look back
@@ -357,10 +367,11 @@ class MetricsMCPServer(BaseMCPServer):
             dict: Trend analysis results
         """
         try:
-            # Validate UUID format
+            # Validate UUID formats
             try:
+                UUID(gateway_id)
                 UUID(api_id)
-            except ValueError:
+            except ValueError as e:
                 return {
                     "trend": "unknown",
                     "trend_strength": 0.0,
@@ -369,7 +380,7 @@ class MetricsMCPServer(BaseMCPServer):
                         "next_24h_trend": "unknown",
                         "confidence": 0.0
                     },
-                    "error": f"Invalid api_id format: {api_id}"
+                    "error": f"Invalid UUID format: {e}"
                 }
             
             # Calculate time range
@@ -378,6 +389,7 @@ class MetricsMCPServer(BaseMCPServer):
             
             # Get metrics from backend
             response = await self.backend_client.get_api_metrics(
+                gateway_id=gateway_id,
                 api_id=api_id,
                 start_time=start_time.isoformat(),
                 end_time=end_time.isoformat(),

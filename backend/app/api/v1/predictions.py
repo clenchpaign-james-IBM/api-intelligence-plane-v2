@@ -9,18 +9,12 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status as http_status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
-from app.services.prediction_service import PredictionService
-from app.models.prediction import (
-    Prediction,
-    PredictionSeverity,
-    PredictionStatus,
-    ContributingFactor,
-)
+from app.models.prediction import PredictionSeverity, PredictionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +67,10 @@ class PredictionListResponse(BaseModel):
 @router.get(
     "/predictions",
     response_model=PredictionListResponse,
-    summary="List failure predictions",
+    summary="List all failure predictions across all gateways",
 )
-async def list_predictions(
+async def list_all_predictions(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
     api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
     severity: Optional[PredictionSeverity] = Query(None, description="Filter by severity"),
     status: Optional[PredictionStatus] = Query(None, description="Filter by status"),
@@ -83,10 +78,14 @@ async def list_predictions(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
 ) -> PredictionListResponse:
     """
-    List failure predictions with optional filters.
+    List all failure predictions across all gateways with optional filtering.
+    
+    This is an aggregate endpoint that returns predictions from all gateways.
+    Use gateway_id parameter to filter by specific gateway.
     
     Args:
-        api_id: Filter by API ID
+        gateway_id: Optional gateway filter
+        api_id: Optional filter by specific API ID
         severity: Filter by severity level
         status: Filter by prediction status
         page: Page number (1-indexed)
@@ -94,9 +93,6 @@ async def list_predictions(
         
     Returns:
         List of predictions with pagination info
-        
-    Raises:
-        HTTPException: If prediction retrieval fails
     """
     try:
         # Initialize repository
@@ -110,6 +106,143 @@ async def list_predictions(
             page=page,
             page_size=page_size,
         )
+        
+        # Filter by gateway if specified
+        if gateway_id:
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            filtered_predictions = [
+                p for p in result["predictions"]
+                if str(p.api_id) in gateway_api_ids
+            ]
+            result["predictions"] = filtered_predictions
+            result["total"] = len(filtered_predictions)
+        
+        # Convert to response models
+        predictions_response = [
+            PredictionResponse(
+                id=str(p.id),
+                api_id=str(p.api_id),
+                api_name=p.api_name,
+                prediction_type=p.prediction_type,
+                predicted_at=p.predicted_at.isoformat(),
+                predicted_time=p.predicted_time.isoformat(),
+                confidence_score=p.confidence_score,
+                severity=p.severity.value,
+                status=p.status.value,
+                contributing_factors=[
+                    ContributingFactorResponse(**factor.model_dump())
+                    for factor in p.contributing_factors
+                ],
+                recommended_actions=p.recommended_actions,
+                actual_outcome=p.actual_outcome,
+                actual_time=p.actual_time.isoformat() if p.actual_time else None,
+                accuracy_score=p.accuracy_score,
+                model_version=p.model_version,
+                metadata=p.metadata,
+                created_at=p.created_at.isoformat(),
+                updated_at=p.updated_at.isoformat(),
+            )
+            for p in result["predictions"]
+        ]
+        
+        return PredictionListResponse(
+            predictions=predictions_response,
+            total=result["total"],
+            page=page,
+            page_size=page_size,
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to list predictions: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list predictions: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/predictions",
+    response_model=PredictionListResponse,
+    summary="List failure predictions for a gateway",
+)
+async def list_gateway_predictions(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID within gateway"),
+    severity: Optional[PredictionSeverity] = Query(None, description="Filter by severity"),
+    status: Optional[PredictionStatus] = Query(None, description="Filter by status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+) -> PredictionListResponse:
+    """
+    List failure predictions for APIs within a specific gateway.
+    
+    Args:
+        gateway_id: Gateway UUID (required)
+        api_id: Optional filter by specific API ID within gateway
+        severity: Filter by severity level
+        status: Filter by prediction status
+        page: Page number (1-indexed)
+        page_size: Items per page
+        
+    Returns:
+        List of predictions with pagination info
+        
+    Raises:
+        HTTPException: If gateway not found or prediction retrieval fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        # Initialize repository
+        prediction_repo = PredictionRepository()
+        
+        # Get predictions with filters
+        # Note: We need to filter by gateway_id at the repository level
+        # For now, we'll get predictions and filter by gateway
+        result = prediction_repo.list_predictions(
+            api_id=str(api_id) if api_id else None,
+            severity=severity,
+            status=status,
+            page=page,
+            page_size=page_size,
+        )
+        
+        # Filter predictions to only include those from APIs in this gateway
+        if not api_id:
+            # Get all APIs for this gateway
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            # Filter predictions
+            filtered_predictions = [
+                p for p in result["predictions"]
+                if str(p.api_id) in gateway_api_ids
+            ]
+            result["predictions"] = filtered_predictions
+            result["total"] = len(filtered_predictions)
         
         # Convert to response models
         predictions_response = [
@@ -161,26 +294,39 @@ async def list_predictions(
 
 
 @router.get(
-    "/predictions/{prediction_id}",
+    "/gateways/{gateway_id}/predictions/{prediction_id}",
     response_model=PredictionResponse,
     summary="Get prediction details",
 )
-async def get_prediction(
+async def get_gateway_prediction(
+    gateway_id: UUID,
     prediction_id: UUID,
 ) -> PredictionResponse:
     """
-    Get details for a specific prediction.
+    Get details for a specific prediction within a gateway.
     
     Args:
+        gateway_id: Gateway UUID (required)
         prediction_id: Prediction UUID
         
     Returns:
         Prediction details
         
     Raises:
-        HTTPException: If prediction not found
+        HTTPException: If gateway or prediction not found
     """
     try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
         # Initialize repository
         prediction_repo = PredictionRepository()
         
@@ -193,11 +339,18 @@ async def get_prediction(
                 detail=f"Prediction {prediction_id} not found",
             )
         
-        # Enrich with API name
+        # Verify prediction's API belongs to the gateway
         api_repo = APIRepository()
         try:
             api = api_repo.get(str(prediction.api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Prediction {prediction_id} not found in gateway {gateway_id}",
+                )
             api_name = api.name if api else None
+        except HTTPException:
+            raise
         except Exception:
             api_name = None
         
@@ -241,109 +394,51 @@ async def get_prediction(
         )
 
 
-@router.post(
-    "/predictions/generate",
-    status_code=http_status.HTTP_202_ACCEPTED,
-    summary="Trigger prediction generation",
-)
-async def generate_predictions(
-    api_id: Optional[UUID] = Query(None, description="Generate for specific API (or all if not provided)"),
-    min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"),
-) -> dict:
-    """
-    Trigger prediction generation for APIs.
-    
-    AI enhancement is automatically applied based on:
-    - PREDICTION_AI_ENABLED configuration (default: true)
-    - PREDICTION_AI_THRESHOLD configuration (default: 0.8)
-    - Prediction confidence score
-    
-    Args:
-        api_id: Optional API ID to generate predictions for (generates for all if not provided)
-        min_confidence: Minimum confidence threshold (0-1)
-        
-    Returns:
-        Generation status
-        
-    Raises:
-        HTTPException: If generation fails
-    """
-    try:
-        # Initialize services
-        prediction_repo = PredictionRepository()
-        metrics_repo = MetricsRepository()
-        api_repo = APIRepository()
-        
-        # Try to initialize LLM service for potential AI enhancement
-        llm_service = None
-        try:
-            from app.services.llm_service import LLMService
-            from app.config import settings
-            llm_service = LLMService(settings)
-        except Exception as e:
-            logger.info(f"LLM service not available: {e}")
-        
-        prediction_service = PredictionService(
-            prediction_repository=prediction_repo,
-            metrics_repository=metrics_repo,
-            api_repository=api_repo,
-            llm_service=llm_service,
-        )
-        
-        if api_id:
-            # Generate for specific API (AI enhancement decided internally)
-            predictions = prediction_service.generate_predictions_for_api(
-                api_id=api_id,
-                min_confidence=min_confidence,
-            )
-            
-            return {
-                "status": "accepted",
-                "message": f"Generated {len(predictions)} predictions for API {api_id}",
-                    "predictions_generated": len(predictions),
-                }
-        else:
-            # Generate for all APIs
-            result = prediction_service.generate_predictions_for_all_apis(
-                min_confidence=min_confidence,
-            )
-            
-            return {
-                "status": "accepted",
-                "message": f"Generated {result['predictions_generated']} predictions for {result['apis_analyzed']} APIs",
-                "result": result,
-            }
-        
-    except Exception as e:
-        logger.error(f"Failed to generate predictions: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate predictions: {str(e)}",
-        )
-
-
 @router.get(
-    "/predictions/stats/accuracy",
-    summary="Get prediction accuracy statistics",
+    "/gateways/{gateway_id}/predictions/stats/accuracy",
+    summary="Get prediction accuracy statistics for a gateway",
 )
-async def get_prediction_accuracy_stats(
-    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+async def get_gateway_prediction_accuracy_stats(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID within gateway"),
     days: int = Query(30, ge=1, le=90, description="Number of days to look back"),
 ) -> dict:
     """
-    Get prediction accuracy statistics.
+    Get prediction accuracy statistics for APIs within a gateway.
     
     Args:
-        api_id: Optional API ID filter
+        gateway_id: Gateway UUID (required)
+        api_id: Optional API ID filter within gateway
         days: Number of days to look back (1-90)
         
     Returns:
         Accuracy statistics
         
     Raises:
-        HTTPException: If retrieval fails
+        HTTPException: If gateway not found or retrieval fails
     """
     try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
         # Initialize repository
         prediction_repo = PredictionRepository()
         
@@ -366,89 +461,39 @@ async def get_prediction_accuracy_stats(
             detail=f"Failed to retrieve accuracy statistics: {str(e)}",
         )
 
-@router.post(
-    "/predictions/ai-enhanced",
-    summary="Generate AI-enhanced predictions",
-)
-async def generate_ai_enhanced_predictions(
-    api_id: UUID = Query(..., description="API ID to generate predictions for"),
-    min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"),
-) -> dict:
-    """
-    Generate AI-enhanced predictions with LLM analysis.
-    
-    Args:
-        api_id: API ID to generate predictions for
-        min_confidence: Minimum confidence threshold (0-1)
-        
-    Returns:
-        AI-enhanced predictions with analysis
-        
-    Raises:
-        HTTPException: If generation fails
-    """
-    try:
-        # Initialize services
-        prediction_repo = PredictionRepository()
-        metrics_repo = MetricsRepository()
-        api_repo = APIRepository()
-        
-        # Try to get LLM service
-        try:
-            from app.services.llm_service import LLMService
-            from app.config import Settings
-            settings = Settings()
-            llm_service = LLMService(settings)
-        except Exception as e:
-            logger.warning(f"LLM service unavailable: {e}")
-            llm_service = None
-        
-        prediction_service = PredictionService(
-            prediction_repository=prediction_repo,
-            metrics_repository=metrics_repo,
-            api_repository=api_repo,
-            llm_service=llm_service,
-        )
-        
-        # Generate AI-enhanced predictions
-        result = await prediction_service.generate_ai_enhanced_predictions(
-            api_id=api_id,
-            min_confidence=min_confidence,
-        )
-        
-        return {
-            "status": "success",
-            "result": result,
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to generate AI-enhanced predictions: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate AI-enhanced predictions: {str(e)}",
-        )
-
-
 @router.get(
-    "/predictions/{prediction_id}/explanation",
+    "/gateways/{gateway_id}/predictions/{prediction_id}/explanation",
     summary="Get AI explanation for prediction",
 )
-async def get_prediction_explanation(
+async def get_gateway_prediction_explanation(
+    gateway_id: UUID,
     prediction_id: UUID,
 ) -> dict:
     """
-    Get AI-generated explanation for a specific prediction.
+    Get AI-generated explanation for a specific prediction within a gateway.
     
     Args:
+        gateway_id: Gateway UUID (required)
         prediction_id: Prediction UUID
         
     Returns:
         AI-generated explanation
         
     Raises:
-        HTTPException: If prediction not found or explanation fails
+        HTTPException: If gateway or prediction not found or explanation fails
     """
     try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
         # Initialize repositories
         prediction_repo = PredictionRepository()
         
@@ -459,6 +504,15 @@ async def get_prediction_explanation(
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Prediction {prediction_id} not found",
+            )
+        
+        # Verify prediction's API belongs to the gateway
+        api_repo = APIRepository()
+        api = api_repo.get(str(prediction.api_id))
+        if not api or str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Prediction {prediction_id} not found in gateway {gateway_id}",
             )
         
         # Try to get LLM service

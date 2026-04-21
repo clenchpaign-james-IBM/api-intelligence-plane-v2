@@ -19,8 +19,8 @@ from app.db.repositories.prediction_repository import PredictionRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
 from app.services.prediction_service import PredictionService
-from app.models.metric import Metric
-from app.models.api import (
+from app.models.base.metric import Metric
+from app.models.base.api import (
     API,
     APIStatus,
     AuthenticationType,
@@ -230,7 +230,8 @@ class TestPredictionGeneration:
     ):
         """Test that degrading metrics generate predictions."""
         # Generate predictions for the test API
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.7
         )
@@ -283,7 +284,8 @@ class TestPredictionGeneration:
     ):
         """Test that stable metrics don't generate high-confidence predictions."""
         # Generate predictions for the stable API
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.7
         )
@@ -308,7 +310,8 @@ class TestPredictionGeneration:
     ):
         """Test that predictions are stored in OpenSearch."""
         # Generate predictions
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.7
         )
@@ -334,7 +337,8 @@ class TestPredictionGeneration:
         self, prediction_service, test_api, degrading_metrics
     ):
         """Test that contributing factors have correct structure."""
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.7
         )
@@ -365,7 +369,8 @@ class TestPredictionGeneration:
         self, prediction_service, test_api, degrading_metrics
     ):
         """Test confidence score calculation."""
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.5
         )
@@ -391,7 +396,8 @@ class TestPredictionGeneration:
         self, prediction_service, test_api, degrading_metrics
     ):
         """Test severity is correctly determined from confidence."""
-        predictions = await prediction_service.generate_predictions(
+        predictions = await prediction_service.generate_predictions_for_api(
+            gateway_id=test_api.gateway_id,
             api_id=test_api.id,
             min_confidence=0.5
         )

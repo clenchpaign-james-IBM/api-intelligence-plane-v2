@@ -1,0 +1,62 @@
+{
+    "policyAction": {
+        "id": "70a30187-30ee-4264-9758-071ddbb30f0d",
+        "names": [
+            {
+                "value": "Log Invocation",
+                "locale": "en"
+            }
+        ],
+        "templateKey": "logInvocation",
+        "parameters": [
+            {
+                "templateKey": "storeRequestHeaders",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "storeRequestPayload",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "storeResponseHeaders",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "storeResponsePayload",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "storeAsZip",
+                "values": [
+                    "true"
+                ]
+            },
+            {
+                "templateKey": "logGenerationFrequency",
+                "values": [
+                    "Always"
+                ]
+            },
+            {
+                "templateKey": "destination",
+                "parameters": [
+                    {
+                        "templateKey": "destinationType",
+                        "values": [
+                            "GATEWAY"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "active": false
+    }
+}

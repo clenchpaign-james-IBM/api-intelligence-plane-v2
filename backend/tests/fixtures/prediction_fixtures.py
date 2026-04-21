@@ -18,14 +18,18 @@ from app.models.prediction import (
     ContributingFactor,
     ContributingFactorType,
 )
-from app.models.metric import Metric
-from app.models.api import (
+from app.models.base.metric import Metric, TimeBucket
+from app.models.base.api import (
     API,
     APIStatus,
+    APIType,
     AuthenticationType,
     DiscoveryMethod,
     Endpoint,
-    CurrentMetrics,
+    EndpointParameter,
+    IntelligenceMetadata,
+    MaturityState,
+    VersionInfo,
 )
 
 
@@ -70,12 +74,14 @@ def sample_contributing_factors() -> List[ContributingFactor]:
 
 
 @pytest.fixture
-def sample_prediction(sample_api_id, sample_contributing_factors) -> Prediction:
+def sample_prediction(sample_api_id, sample_gateway_id, sample_contributing_factors) -> Prediction:
     """Generate a sample prediction."""
     now = datetime.utcnow()
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
+        api_name="Test API",
         prediction_type=PredictionType.FAILURE,
         predicted_at=now,
         predicted_time=now + timedelta(hours=36),
@@ -97,12 +103,14 @@ def sample_prediction(sample_api_id, sample_contributing_factors) -> Prediction:
 
 
 @pytest.fixture
-def critical_prediction(sample_api_id) -> Prediction:
+def critical_prediction(sample_api_id, sample_gateway_id) -> Prediction:
     """Generate a critical severity prediction."""
     now = datetime.utcnow()
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
+        api_name="Critical API",
         prediction_type=PredictionType.FAILURE,
         predicted_at=now,
         predicted_time=now + timedelta(hours=30),
@@ -139,7 +147,7 @@ def critical_prediction(sample_api_id) -> Prediction:
 
 
 @pytest.fixture
-def resolved_prediction(sample_api_id) -> Prediction:
+def resolved_prediction(sample_api_id, sample_gateway_id) -> Prediction:
     """Generate a resolved prediction with outcome."""
     now = datetime.utcnow()
     predicted_at = now - timedelta(hours=48)
@@ -148,7 +156,9 @@ def resolved_prediction(sample_api_id) -> Prediction:
     
     return Prediction(
         id=uuid4(),
+        gateway_id=sample_gateway_id,
         api_id=sample_api_id,
+        api_name="Resolved API",
         prediction_type=PredictionType.DEGRADATION,
         predicted_at=predicted_at,
         predicted_time=predicted_time,
@@ -185,58 +195,116 @@ def resolved_prediction(sample_api_id) -> Prediction:
 
 @pytest.fixture
 def sample_stable_metric(sample_api_id, sample_gateway_id) -> Metric:
-    """Generate a sample stable metric."""
+    """Generate a sample stable metric with time-bucketed structure."""
+    now = datetime.utcnow()
     return Metric(
         id=uuid4(),
-        api_id=sample_api_id,
+        api_id=str(sample_api_id),
         gateway_id=sample_gateway_id,
-        timestamp=datetime.utcnow(),
+        application_id=None,
+        operation=None,
+        timestamp=now,
+        time_bucket=TimeBucket.ONE_HOUR,
+        request_count=1000,
+        success_count=990,
+        failure_count=10,
+        timeout_count=0,
+        error_rate=1.0,
+        availability=99.0,
+        response_time_avg=100.0,
+        response_time_min=50.0,
+        response_time_max=300.0,
         response_time_p50=80.0,
         response_time_p95=150.0,
         response_time_p99=200.0,
-        error_rate=0.01,
-        error_count=10,
-        request_count=1000,
-        throughput=16.67,
-        availability=99.9,
+        gateway_time_avg=20.0,
+        backend_time_avg=80.0,
+        throughput=0.278,  # 1000 requests / 3600 seconds
+        total_data_size=2048000,  # ~2MB
+        avg_request_size=512.0,
+        avg_response_size=1536.0,
+        cache_hit_count=0,
+        cache_miss_count=0,
+        cache_bypass_count=0,
+        cache_hit_rate=0.0,
+        status_2xx_count=990,
+        status_3xx_count=0,
+        status_4xx_count=0,
+        status_5xx_count=10,
         status_codes={"200": 990, "500": 10},
         endpoint_metrics=None,
-        metadata={"test": True},
+        vendor_metadata={"test": True},
+        created_at=now,
+        updated_at=now,
     )
 
 
 @pytest.fixture
 def sample_degrading_metric(sample_api_id, sample_gateway_id) -> Metric:
-    """Generate a sample degrading metric."""
+    """Generate a sample degrading metric with time-bucketed structure."""
+    now = datetime.utcnow()
     return Metric(
         id=uuid4(),
-        api_id=sample_api_id,
+        api_id=str(sample_api_id),
         gateway_id=sample_gateway_id,
-        timestamp=datetime.utcnow(),
+        application_id=None,
+        operation=None,
+        timestamp=now,
+        time_bucket=TimeBucket.ONE_HOUR,
+        request_count=1000,
+        success_count=850,
+        failure_count=150,
+        timeout_count=0,
+        error_rate=15.0,
+        availability=85.0,
+        response_time_avg=350.0,
+        response_time_min=100.0,
+        response_time_max=800.0,
         response_time_p50=200.0,
         response_time_p95=400.0,
         response_time_p99=600.0,
-        error_rate=0.15,
-        error_count=150,
-        request_count=1000,
-        throughput=16.67,
-        availability=94.0,
+        gateway_time_avg=50.0,
+        backend_time_avg=300.0,
+        throughput=0.278,  # 1000 requests / 3600 seconds
+        total_data_size=2048000,  # ~2MB
+        avg_request_size=512.0,
+        avg_response_size=1536.0,
+        cache_hit_count=0,
+        cache_miss_count=0,
+        cache_bypass_count=0,
+        cache_hit_rate=0.0,
+        status_2xx_count=850,
+        status_3xx_count=0,
+        status_4xx_count=0,
+        status_5xx_count=150,
         status_codes={"200": 850, "500": 150},
         endpoint_metrics=None,
-        metadata={"test": True, "degrading": True},
+        vendor_metadata={"test": True, "degrading": True},
+        created_at=now,
+        updated_at=now,
     )
 
 
 @pytest.fixture
 def sample_test_api(sample_api_id, sample_gateway_id) -> API:
-    """Generate a sample test API."""
+    """Generate a sample test API with vendor-neutral structure."""
     now = datetime.utcnow()
     return API(
         id=sample_api_id,
         gateway_id=sample_gateway_id,
         name="Test API",
-        version="1.0.0",
+        display_name="Test API Display",
+        description="Test API for predictions",
         base_path="/api/v1",
+        version_info=VersionInfo(
+            current_version="1.0.0",
+            previous_version=None,
+            next_version=None,
+            system_version=1,
+            version_history=None,
+        ),
+        type=APIType.REST,
+        maturity_state=MaturityState.PRODUCTIVE,
         endpoints=[
             Endpoint(
                 path="/test",
@@ -244,6 +312,8 @@ def sample_test_api(sample_api_id, sample_gateway_id) -> API:
                 description="Test endpoint",
                 parameters=[],
                 response_codes=[200, 500],
+                connection_timeout=None,
+                read_timeout=None,
             )
         ],
         methods=["GET", "POST"],
@@ -251,29 +321,31 @@ def sample_test_api(sample_api_id, sample_gateway_id) -> API:
         authentication_config=None,
         ownership=None,
         tags=["test"],
-        is_shadow=False,
-        discovery_method=DiscoveryMethod.REGISTERED,
-        discovered_at=now,
-        last_seen_at=now,
-        status=APIStatus.ACTIVE,
-        health_score=95.0,
-        current_metrics=CurrentMetrics(
-            response_time_p50=100.0,
-            response_time_p95=200.0,
-            response_time_p99=300.0,
-            error_rate=0.01,
-            throughput=10.0,
-            availability=99.9,
-            last_error=None,
-            measured_at=now,
+        intelligence_metadata=IntelligenceMetadata(
+            is_shadow=False,
+            discovery_method=DiscoveryMethod.REGISTERED,
+            discovered_at=now,
+            last_seen_at=now,
+            health_score=95.0,
+            risk_score=5.0,
+            security_score=90.0,
+            compliance_status=None,
+            usage_trend="stable",
+            has_active_predictions=False,
         ),
-        metadata={"test": True},
+        status=APIStatus.ACTIVE,
+        is_active=True,
+        vendor_metadata={"test": True},
+        created_at=now,
+        updated_at=now,
     )
 
 
 def create_prediction_with_severity(
     api_id: UUID,
-    severity: PredictionSeverity,
+    gateway_id: UUID | None = None,
+    api_name: str = "Test API",
+    severity: PredictionSeverity = PredictionSeverity.HIGH,
     hours_ahead: int = 36
 ) -> Prediction:
     """
@@ -281,6 +353,8 @@ def create_prediction_with_severity(
     
     Args:
         api_id: API ID for the prediction
+        gateway_id: Gateway ID (generates random if None)
+        api_name: API name
         severity: Desired severity level
         hours_ahead: Hours ahead for predicted_time
     
@@ -307,7 +381,9 @@ def create_prediction_with_severity(
     
     return Prediction(
         id=uuid4(),
+        gateway_id=gateway_id or uuid4(),
         api_id=api_id,
+        api_name=api_name,
         prediction_type=type_map[severity],
         predicted_at=now,
         predicted_time=now + timedelta(hours=hours_ahead),
@@ -339,7 +415,7 @@ def create_metrics_series(
     degrading: bool = False
 ) -> List[Metric]:
     """
-    Helper function to create a time series of metrics.
+    Helper function to create a time series of metrics with time-bucketed structure.
     
     Args:
         api_id: API ID for metrics
@@ -359,34 +435,60 @@ def create_metrics_series(
         if degrading:
             # Linear degradation
             progress = i / (hours - 1) if hours > 1 else 0
-            error_rate = 0.02 + (0.13 * progress)  # 2% to 15%
+            error_rate = 2.0 + (13.0 * progress)  # 2% to 15%
             response_time_p95 = 100 + (300 * progress)  # 100ms to 400ms
             availability = 99.9 - (5.9 * progress)  # 99.9% to 94%
         else:
             # Stable metrics
-            error_rate = 0.01
+            error_rate = 1.0
             response_time_p95 = 150.0
-            availability = 99.9
+            availability = 99.0
+        
+        failure_count = int((error_rate / 100) * 1000)
+        success_count = 1000 - failure_count
         
         metric = Metric(
             id=uuid4(),
-            api_id=api_id,
+            api_id=str(api_id),
             gateway_id=gateway_id,
+            application_id=None,
+            operation=None,
             timestamp=timestamp,
+            time_bucket=TimeBucket.ONE_HOUR,
+            request_count=1000,
+            success_count=success_count,
+            failure_count=failure_count,
+            timeout_count=0,
+            error_rate=error_rate,
+            availability=availability,
+            response_time_avg=response_time_p95 * 0.7,
+            response_time_min=50.0,
+            response_time_max=response_time_p95 * 1.5,
             response_time_p50=response_time_p95 * 0.6,
             response_time_p95=response_time_p95,
             response_time_p99=response_time_p95 * 1.2,
-            error_rate=error_rate,
-            error_count=int(error_rate * 1000),
-            request_count=1000,
-            throughput=16.67,
-            availability=availability,
+            gateway_time_avg=20.0,
+            backend_time_avg=response_time_p95 * 0.6,
+            throughput=0.278,  # 1000 requests / 3600 seconds
+            total_data_size=2048000,
+            avg_request_size=512.0,
+            avg_response_size=1536.0,
+            cache_hit_count=0,
+            cache_miss_count=0,
+            cache_bypass_count=0,
+            cache_hit_rate=0.0,
+            status_2xx_count=success_count,
+            status_3xx_count=0,
+            status_4xx_count=0,
+            status_5xx_count=failure_count,
             status_codes={
-                "200": int((1-error_rate) * 1000),
-                "500": int(error_rate * 1000)
+                "200": success_count,
+                "500": failure_count
             },
             endpoint_metrics=None,
-            metadata={"test": True, "degrading": degrading},
+            vendor_metadata={"test": True, "degrading": degrading},
+            created_at=timestamp,
+            updated_at=timestamp,
         )
         metrics.append(metric)
     

@@ -9,18 +9,16 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status as http_status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.db.repositories.recommendation_repository import RecommendationRepository
 from app.db.repositories.metrics_repository import MetricsRepository
 from app.db.repositories.api_repository import APIRepository
 from app.services.optimization_service import OptimizationService
 from app.models.recommendation import (
-    OptimizationRecommendation,
     RecommendationType,
     RecommendationPriority,
     RecommendationStatus,
-    ImplementationEffort,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +29,7 @@ router = APIRouter(tags=["Optimization"])
 # Response Models
 class EstimatedImpactResponse(BaseModel):
     """Response model for estimated impact."""
-    
+
     metric: str
     current_value: float
     expected_value: float
@@ -39,10 +37,20 @@ class EstimatedImpactResponse(BaseModel):
     confidence: float
 
 
+class AIContextResponse(BaseModel):
+    """Response model for AI-generated insights."""
+    
+    performance_analysis: Optional[str] = None
+    implementation_guidance: Optional[str] = None
+    prioritization: Optional[str] = None
+    generated_at: Optional[str] = None
+
+
 class RecommendationResponse(BaseModel):
     """Response model for a single recommendation."""
-    
+
     id: str
+    gateway_id: str
     api_id: str
     api_name: Optional[str] = None
     recommendation_type: str
@@ -55,6 +63,7 @@ class RecommendationResponse(BaseModel):
     status: str
     implemented_at: Optional[str] = None
     cost_savings: Optional[float] = None
+    ai_context: Optional[AIContextResponse] = None
     created_at: str
     updated_at: str
     expires_at: Optional[str] = None
@@ -62,7 +71,7 @@ class RecommendationResponse(BaseModel):
 
 class RecommendationListResponse(BaseModel):
     """Response model for recommendation list."""
-    
+
     recommendations: list[RecommendationResponse]
     total: int
     page: int
@@ -71,7 +80,7 @@ class RecommendationListResponse(BaseModel):
 
 class RecommendationStatsResponse(BaseModel):
     """Response model for recommendation statistics."""
-    
+
     total_recommendations: int
     by_status: list[dict]
     by_priority: list[dict]
@@ -80,12 +89,109 @@ class RecommendationStatsResponse(BaseModel):
     total_cost_savings: float
 
 
+class OptimizationSummaryResponse(BaseModel):
+    """Response model for optimization summary."""
+    
+    total_recommendations: int
+    high_priority_recommendations: int
+    medium_priority_recommendations: int
+    low_priority_recommendations: int
+
+
+@router.get(
+    "/optimization/summary",
+    response_model=OptimizationSummaryResponse,
+    summary="Get optimization summary across all gateways",
+)
+async def get_optimization_summary(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
+) -> OptimizationSummaryResponse:
+    """
+    Get aggregated optimization summary across all gateways or for a specific gateway.
+    
+    Returns recommendation counts by priority.
+    """
+    try:
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # If gateway_id is provided, get gateway-specific recommendations
+        if gateway_id:
+            # Verify gateway exists
+            from app.db.repositories.gateway_repository import GatewayRepository
+            gateway_repo = GatewayRepository()
+            gateway = gateway_repo.get(str(gateway_id))
+            
+            if not gateway:
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Gateway {gateway_id} not found",
+                )
+            
+            # Get all APIs for this gateway
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            # Get recommendations for each API in the gateway
+            all_recommendations = []
+            for api in gateway_apis:
+                result = optimization_service.list_recommendations(
+                    api_id=str(api.id),
+                    page=1,
+                    page_size=10000,
+                )
+                all_recommendations.extend(result["recommendations"])
+            
+            # Count by priority
+            high = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.HIGH)
+            medium = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.MEDIUM)
+            low = sum(1 for r in all_recommendations if r.priority == RecommendationPriority.LOW)
+            
+            return OptimizationSummaryResponse(
+                total_recommendations=len(all_recommendations),
+                high_priority_recommendations=high,
+                medium_priority_recommendations=medium,
+                low_priority_recommendations=low,
+            )
+        
+        # Get summary for all gateways
+        summary = optimization_service.get_optimization_summary()
+        
+        return OptimizationSummaryResponse(
+            total_recommendations=summary["total_recommendations"],
+            high_priority_recommendations=summary["high_priority_recommendations"],
+            medium_priority_recommendations=summary["medium_priority_recommendations"],
+            low_priority_recommendations=summary["low_priority_recommendations"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get optimization summary: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get optimization summary: {str(e)}",
+        )
+
+
 @router.get(
     "/recommendations",
     response_model=RecommendationListResponse,
-    summary="List optimization recommendations",
+    summary="List all optimization recommendations across all gateways",
 )
-async def list_recommendations(
+async def list_all_recommendations(
+    gateway_id: Optional[UUID] = Query(None, description="Optional gateway filter"),
     api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
     priority: Optional[RecommendationPriority] = Query(None, description="Filter by priority"),
     status: Optional[RecommendationStatus] = Query(None, description="Filter by status"),
@@ -94,29 +200,40 @@ async def list_recommendations(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
 ) -> RecommendationListResponse:
     """
-    List optimization recommendations with optional filters.
+    List all optimization recommendations across all gateways with optional filtering.
     
+    This is an aggregate endpoint that returns recommendations from all gateways.
+    Use gateway_id parameter to filter by specific gateway.
+
     Args:
+        gateway_id: Optional gateway filter
         api_id: Filter by API ID
         priority: Filter by priority level
         status: Filter by recommendation status
         recommendation_type: Filter by recommendation type
         page: Page number (1-indexed)
         page_size: Items per page
-        
+
     Returns:
         List of recommendations with pagination info
-        
-    Raises:
-        HTTPException: If recommendation retrieval fails
     """
     try:
-        # Initialize repositories
-        recommendation_repo = RecommendationRepository()
-        api_repo = APIRepository()
-        
-        # Get recommendations with filters
-        result = recommendation_repo.list_recommendations(
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get recommendations with API name enrichment from service
+        result = optimization_service.list_recommendations(
             api_id=str(api_id) if api_id else None,
             priority=priority,
             status=status,
@@ -125,20 +242,180 @@ async def list_recommendations(
             page_size=page_size,
         )
         
-        # Convert to response models with API name enrichment
-        recommendations = []
+        # Filter by gateway if specified
+        if gateway_id:
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            filtered_recommendations = [
+                r for r in result["recommendations"]
+                if str(r["recommendation"].api_id) in gateway_api_ids
+            ]
+            result["recommendations"] = filtered_recommendations
+            result["total"] = len(filtered_recommendations)
+
+        # Convert to response models
+        recommendations_response = []
         for rec in result["recommendations"]:
-            # Try to get API name
-            api_name = None
-            try:
-                api = api_repo.get(str(rec.api_id))
-                api_name = api.name if api else None
-            except Exception:
-                pass
+            recommendation = rec["recommendation"]
+            ai_context = None
+            if recommendation.ai_context:
+                ai_context = AIContextResponse(
+                    performance_analysis=recommendation.ai_context.performance_analysis,
+                    implementation_guidance=recommendation.ai_context.implementation_guidance,
+                    prioritization=recommendation.ai_context.prioritization,
+                    generated_at=recommendation.ai_context.generated_at.isoformat() if recommendation.ai_context.generated_at else None,
+                )
+            
+            recommendations_response.append(
+                RecommendationResponse(
+                    id=str(recommendation.id),
+                    gateway_id=str(recommendation.gateway_id),
+                    api_id=str(recommendation.api_id),
+                    api_name=rec["api_name"],
+                    recommendation_type=recommendation.recommendation_type.value,
+                    title=recommendation.title,
+                    description=recommendation.description,
+                    priority=recommendation.priority.value,
+                    estimated_impact=EstimatedImpactResponse(**recommendation.estimated_impact.model_dump()),
+                    implementation_effort=recommendation.implementation_effort,
+                    implementation_steps=recommendation.implementation_steps,
+                    status=recommendation.status.value,
+                    implemented_at=recommendation.implemented_at.isoformat() if recommendation.implemented_at else None,
+                    cost_savings=recommendation.cost_savings,
+                    ai_context=ai_context,
+                    created_at=recommendation.created_at.isoformat(),
+                    updated_at=recommendation.updated_at.isoformat(),
+                    expires_at=recommendation.expires_at.isoformat() if recommendation.expires_at else None,
+                )
+            )
+
+        return RecommendationListResponse(
+            recommendations=recommendations_response,
+            total=result["total"],
+            page=page,
+            page_size=page_size,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to list recommendations: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list recommendations: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/optimization/recommendations",
+    response_model=RecommendationListResponse,
+    summary="List optimization recommendations for a gateway",
+)
+async def list_gateway_recommendations(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID within gateway"),
+    priority: Optional[RecommendationPriority] = Query(None, description="Filter by priority"),
+    status: Optional[RecommendationStatus] = Query(None, description="Filter by status"),
+    recommendation_type: Optional[RecommendationType] = Query(None, description="Filter by type"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+) -> RecommendationListResponse:
+    """
+    List optimization recommendations for APIs within a gateway with optional filters.
+
+    Args:
+        gateway_id: Gateway UUID (required)
+        api_id: Filter by API ID within gateway
+        priority: Filter by priority level
+        status: Filter by recommendation status
+        recommendation_type: Filter by recommendation type
+        page: Page number (1-indexed)
+        page_size: Items per page
+
+    Returns:
+        List of recommendations with pagination info
+
+    Raises:
+        HTTPException: If gateway not found or recommendation retrieval fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get recommendations with API name enrichment from service
+        result = optimization_service.list_recommendations(
+            api_id=str(api_id) if api_id else None,
+            priority=priority,
+            status=status,
+            recommendation_type=recommendation_type,
+            page=page,
+            page_size=page_size,
+        )
+        
+        # Filter recommendations to only include those from APIs in this gateway
+        if not api_id:
+            api_repo = APIRepository()
+            gateway_apis, _ = api_repo.find_by_gateway(gateway_id=gateway_id, size=10000)
+            gateway_api_ids = {str(api.id) for api in gateway_apis}
+            
+            filtered_items = [
+                item for item in result["recommendations"]
+                if str(item["recommendation"].api_id) in gateway_api_ids
+            ]
+            result["recommendations"] = filtered_items
+            result["total"] = len(filtered_items)
+
+        # Convert to response models
+        recommendations = []
+        for item in result["recommendations"]:
+            rec = item["recommendation"]
+            api_name = item["api_name"]
+
+            ai_context = None
+            if rec.ai_context:
+                ai_context = AIContextResponse(
+                    performance_analysis=rec.ai_context.performance_analysis,
+                    implementation_guidance=rec.ai_context.implementation_guidance,
+                    prioritization=rec.ai_context.prioritization,
+                    generated_at=rec.ai_context.generated_at.isoformat() if rec.ai_context.generated_at else None,
+                )
             
             recommendations.append(
                 RecommendationResponse(
                     id=str(rec.id),
+                    gateway_id=str(rec.gateway_id),
                     api_id=str(rec.api_id),
                     api_name=api_name,
                     recommendation_type=rec.recommendation_type.value,
@@ -157,19 +434,20 @@ async def list_recommendations(
                     status=rec.status.value,
                     implemented_at=rec.implemented_at.isoformat() if rec.implemented_at else None,
                     cost_savings=rec.cost_savings,
+                    ai_context=ai_context,
                     created_at=rec.created_at.isoformat(),
                     updated_at=rec.updated_at.isoformat(),
                     expires_at=rec.expires_at.isoformat() if rec.expires_at else None,
                 )
             )
-        
+
         return RecommendationListResponse(
             recommendations=recommendations,
             total=result["total"],
             page=result["page"],
             page_size=result["page_size"],
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to list recommendations: {e}")
         raise HTTPException(
@@ -179,37 +457,71 @@ async def list_recommendations(
 
 
 @router.get(
-    "/recommendations/stats",
+    "/gateways/{gateway_id}/optimization/recommendations/stats",
     response_model=RecommendationStatsResponse,
-    summary="Get recommendation statistics",
+    summary="Get recommendation statistics for a gateway",
 )
-async def get_recommendation_stats(
-    api_id: Optional[UUID] = Query(None, description="Filter by API ID"),
+async def get_gateway_recommendation_stats(
+    gateway_id: UUID,
+    api_id: Optional[UUID] = Query(None, description="Filter by API ID within gateway"),
     days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
 ) -> RecommendationStatsResponse:
     """
-    Get statistics about optimization recommendations.
-    
+    Get statistics about optimization recommendations for APIs within a gateway.
+
     Args:
-        api_id: Optional API ID filter
+        gateway_id: Gateway UUID (required)
+        api_id: Optional API ID filter within gateway
         days: Number of days to look back
-        
+
     Returns:
         Recommendation statistics
-        
+
     Raises:
-        HTTPException: If stats retrieval fails
+        HTTPException: If gateway not found or stats retrieval fails
     """
     try:
-        # Initialize repository
-        recommendation_repo = RecommendationRepository()
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
         
-        # Get statistics
-        stats = recommendation_repo.get_implementation_stats(
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # If api_id is provided, verify it belongs to the gateway
+        if api_id:
+            api_repo = APIRepository()
+            api = api_repo.get(str(api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"API {api_id} not found in gateway {gateway_id}",
+                )
+        
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get statistics from service
+        stats = optimization_service.get_recommendation_stats(
             api_id=str(api_id) if api_id else None,
             days=days,
         )
-        
+
         return RecommendationStatsResponse(
             total_recommendations=stats["total_recommendations"],
             by_status=stats["by_status"],
@@ -218,7 +530,7 @@ async def get_recommendation_stats(
             avg_improvement=stats["avg_improvement"],
             total_cost_savings=stats["total_cost_savings"],
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get recommendation stats: {e}")
         raise HTTPException(
@@ -228,41 +540,134 @@ async def get_recommendation_stats(
 
 
 @router.get(
-    "/recommendations/{recommendation_id}",
+    "/gateways/{gateway_id}/optimization/summary",
+    summary="Get optimization summary for a gateway",
+    description="Get aggregated optimization metrics for a gateway's APIs",
+)
+async def get_gateway_optimization_summary(gateway_id: UUID) -> dict:
+    """
+    Get optimization summary metrics for a gateway's APIs.
+
+    Args:
+        gateway_id: Gateway UUID (required)
+
+    Returns:
+        Dictionary with recommendation counts by priority
+
+    Raises:
+        HTTPException: If gateway not found or query fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        logger.info(f"Fetching optimization summary for gateway {gateway_id}")
+
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get summary from service
+        summary = optimization_service.get_optimization_summary()
+        summary["gateway_id"] = str(gateway_id)
+        return summary
+
+    except Exception as e:
+        logger.error(f"Failed to fetch optimization summary: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch optimization summary: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}",
     response_model=RecommendationResponse,
     summary="Get recommendation details",
 )
-async def get_recommendation(
+async def get_gateway_recommendation(
+    gateway_id: UUID,
     recommendation_id: UUID,
 ) -> RecommendationResponse:
     """
-    Get detailed information about a specific recommendation.
-    
+    Get detailed information about a specific recommendation within a gateway.
+
     Args:
+        gateway_id: Gateway UUID (required)
         recommendation_id: Recommendation UUID
-        
+
     Returns:
         Recommendation details
-        
+
     Raises:
-        HTTPException: If recommendation not found or retrieval fails
+        HTTPException: If gateway or recommendation not found or retrieval fails
     """
     try:
-        # Initialize repository
-        recommendation_repo = RecommendationRepository()
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
         
-        # Get recommendation
-        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
         
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get recommendation from service
+        recommendation = optimization_service.get_recommendation_details(str(recommendation_id))
+
         if not recommendation:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Recommendation {recommendation_id} not found",
             )
         
+        # Verify recommendation's API belongs to the gateway
+        api_repo = APIRepository()
+        api = api_repo.get(str(recommendation.api_id))
+        if not api or str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Recommendation {recommendation_id} not found in gateway {gateway_id}",
+            )
+
         # Convert to response model
         return RecommendationResponse(
             id=str(recommendation.id),
+            gateway_id=str(recommendation.gateway_id),
             api_id=str(recommendation.api_id),
             recommendation_type=recommendation.recommendation_type.value,
             title=recommendation.title,
@@ -278,13 +683,15 @@ async def get_recommendation(
             implementation_effort=recommendation.implementation_effort.value,
             implementation_steps=recommendation.implementation_steps,
             status=recommendation.status.value,
-            implemented_at=recommendation.implemented_at.isoformat() if recommendation.implemented_at else None,
+            implemented_at=recommendation.implemented_at.isoformat()
+            if recommendation.implemented_at
+            else None,
             cost_savings=recommendation.cost_savings,
             created_at=recommendation.created_at.isoformat(),
             updated_at=recommendation.updated_at.isoformat(),
             expires_at=recommendation.expires_at.isoformat() if recommendation.expires_at else None,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -296,83 +703,85 @@ async def get_recommendation(
 
 
 @router.post(
-    "/recommendations/generate",
+    "/gateways/{gateway_id}/optimization/recommendations/generate",
     response_model=dict,
-    summary="Generate recommendations for an API",
+    summary="Generate recommendations for an API within a gateway",
 )
-async def generate_recommendations(
+async def generate_gateway_recommendations(
+    gateway_id: UUID,
     api_id: UUID = Query(..., description="API ID to generate recommendations for"),
     min_impact: float = Query(10.0, ge=0, le=100, description="Minimum expected improvement %"),
-    use_ai: bool = Query(False, description="Use AI-enhanced recommendation generation"),
 ) -> dict:
     """
-    Generate optimization recommendations for a specific API.
-    
+    Generate AI-driven hybrid optimization recommendations for a specific API within a gateway.
+
     Args:
+        gateway_id: Gateway UUID (required)
         api_id: API UUID
         min_impact: Minimum expected improvement percentage
-        
+
     Returns:
-        Generation results with recommendation count
-        
+        Generation results with a unified recommendation flow
+
     Raises:
-        HTTPException: If generation fails
+        HTTPException: If gateway or API not found or generation fails
     """
     try:
-        # Initialize dependencies
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Verify API belongs to gateway
+        api_repo = APIRepository()
+        api = api_repo.get(str(api_id))
+        
+        if not api:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"API {api_id} not found",
+            )
+        
+        if str(api.gateway_id) != str(gateway_id):
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"API {api_id} not found in gateway {gateway_id}",
+            )
+        
         recommendation_repo = RecommendationRepository()
         metrics_repo = MetricsRepository()
-        api_repo = APIRepository()
-        
+
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
         optimization_service = OptimizationService(
             recommendation_repository=recommendation_repo,
             metrics_repository=metrics_repo,
             api_repository=api_repo,
+            llm_service=llm_service,
         )
-        
-        # Generate recommendations
-        if use_ai:
-            # Try to get LLM service for AI-enhanced generation
-            try:
-                from app.services.llm_service import LLMService
-                from app.config import Settings
-                settings = Settings()
-                llm_service = LLMService(settings)
-                optimization_service.llm_service = llm_service
-            except Exception as e:
-                logger.warning(f"LLM service unavailable, using rule-based: {e}")
-            
-            result = await optimization_service.generate_ai_enhanced_recommendations(
-                api_id=api_id,
-                min_impact=min_impact,
-            )
-            
-            return {
-                "status": "accepted",
-                "message": f"Generated AI-enhanced recommendations for API {api_id}",
-                "result": result,
-            }
-        else:
-            recommendations = optimization_service.generate_recommendations_for_api(
-                api_id=api_id,
-                min_impact=min_impact,
-            )
-            
-            return {
-                "api_id": str(api_id),
-                "recommendations_generated": len(recommendations),
-                "recommendations": [
-                    {
-                        "id": str(rec.id),
-                        "type": rec.recommendation_type.value,
-                        "title": rec.title,
-                        "priority": rec.priority.value,
-                        "expected_improvement": rec.estimated_impact.improvement_percentage,
-                    }
-                    for rec in recommendations
-                ],
-            }
-        
+
+        result = await optimization_service.generate_recommendations_for_api(
+            api_id=api_id,
+            gateway_id=gateway_id,
+            min_impact=min_impact,
+        )
+
+        return {
+            "status": "accepted",
+            "message": f"Generated AI-driven optimization recommendations for API {api_id}",
+            "result": result,
+        }
+
     except Exception as e:
         logger.error(f"Failed to generate recommendations for API {api_id}: {e}")
         raise HTTPException(
@@ -381,137 +790,75 @@ async def generate_recommendations(
         )
 
 
-
-@router.post(
-    "/recommendations/ai-enhanced",
-    summary="Generate AI-enhanced recommendations",
-)
-async def generate_ai_enhanced_recommendations(
-    api_id: UUID = Query(..., description="API ID to generate recommendations for"),
-    min_impact: float = Query(10.0, ge=0, le=100, description="Minimum expected improvement %"),
-) -> dict:
-    """
-    Generate AI-enhanced optimization recommendations with LLM analysis.
-    
-    Args:
-        api_id: API ID to generate recommendations for
-        min_impact: Minimum expected improvement percentage
-        
-    Returns:
-        AI-enhanced recommendations with analysis
-        
-    Raises:
-        HTTPException: If generation fails
-    """
-    try:
-        # Initialize services
-        recommendation_repo = RecommendationRepository()
-        metrics_repo = MetricsRepository()
-        api_repo = APIRepository()
-        
-        # Try to get LLM service
-        try:
-            from app.services.llm_service import LLMService
-            from app.config import Settings
-            settings = Settings()
-            llm_service = LLMService(settings)
-        except Exception as e:
-            logger.warning(f"LLM service unavailable: {e}")
-            llm_service = None
-        
-        optimization_service = OptimizationService(
-            recommendation_repository=recommendation_repo,
-            metrics_repository=metrics_repo,
-            api_repository=api_repo,
-            llm_service=llm_service,
-        )
-        
-        # Generate AI-enhanced recommendations
-        result = await optimization_service.generate_ai_enhanced_recommendations(
-            api_id=api_id,
-            min_impact=min_impact,
-        )
-        
-        return {
-            "status": "success",
-            "result": result,
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to generate AI-enhanced recommendations: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate AI-enhanced recommendations: {str(e)}",
-        )
-
-
 @router.get(
-    "/recommendations/{recommendation_id}/insights",
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/insights",
     summary="Get AI insights for recommendation",
 )
-async def get_recommendation_insights(
+async def get_gateway_recommendation_insights(
+    gateway_id: UUID,
     recommendation_id: UUID,
 ) -> dict:
     """
-    Get AI-generated insights for a specific recommendation.
-    
+    Get AI-generated insights for a specific recommendation within a gateway.
+
     Args:
+        gateway_id: Gateway UUID (required)
         recommendation_id: Recommendation UUID
-        
+
     Returns:
         AI-generated insights
-        
+
     Raises:
-        HTTPException: If recommendation not found or insights fail
+        HTTPException: If gateway or recommendation not found or insights fail
     """
     try:
-        # Initialize repositories
-        recommendation_repo = RecommendationRepository()
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
         
-        # Get recommendation
-        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
-        
-        if not recommendation:
+        if not gateway:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Recommendation {recommendation_id} not found",
+                detail=f"Gateway {gateway_id} not found",
             )
         
-        # Try to get LLM service
-        try:
-            from app.services.llm_service import LLMService
-            from app.config import Settings
-            settings = Settings()
-            llm_service = LLMService(settings)
-            
-            # Generate insights
-            insights = await llm_service.generate_optimization_recommendation({
-                "response_time_p95": recommendation.estimated_impact.current_value,
-                "response_time_p99": recommendation.estimated_impact.current_value * 1.5,
-                "error_rate": 0.01,
-                "throughput": 100,
-                "availability": 99.5,
-            })
-            
-            return {
-                "status": "success",
-                "recommendation_id": str(recommendation_id),
-                "insights": insights,
-            }
-            
-        except Exception as e:
-            logger.warning(f"LLM insights unavailable: {e}")
-            return {
-                "status": "fallback",
-                "recommendation_id": str(recommendation_id),
-                "insights": {
-                    "title": recommendation.title,
-                    "description": recommendation.description,
-                    "priority": recommendation.priority.value,
-                    "estimated_impact": f"{recommendation.estimated_impact.improvement_percentage:.1f}%",
-                },
-            }
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Get insights from service
+        result = await optimization_service.get_recommendation_insights(str(recommendation_id))
+
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=result.get("message", "Recommendation not found"),
+            )
         
+        # Verify recommendation's API belongs to the gateway
+        recommendation = optimization_service.get_recommendation_details(str(recommendation_id))
+        if recommendation:
+            api_repo = APIRepository()
+            api = api_repo.get(str(recommendation.api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Recommendation {recommendation_id} not found in gateway {gateway_id}",
+                )
+
+        return result
+
     except HTTPException:
         raise
     except Exception as e:
@@ -523,25 +870,27 @@ async def get_recommendation_insights(
 
 
 @router.post(
-    "/recommendations/{recommendation_id}/apply",
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/apply",
     summary="Apply recommendation policy to Gateway",
 )
-async def apply_recommendation_to_gateway(
+async def apply_gateway_recommendation(
+    gateway_id: UUID,
     recommendation_id: UUID,
 ) -> dict:
     """
     Apply a recommendation's policy to the actual Gateway.
-    
+
     This endpoint:
     1. Retrieves the recommendation from the database
     2. Gets the API and Gateway information
     3. Creates a Gateway adapter
     4. Applies the appropriate policy (caching, compression, rate limiting) to the Gateway
     5. Updates the recommendation status
-    
+
     Args:
+        gateway_id: Gateway UUID (required)
         recommendation_id: Recommendation UUID to apply
-        
+
     Returns:
         Dictionary with application result:
             - success: bool
@@ -551,141 +900,62 @@ async def apply_recommendation_to_gateway(
             - policy_type: str
             - message: str
             - applied_at: str (ISO format)
-            
+
     Raises:
-        HTTPException: If recommendation not found or application fails
+        HTTPException: If gateway or recommendation not found or application fails
     """
     try:
-        # Initialize repositories
-        recommendation_repo = RecommendationRepository()
-        api_repo = APIRepository()
-        
-        # Get recommendation
-        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
-        
-        if not recommendation:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Recommendation {recommendation_id} not found",
-            )
-        
-        # Get API
-        api = api_repo.get(str(recommendation.api_id))
-        if not api:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"API {recommendation.api_id} not found",
-            )
-        
-        # Get Gateway
+        # Verify gateway exists
         from app.db.repositories.gateway_repository import GatewayRepository
         gateway_repo = GatewayRepository()
-        gateway = gateway_repo.get(str(api.gateway_id))
+        gateway = gateway_repo.get(str(gateway_id))
+        
         if not gateway:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Gateway {api.gateway_id} not found",
+                detail=f"Gateway {gateway_id} not found",
             )
         
-        # Create Gateway adapter
-        from app.adapters.factory import create_gateway_adapter
-        try:
-            adapter = create_gateway_adapter(gateway)
-            await adapter.connect()
-        except Exception as e:
-            logger.error(f"Failed to connect to Gateway {gateway.id}: {e}")
-            raise HTTPException(
-                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Failed to connect to Gateway: {str(e)}",
-            )
-        
-        # Apply policy based on recommendation type
-        try:
-            policy_type = recommendation.recommendation_type.value
-            success = False
-            
-            if policy_type == "caching":
-                # Extract caching policy from recommendation
-                policy = {
-                    "ttl_seconds": 300,  # Default 5 minutes
-                    "cache_key_strategy": "url_based",
-                    "vary_headers": "Accept,Accept-Encoding",
-                }
-                success = await adapter.apply_caching_policy(str(api.id), policy)
-                
-            elif policy_type == "compression":
-                # Extract compression policy from recommendation
-                policy = {
-                    "compression_type": "gzip",
-                    "compression_level": 6,
-                    "min_size_bytes": 1024,
-                    "content_types": ["application/json", "text/html", "text/plain"],
-                }
-                success = await adapter.apply_compression_policy(str(api.id), policy)
-                
-            elif policy_type == "rate_limiting":
-                # Extract rate limiting policy from recommendation
-                # This would typically come from the recommendation metadata
-                policy = {
-                    "policy_name": f"Rate Limit for {api.name}",
-                    "policy_type": "fixed",
-                    "limit_thresholds": {
-                        "requests_per_second": 100,
-                        "requests_per_minute": 5000,
-                        "requests_per_hour": 250000,
-                        "concurrent_requests": 50,
-                    },
-                    "enforcement_action": "throttle",
-                }
-                success = await adapter.apply_rate_limit_policy(str(api.id), policy)
-            
-            else:
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Verify recommendation belongs to gateway before applying
+        recommendation = optimization_service.get_recommendation_details(str(recommendation_id))
+        if recommendation:
+            api_repo = APIRepository()
+            api = api_repo.get(str(recommendation.api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
                 raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Unsupported recommendation type: {policy_type}",
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Recommendation {recommendation_id} not found in gateway {gateway_id}",
                 )
-            
-            if not success:
-                raise RuntimeError("Gateway adapter returned failure")
-            
-            # Update recommendation status
-            from datetime import datetime
-            implemented_at = datetime.utcnow()
-            recommendation_repo.update_recommendation_status(
-                recommendation_id=str(recommendation_id),
-                status=RecommendationStatus.IMPLEMENTED,
-                implemented_at=implemented_at,
-            )
-            
-            logger.info(
-                f"Successfully applied {policy_type} policy for recommendation {recommendation_id} "
-                f"to Gateway {gateway.id}"
-            )
-            
-            return {
-                "success": True,
-                "recommendation_id": str(recommendation.id),
-                "api_id": str(api.id),
-                "gateway_id": str(gateway.id),
-                "policy_type": policy_type,
-                "message": f"{policy_type.capitalize()} policy applied successfully to API '{api.name}' on Gateway '{gateway.name}'",
-                "applied_at": implemented_at.isoformat(),
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to apply policy to Gateway: {e}")
-            raise HTTPException(
-                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to apply policy to Gateway: {str(e)}",
-            )
         
-        finally:
-            # Disconnect from Gateway
-            try:
-                await adapter.disconnect()
-            except Exception as e:
-                logger.warning(f"Failed to disconnect from Gateway: {e}")
-        
+        # Apply recommendation through service
+        return await optimization_service.apply_recommendation_to_gateway(str(recommendation_id))
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except RuntimeError as e:
+        logger.error(f"Gateway operation failed: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -696,4 +966,277 @@ async def apply_recommendation_to_gateway(
         )
 
 
-# Made with Bob
+@router.delete(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/policy",
+    summary="Remove applied optimization policy from Gateway",
+)
+async def remove_gateway_recommendation_policy(
+    gateway_id: UUID,
+    recommendation_id: UUID,
+) -> dict:
+    """
+    Remove a previously applied optimization policy from the Gateway.
+
+    This endpoint:
+    1. Retrieves the recommendation from the database
+    2. Gets the API and Gateway information
+    3. Creates a Gateway adapter
+    4. Removes the policy (caching, compression, rate limiting) from the Gateway
+    5. Updates the recommendation status to PENDING
+
+    Args:
+        gateway_id: Gateway UUID (required)
+        recommendation_id: Recommendation UUID to remove policy for
+
+    Returns:
+        Dictionary with removal result:
+            - success: bool
+            - recommendation_id: str
+            - api_id: str
+            - gateway_id: str
+            - policy_type: str
+            - message: str
+            - removed_at: str (ISO format)
+
+    Raises:
+        HTTPException: If gateway or recommendation not found, not implemented, or removal fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Initialize service
+        from app.services.llm_service import LLMService
+        from app.config import Settings
+
+        settings = Settings()
+        llm_service = LLMService(settings)
+
+        optimization_service = OptimizationService(
+            recommendation_repository=RecommendationRepository(),
+            metrics_repository=MetricsRepository(),
+            api_repository=APIRepository(),
+            llm_service=llm_service,
+        )
+
+        # Verify recommendation belongs to gateway before removing
+        recommendation = optimization_service.get_recommendation_details(str(recommendation_id))
+        if recommendation:
+            api_repo = APIRepository()
+            api = api_repo.get(str(recommendation.api_id))
+            if not api or str(api.gateway_id) != str(gateway_id):
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Recommendation {recommendation_id} not found in gateway {gateway_id}",
+                )
+        
+        # Remove recommendation policy through service
+        return await optimization_service.remove_recommendation_policy(str(recommendation_id))
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        if "not implemented" in str(e).lower():
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except RuntimeError as e:
+        logger.error(f"Gateway operation failed: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Failed to remove policy for recommendation {recommendation_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove recommendation policy: {str(e)}",
+        )
+
+@router.post(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/validate",
+    response_model=dict,
+    status_code=http_status.HTTP_200_OK,
+    summary="Validate recommendation impact",
+    description="Validate that an implemented recommendation achieved its expected impact by analyzing post-implementation metrics"
+)
+async def validate_gateway_recommendation(
+    gateway_id: UUID,
+    recommendation_id: UUID,
+    validation_window_hours: int = Query(24, description="Hours of post-implementation metrics to analyze"),
+) -> dict:
+    """
+    Validate the impact of an implemented recommendation.
+    
+    Analyzes post-implementation metrics to determine if the recommendation
+    achieved its expected improvement. Requires at least validation_window_hours
+    to have passed since implementation.
+    
+    Args:
+        gateway_id: Gateway UUID
+        recommendation_id: Recommendation UUID to validate
+        validation_window_hours: Hours of metrics to analyze (default: 24)
+        settings: Application settings
+        llm_service: LLM service dependency
+        
+    Returns:
+        Validation results with actual vs expected impact
+        
+    Raises:
+        HTTPException: If gateway/recommendation not found or validation fails
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Create optimization service
+        from app.db.repositories.recommendation_repository import RecommendationRepository
+        from app.db.repositories.metrics_repository import MetricsRepository
+        from app.db.repositories.api_repository import APIRepository
+        
+        recommendation_repo = RecommendationRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        from app.config import Settings
+        from app.services.llm_service import LLMService
+        
+        settings = Settings()
+        llm_service = LLMService(settings)
+        
+        optimization_service = OptimizationService(
+            recommendation_repository=recommendation_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo,
+            llm_service=llm_service,
+            rate_limit_service=None
+        )
+        
+        # Validate recommendation
+        result = await optimization_service.validate_recommendation_impact(
+            recommendation_id=str(recommendation_id),
+            validation_window_hours=validation_window_hours
+        )
+        
+        logger.info(
+            f"Validated recommendation {recommendation_id} for gateway {gateway_id}: "
+            f"Success={result['success']}, Actual={result['actual_improvement']}%"
+        )
+        
+        return result
+        
+    except ValueError as e:
+        logger.error(f"Validation error for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except RuntimeError as e:
+        logger.error(f"Validation runtime error for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to validate recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to validate recommendation: {str(e)}",
+        )
+
+
+@router.get(
+    "/gateways/{gateway_id}/optimization/recommendations/{recommendation_id}/actions",
+    response_model=list,
+    summary="Get recommendation action history",
+    description="Get the history of all actions taken on a recommendation"
+)
+async def get_recommendation_actions(
+    gateway_id: UUID,
+    recommendation_id: UUID,
+) -> list:
+    """
+    Get the action history for a recommendation.
+    
+    Returns all remediation actions that have been taken on the recommendation,
+    including policy applications, removals, validations, and failures.
+    
+    Args:
+        gateway_id: Gateway UUID
+        recommendation_id: Recommendation UUID
+        settings: Application settings
+        llm_service: LLM service dependency
+        
+    Returns:
+        List of remediation actions
+        
+    Raises:
+        HTTPException: If gateway/recommendation not found
+    """
+    try:
+        # Verify gateway exists
+        from app.db.repositories.gateway_repository import GatewayRepository
+        gateway_repo = GatewayRepository()
+        gateway = gateway_repo.get(str(gateway_id))
+        
+        if not gateway:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Gateway {gateway_id} not found",
+            )
+        
+        # Get recommendation
+        from app.db.repositories.recommendation_repository import RecommendationRepository
+        recommendation_repo = RecommendationRepository()
+        
+        recommendation = recommendation_repo.get_recommendation(str(recommendation_id))
+        
+        if not recommendation:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Recommendation {recommendation_id} not found",
+            )
+        
+        # Return remediation actions
+        actions = recommendation.remediation_actions or []
+        
+        logger.info(
+            f"Retrieved {len(actions)} actions for recommendation {recommendation_id}"
+        )
+        
+        return [action.dict() if hasattr(action, 'dict') else action for action in actions]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get actions for recommendation {recommendation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recommendation actions: {str(e)}",
+        )

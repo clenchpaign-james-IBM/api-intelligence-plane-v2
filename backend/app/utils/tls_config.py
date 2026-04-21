@@ -7,9 +7,12 @@ secure communication and compliance with FedRAMP 140-3 requirements.
 
 import os
 import ssl
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from app.config import settings
+
+if TYPE_CHECKING:
+    from app.models.base.api import API
 
 
 def create_ssl_context(
@@ -170,5 +173,45 @@ def get_httpx_ssl_config() -> ssl.SSLContext:
         keyfile=settings.CLIENT_KEY_FILE,
         cafile=settings.CLIENT_CA_FILE,
     )
+
+
+def has_tls_enforced(api: "API") -> bool:
+    """
+    Check if an API has TLS enforcement configured via policy actions.
+    
+    This utility function checks if:
+    1. A TLS policy action exists in the API's policy_actions
+    2. The policy action is enabled
+    3. The enforce_tls flag is set to True
+    
+    Args:
+        api: The API object to check
+        
+    Returns:
+        True if TLS is enforced, False otherwise
+        
+    Example:
+        >>> from app.utils.tls_config import has_tls_enforced
+        >>> if not has_tls_enforced(api):
+        >>>     # Handle missing TLS enforcement
+        >>>     pass
+    """
+    from app.models.base.api import PolicyActionType
+    from app.models.base.policy_configs import TlsConfig
+    
+    if not api.policy_actions:
+        return False
+    
+    for pa in api.policy_actions:
+        if pa.action_type == PolicyActionType.TLS and pa.enabled:
+            # Check if enforce_tls is True in config (TlsConfig model)
+            if pa.config and isinstance(pa.config, TlsConfig) and pa.config.enforce_tls:
+                return True
+            # Also check vendor_config (dict) for backward compatibility
+            if pa.vendor_config and pa.vendor_config.get("enforce_tls", False):
+                return True
+    
+    return False
+
 
 # Made with Bob

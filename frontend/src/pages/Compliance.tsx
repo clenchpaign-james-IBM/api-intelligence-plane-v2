@@ -7,38 +7,51 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { 
-  API, 
-  ComplianceViolation, 
-  CompliancePosture, 
-  ComplianceStandard, 
-  ComplianceSeverity, 
-  ComplianceStatus 
+import { useParams } from 'react-router-dom';
+import type {
+  API,
+  ComplianceViolation,
+  CompliancePosture,
+  ComplianceStandard,
+  ComplianceSeverity,
+  ComplianceStatus
 } from '../types';
-import { 
-  getComplianceViolations, 
-  getCompliancePosture 
+import {
+  getComplianceViolations,
+  getCompliancePosture
 } from '../services/compliance';
 import { api } from '../services/api';
 import { ComplianceViolationCard } from '../components/compliance/ComplianceViolationCard';
 import { ComplianceDashboard } from '../components/compliance/ComplianceDashboard';
 import { AuditReportGenerator } from '../components/compliance/AuditReportGenerator';
+import GatewaySelector from '../components/common/GatewaySelector';
 
 export const Compliance: React.FC = () => {
+  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'by-api' | 'audit'>('overview');
   const [standardFilter, setStandardFilter] = useState<ComplianceStandard | 'all'>('all');
   const [severityFilter, setSeverityFilter] = useState<ComplianceSeverity | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<ComplianceStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'risk' | 'name' | 'violations'>('risk');
 
-  // Fetch APIs
+  // Handle gateway selection
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    setSelectedGatewayId(newGatewayId);
+  };
+
+  // Fetch APIs (filtered by gateway if selected)
   const {
     data: apisData,
     isLoading: apisLoading,
     error: apisError,
   } = useQuery({
-    queryKey: ['apis'],
-    queryFn: () => api.apis.list(),
+    queryKey: ['apis', selectedGatewayId],
+    queryFn: () => {
+      const params: any = {};
+      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      return api.apis.list(params);
+    },
     refetchInterval: 30000,
   });
 
@@ -49,9 +62,10 @@ export const Compliance: React.FC = () => {
     error: violationsError,
     refetch: refetchViolations,
   } = useQuery({
-    queryKey: ['compliance-violations', standardFilter, severityFilter, statusFilter],
+    queryKey: ['compliance-violations', standardFilter, severityFilter, statusFilter, selectedGatewayId],
     queryFn: async () => {
       const response = await getComplianceViolations({
+        gateway_id: selectedGatewayId || undefined,
         standard: standardFilter !== 'all' ? standardFilter : undefined,
         severity: severityFilter !== 'all' ? severityFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -62,14 +76,14 @@ export const Compliance: React.FC = () => {
     refetchInterval: 30000,
   });
 
-  // Fetch compliance posture
+  // Fetch compliance posture (filtered by gateway if selected)
   const {
     data: posture,
     isLoading: postureLoading,
     refetch: refetchPosture,
   } = useQuery<CompliancePosture>({
-    queryKey: ['compliance-posture'],
-    queryFn: () => getCompliancePosture(),
+    queryKey: ['compliance-posture', selectedGatewayId],
+    queryFn: () => getCompliancePosture({ gateway_id: selectedGatewayId || undefined }),
     refetchInterval: 30000,
   });
 
@@ -171,6 +185,15 @@ export const Compliance: React.FC = () => {
           Monitor regulatory compliance across all APIs and track audit readiness
         </p>
       </div>
+      {/* Gateway Selector */}
+      <div className="mb-6">
+        <GatewaySelector
+          selectedGatewayId={selectedGatewayId}
+          onGatewayChange={handleGatewayChange}
+          showAllOption={true}
+        />
+      </div>
+
 
       {/* Tabs */}
       <div className="mb-6 border-b border-gray-200">
@@ -390,9 +413,9 @@ export const Compliance: React.FC = () => {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         apiViolations.length === 0
                           ? 'bg-green-100 text-green-800'
-                          : apiViolations.some(v => v.severity === 'critical')
+                          : apiViolations.some((v: { severity: string }) => v.severity === 'critical')
                           ? 'bg-red-100 text-red-800'
-                          : apiViolations.some(v => v.severity === 'high')
+                          : apiViolations.some((v: { severity: string }) => v.severity === 'high')
                           ? 'bg-orange-100 text-orange-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
@@ -403,7 +426,7 @@ export const Compliance: React.FC = () => {
 
                   {apiViolations.length > 0 && (
                     <div className="space-y-3">
-                      {apiViolations.map(violation => (
+                      {apiViolations.map((violation: ComplianceViolation) => (
                         <ComplianceViolationCard
                           key={violation.id}
                           violation={violation}

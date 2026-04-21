@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { Vulnerability } from '../../types';
-import { getStatusColor, formatRemediationTime } from '../../services/security';
+import { getStatusColor } from '../../services/security';
 
 interface RemediationTrackerProps {
   vulnerabilities: Vulnerability[];

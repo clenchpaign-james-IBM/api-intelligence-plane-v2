@@ -31,6 +31,19 @@ router = APIRouter(tags=["Query"])
 
 
 # Request Models
+class NewSessionRequest(BaseModel):
+    """Request model for creating a new session."""
+    
+    user_id: Optional[str] = Field(None, description="Optional user identifier")
+
+
+class NewSessionResponse(BaseModel):
+    """Response model for new session creation."""
+    
+    session_id: UUID = Field(..., description="New session ID")
+    created_at: str = Field(..., description="Session creation timestamp")
+
+
 class QueryRequest(BaseModel):
     """Request model for executing a natural language query."""
     
@@ -81,60 +94,6 @@ vulnerability_repo = VulnerabilityRepository()
 transactional_log_repo = TransactionalLogRepository()
 llm_service = LLMService(settings)
 
-# Initialize agents if enabled
-prediction_agent = None
-optimization_agent = None
-security_agent = None
-compliance_agent = None
-
-try:
-    from app.agents.prediction_agent import PredictionAgent
-    from app.agents.optimization_agent import OptimizationAgent
-    from app.agents.security_agent import SecurityAgent
-    from app.agents.compliance_agent import ComplianceAgent
-    from app.services.prediction_service import PredictionService
-    from app.services.optimization_service import OptimizationService
-    
-    # Create service instances for agents
-    prediction_service = PredictionService(
-        prediction_repository=prediction_repo,
-        api_repository=api_repo,
-        metrics_repository=metrics_repo,
-        llm_service=llm_service,
-    )
-    
-    optimization_service = OptimizationService(
-        recommendation_repository=recommendation_repo,
-        api_repository=api_repo,
-        metrics_repository=metrics_repo,
-        llm_service=llm_service,
-    )
-    
-    # Initialize agents
-    prediction_agent = PredictionAgent(
-        llm_service=llm_service,
-        prediction_service=prediction_service,
-    )
-    
-    optimization_agent = OptimizationAgent(
-        llm_service=llm_service,
-        optimization_service=optimization_service,
-    )
-    
-    security_agent = SecurityAgent(
-        llm_service=llm_service,
-        metrics_repository=metrics_repo,
-    )
-    
-    compliance_agent = ComplianceAgent(
-        llm_service=llm_service,
-        metrics_repository=metrics_repo,
-    )
-    
-    logger.info("AI agents initialized successfully for query service (Prediction, Optimization, Security, Compliance)")
-except Exception as e:
-    logger.warning(f"Failed to initialize AI agents: {e}. Query service will work without agent enhancement.")
-
 query_service = QueryService(
     query_repository=query_repo,
     api_repository=api_repo,
@@ -142,15 +101,42 @@ query_service = QueryService(
     prediction_repository=prediction_repo,
     recommendation_repository=recommendation_repo,
     llm_service=llm_service,
-    prediction_agent=prediction_agent,
-    optimization_agent=optimization_agent,
-    security_agent=security_agent,
-    compliance_agent=compliance_agent,
     compliance_repository=compliance_repo,
     gateway_repository=gateway_repo,
     vulnerability_repository=vulnerability_repo,
     transactional_log_repository=transactional_log_repo,
 )
+
+
+@router.post(
+    "/query/session/new",
+    response_model=NewSessionResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Create new query session",
+    description="Create a new conversation session for natural language queries",
+)
+async def create_new_session(request: Optional[NewSessionRequest] = None) -> NewSessionResponse:
+    """
+    Create a new query session.
+    
+    Args:
+        request: Optional request with user_id
+        
+    Returns:
+        New session response with session ID
+    """
+    from uuid import uuid4
+    from datetime import datetime
+    
+    session_id = uuid4()
+    created_at = datetime.utcnow().isoformat()
+    
+    logger.info(f"Created new query session: {session_id}")
+    
+    return NewSessionResponse(
+        session_id=session_id,
+        created_at=created_at,
+    )
 
 
 @router.post(
@@ -178,43 +164,23 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         # Generate session ID if not provided
         session_id = request.session_id or UUID("00000000-0000-0000-0000-000000000000")
         
-        # Temporarily disable agents if requested
-        original_prediction_agent = query_service.prediction_agent
-        original_optimization_agent = query_service.optimization_agent
-        original_security_agent = query_service.security_agent
-        original_compliance_agent = query_service.compliance_agent
+        # Process query
+        query = await query_service.process_query(
+            query_text=request.query_text,
+            session_id=session_id,
+        )
         
-        # if not request.use_ai_agents:
-        #     query_service.prediction_agent = None
-        #     query_service.optimization_agent = None
-        #     query_service.security_agent = None
-        #     query_service.compliance_agent = None
-        #     logger.info("AI agents disabled for this query")
+        logger.info(f"Processed query {query.id} with confidence {query.confidence_score}")
         
-        try:
-            # Process query
-            query = await query_service.process_query(
-                query_text=request.query_text,
-                session_id=session_id,
-            )
-            
-            logger.info(f"Processed query {query.id} with confidence {query.confidence_score}")
-            
-            return QueryResponse(
-                query_id=query.id,
-                query_text=query.query_text,
-                response_text=query.response_text,
-                confidence_score=query.confidence_score,
-                results=query.results.model_dump(),
-                follow_up_queries=query.follow_up_queries,
-                execution_time_ms=query.execution_time_ms,
-            )
-        finally:
-            # Restore agents
-            query_service.prediction_agent = original_prediction_agent
-            query_service.optimization_agent = original_optimization_agent
-            query_service.security_agent = original_security_agent
-            query_service.compliance_agent = original_compliance_agent
+        return QueryResponse(
+            query_id=query.id,
+            query_text=query.query_text,
+            response_text=query.response_text,
+            confidence_score=query.confidence_score,
+            results=query.results.model_dump(),
+            follow_up_queries=query.follow_up_queries,
+            execution_time_ms=query.execution_time_ms,
+        )
         
     except Exception as e:
         logger.error(f"Failed to execute query: {e}")

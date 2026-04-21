@@ -44,12 +44,38 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
       <div className="flex justify-start">
         <Card className="max-w-[80%]">
           <div className="space-y-4">
-            {/* Response Text with Markdown */}
-            <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:text-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {response.response_text}
-              </ReactMarkdown>
-            </div>
+            {/* Response Text with Markdown or Loading State */}
+            {response.response_text ? (
+              <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-a:text-blue-600 prose-strong:text-gray-900 prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:text-gray-800">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {response.response_text}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 text-gray-600 py-2">
+                <svg
+                  className="animate-spin h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                <span className="text-sm">Thinking...</span>
+              </div>
+            )}
 
             {/* AI Agent Insights - Security */}
             {response.results?.data?.some((item: any) => item.agent_insights?.type === 'security') && (
@@ -62,7 +88,6 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
                 </div>
                 {response.results.data
                   .filter((item: any) => item.agent_insights?.type === 'security')
-                  .slice(0, 2)
                   .map((item: any, idx: number) => (
                     <div key={idx} className="bg-purple-50 rounded-lg p-3 mb-2">
                       <div className="flex items-center justify-between mb-2">
@@ -123,7 +148,6 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
                 </div>
                 {response.results.data
                   .filter((item: any) => item.agent_insights?.type === 'prediction')
-                  .slice(0, 2)
                   .map((item: any, idx: number) => (
                     <div key={idx} className="bg-blue-50 rounded-lg p-3 mb-2">
                       <div className="flex items-center justify-between mb-2">
@@ -153,7 +177,6 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
                 </div>
                 {response.results.data
                   .filter((item: any) => item.agent_insights?.type === 'optimization')
-                  .slice(0, 2)
                   .map((item: any, idx: number) => (
                     <div key={idx} className="bg-green-50 rounded-lg p-3 mb-2">
                       <div className="flex items-center justify-between mb-2">
@@ -172,44 +195,48 @@ export const QueryResponse: React.FC<QueryResponseProps> = ({
               </div>
             )}
 
-            {/* Metadata */}
-            <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-3">
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                <span>{response.execution_time_ms}ms</span>
+            {/* Metadata - Only show when response is complete */}
+            {response.response_text && (
+              <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-3">
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  <span>{response.execution_time_ms}ms</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className={getConfidenceColor(response.confidence_score)}>
+                    {getConfidenceLabel(response.confidence_score)} Confidence ({Math.round(response.confidence_score * 100)}%)
+                  </span>
+                </div>
+                {response.results?.count !== undefined && (
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <span>{response.results.count} results</span>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span className={getConfidenceColor(response.confidence_score)}>
-                  {getConfidenceLabel(response.confidence_score)} Confidence ({Math.round(response.confidence_score * 100)}%)
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-                <span>{response.results.count} results</span>
-              </div>
-            </div>
+            )}
 
             {/* Follow-up Suggestions */}
             {response.follow_up_queries && response.follow_up_queries.length > 0 && (

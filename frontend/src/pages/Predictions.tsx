@@ -32,7 +32,7 @@ const Predictions = () => {
   };
 
   // Fetch predictions (filtered by gateway if selected)
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['predictions', selectedSeverity, selectedStatus, selectedGatewayId],
     queryFn: () => {
       const params: any = {};

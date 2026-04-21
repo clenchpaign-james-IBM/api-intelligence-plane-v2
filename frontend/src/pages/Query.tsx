@@ -20,6 +20,7 @@ export const Query: React.FC = () => {
     executeQuery,
     loadSessionHistory,
     clearSession,
+    createNewSession,
   } = useQuerySession();
 
   const historyEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,16 @@ export const Query: React.FC = () => {
     }
   };
 
+  const handleNewSession = async () => {
+    if (queries.length > 0) {
+      if (window.confirm('Start a new conversation? Current history will be saved but you will start fresh.')) {
+        await createNewSession();
+      }
+    } else {
+      await createNewSession();
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
@@ -83,6 +94,13 @@ export const Query: React.FC = () => {
                 Session: {sessionId.slice(0, 8)}...
               </div>
             )}
+            <button
+              onClick={handleNewSession}
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              New Session
+            </button>
             {queries.length > 0 && (
               <button
                 onClick={handleClearSession}

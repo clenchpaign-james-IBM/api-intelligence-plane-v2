@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, Server, Zap, Plus } from 'lucide-react';
 import Card from '../components/common/Card';
 import Loading from '../components/common/Loading';
@@ -8,7 +8,6 @@ import Error from '../components/common/Error';
 import GatewaySelector from '../components/common/GatewaySelector';
 import AddGatewayForm from '../components/gateways/AddGatewayForm';
 import TimeRangeSelector, { type TimeRangeValue } from '../components/common/TimeRangeSelector';
-import MetricsDrillDownModal from '../components/dashboard/MetricsDrillDownModal';
 import { api } from '../services/api';
 import { metricsService } from '../services/metrics';
 import { securityService } from '../services/security';
@@ -17,7 +16,7 @@ import type { DashboardStats, API, Gateway } from '../types';
 
 /**
  * Dashboard Page
- * 
+ *
  * Displays overview of the API Intelligence Plane system:
  * - Key metrics and statistics
  * - API health overview
@@ -26,10 +25,8 @@ import type { DashboardStats, API, Gateway } from '../types';
  */
 const Dashboard = () => {
   const { gatewayId } = useParams<{ gatewayId?: string }>();
-  const navigate = useNavigate();
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [showAddGatewayForm, setShowAddGatewayForm] = useState(false);
-  const [selectedApiForDrillDown, setSelectedApiForDrillDown] = useState<{ id: string; name: string } | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRangeValue>({
     range: '24h',
     start: new Date(Date.now() - 24 * 60 * 60 * 1000),

@@ -40,6 +40,13 @@ from app.models.query import (
     TimeRange,
     UserFeedback,
 )
+from app.models.enhanced_intent import (
+    EnhancedInterpretedIntent,
+    ReferenceType,
+    EntityReference,
+    EntityRelationship,
+    ContextDependency,
+)
 from app.models.rate_limit import (
     AdaptationParameters,
     ConsumerTier,
@@ -120,6 +127,12 @@ __all__ = [
     "QueryType",
     "TimeRange",
     "UserFeedback",
+    # Enhanced Intent models
+    "EnhancedInterpretedIntent",
+    "ReferenceType",
+    "EntityReference",
+    "EntityRelationship",
+    "ContextDependency",
     # Rate Limit models
     "AdaptationParameters",
     "ConsumerTier",

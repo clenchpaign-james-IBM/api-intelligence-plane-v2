@@ -32,6 +32,43 @@ class MetricsRepository(BaseRepository[Metric]):
         # Base index pattern - actual index determined by timestamp and time bucket
         super().__init__(index_name="api-metrics-*", model_class=Metric)
     
+    def get(self, doc_id: str) -> Optional[Metric]:
+        """
+        Get a metric by ID, searching across all time-bucketed indices.
+        
+        Args:
+            doc_id: Metric document ID (searches the 'id' field, not _id)
+            
+        Returns:
+            Metric if found, None otherwise
+        """
+        try:
+            # Use search to find by the 'id' field (not _id) across all metric indices
+            query = {
+                "query": {
+                    "term": {
+                        "id": doc_id
+                    }
+                },
+                "size": 1
+            }
+            
+            response = self.client.search(
+                index="api-metrics-*",
+                body=query
+            )
+            
+            if response["hits"]["total"]["value"] > 0:
+                hit = response["hits"]["hits"][0]
+                return self.model_class.model_validate(hit["_source"])
+            
+            logger.warning(f"Metric not found: {doc_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get metric {doc_id}: {e}")
+            return None
+    
     def _get_index_name(self, timestamp: datetime, time_bucket: Optional[TimeBucket] = None) -> str:
         """
         Get the index name for a specific timestamp and time bucket.
@@ -657,6 +694,15 @@ class MetricsRepository(BaseRepository[Metric]):
             time_bucket = self.get_optimal_time_bucket(start_time, end_time)
             logger.info(f"Auto-selected time bucket {time_bucket.value} for range {start_time} to {end_time}")
         
+        # Use the existing find_by_time_bucket method
+        return self.find_by_time_bucket(
+            api_id=api_id,
+            time_bucket=time_bucket,
+            start_time=start_time,
+            end_time=end_time,
+            size=size,
+            from_=from_,
+        )
     
     def find_by_api_and_gateway(
         self,

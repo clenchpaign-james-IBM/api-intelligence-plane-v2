@@ -25,6 +25,7 @@ interface UseQuerySessionReturn {
   error: string | null;
   executeQuery: (queryText: string) => Promise<QueryResponse | null>;
   clearSession: () => void;
+  createNewSession: () => Promise<void>;
   loadSessionHistory: () => Promise<void>;
 }
 
@@ -88,6 +89,32 @@ export const useQuerySession = (): UseQuerySessionReturn => {
       return null;
     }
 
+    // Generate a temporary ID for the query
+    const tempQueryId = `temp-${Date.now()}`;
+    
+    // Create a pending query object and add it to state immediately
+    const pendingQuery: Query = {
+      id: tempQueryId,
+      session_id: sessionId,
+      user_id: undefined,
+      query_text: queryText,
+      query_type: 'general' as any,
+      interpreted_intent: undefined as any,
+      opensearch_query: undefined,
+      results: undefined as any,
+      response_text: '', // Empty response initially - will be filled when backend responds
+      confidence_score: 0, // Default value for pending query
+      execution_time_ms: 0, // Default value for pending query
+      feedback: undefined,
+      feedback_comment: undefined,
+      follow_up_queries: [],
+      metadata: undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    console.log('[useQuerySession] Adding pending query to state:', pendingQuery);
+    setQueries((prev: Query[]) => [...prev, pendingQuery]);
+
     try {
       setIsLoading(true);
       setError(null);
@@ -103,8 +130,8 @@ export const useQuerySession = (): UseQuerySessionReturn => {
       const response = await api.post<QueryResponse>('/api/v1/query', request);
       console.log('[useQuerySession] Query response:', response);
       
-      // Convert QueryResponse to Query object and add to state immediately
-      const newQuery: Query = {
+      // Update the pending query with the actual response
+      const completedQuery: Query = {
         id: response.query_id,
         session_id: sessionId,
         user_id: undefined,
@@ -123,15 +150,27 @@ export const useQuerySession = (): UseQuerySessionReturn => {
         created_at: new Date().toISOString(),
       };
       
-      console.log('[useQuerySession] Adding query to state:', newQuery);
-      setQueries((prev: Query[]) => [...prev, newQuery]);
-      console.log('[useQuerySession] Query added to state');
+      console.log('[useQuerySession] Updating query with response:', completedQuery);
+      // Replace the pending query with the completed one
+      setQueries((prev: Query[]) =>
+        prev.map(q => q.id === tempQueryId ? completedQuery : q)
+      );
+      console.log('[useQuerySession] Query updated with response');
 
       return response;
     } catch (err: any) {
       console.error('[useQuerySession] Failed to execute query:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to execute query';
       setError(errorMessage);
+      
+      // Update the pending query with error state
+      setQueries((prev: Query[]) =>
+        prev.map(q => q.id === tempQueryId ? {
+          ...q,
+          response_text: `Error: ${errorMessage}`,
+        } : q)
+      );
+      
       return null;
     } finally {
       setIsLoading(false);
@@ -149,6 +188,36 @@ export const useQuerySession = (): UseQuerySessionReturn => {
     localStorage.setItem('query_session_id', newSessionId);
   }, []);
 
+  /**
+   * Create a new session via backend API
+   */
+  const createNewSession = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log('[useQuerySession] Creating new session via API');
+      const response = await api.post<{ session_id: string; created_at: string }>(
+        '/api/v1/query/session/new',
+        {}
+      );
+      
+      const newSessionId = response.session_id;
+      console.log('[useQuerySession] New session created:', newSessionId);
+      
+      setSessionId(newSessionId);
+      setQueries([]);
+      localStorage.setItem('query_session_id', newSessionId);
+    } catch (err: any) {
+      console.error('[useQuerySession] Failed to create new session:', err);
+      // Fallback to local session generation
+      console.log('[useQuerySession] Falling back to local session generation');
+      clearSession();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clearSession]);
+
   return {
     sessionId,
     queries,
@@ -156,6 +225,7 @@ export const useQuerySession = (): UseQuerySessionReturn => {
     error,
     executeQuery,
     clearSession,
+    createNewSession,
     loadSessionHistory,
   };
 };

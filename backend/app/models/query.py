@@ -6,7 +6,7 @@ results, and user feedback.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -288,5 +288,144 @@ class Query(BaseModel):
                 ],
             }
         }
+
+
+class ExecutionStrategy(str, Enum):
+    """Query execution strategy.
+    
+    Determines how a multi-index query should be executed.
+    
+    Attributes:
+        SINGLE_INDEX: Query targets a single index
+        SEQUENTIAL: Execute queries sequentially with result filtering
+        PARALLEL: Execute queries in parallel and merge results
+        NESTED: Use nested queries for complex relationships
+    """
+    
+    SINGLE_INDEX = "single_index"
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
+    NESTED = "nested"
+
+
+class IndexQuery(BaseModel):
+    """Query plan for a single index.
+    
+    Attributes:
+        index: Target index name
+        query_dsl: OpenSearch query DSL
+        filters: Additional filters to apply
+        required_fields: Fields needed from this index
+        join_fields: Fields used for joining with other indices
+        depends_on: List of index queries this depends on
+    """
+    
+    index: str = Field(..., description="Target index name")
+    query_dsl: Dict[str, Any] = Field(..., description="OpenSearch query DSL")
+    filters: Dict[str, Any] = Field(default_factory=dict, description="Additional filters")
+    required_fields: List[str] = Field(default_factory=list, description="Required fields")
+    join_fields: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Join fields mapping (source_field: target_field)"
+    )
+    depends_on: List[str] = Field(
+        default_factory=list,
+        description="Indices this query depends on"
+    )
+
+
+class QueryPlan(BaseModel):
+    """Execution plan for a multi-index query.
+    
+    Represents the complete execution strategy for a natural language query
+    that may span multiple OpenSearch indices with relationships.
+    
+    Attributes:
+        query_id: Unique identifier for this query plan
+        session_id: Session this plan belongs to
+        original_query: Original natural language query text
+        interpreted_intent: Parsed intent from the query
+        strategy: Execution strategy to use
+        index_queries: List of index queries in execution order
+        estimated_cost: Estimated execution cost (0-1, higher = more expensive)
+        requires_join: Whether results need to be joined
+        join_strategy: Strategy for joining results if needed
+        context_filters: Filters from session context
+        created_at: When this plan was created
+    """
+    
+    query_id: UUID = Field(default_factory=uuid4, description="Unique query plan identifier")
+    session_id: UUID = Field(..., description="Session identifier")
+    original_query: str = Field(..., description="Original natural language query")
+    interpreted_intent: InterpretedIntent = Field(..., description="Parsed intent")
+    strategy: ExecutionStrategy = Field(..., description="Execution strategy")
+    index_queries: List[IndexQuery] = Field(..., description="Index queries in execution order")
+    estimated_cost: float = Field(
+        ...,
+        ge=0,
+        le=1,
+        description="Estimated execution cost (0-1)"
+    )
+    requires_join: bool = Field(default=False, description="Whether join is required")
+    join_strategy: Optional[str] = Field(None, description="Join strategy if needed")
+    context_filters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Filters from session context"
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
+    
+    class Config:
+        """Pydantic model configuration."""
+        
+        json_schema_extra = {
+            "example": {
+                "query_id": "550e8400-e29b-41d4-a716-446655440009",
+                "session_id": "550e8400-e29b-41d4-a716-446655440008",
+                "original_query": "Show me APIs with critical vulnerabilities",
+                "interpreted_intent": {
+                    "action": "list",
+                    "entities": ["api", "vulnerability"],
+                    "filters": {"severity": "critical"},
+                    "time_range": None
+                },
+                "strategy": "sequential",
+                "index_queries": [
+                    {
+                        "index": "security-findings",
+                        "query_dsl": {
+                            "query": {
+                                "bool": {
+                                    "must": [{"term": {"severity": "critical"}}]
+                                }
+                            }
+                        },
+                        "filters": {"severity": "critical"},
+                        "required_fields": ["api_id", "gateway_id", "title"],
+                        "join_fields": {"api_id": "id", "gateway_id": "gateway_id"},
+                        "depends_on": []
+                    },
+                    {
+                        "index": "api-inventory",
+                        "query_dsl": {
+                            "query": {
+                                "bool": {
+                                    "must": [{"terms": {"id": ["API-001", "API-002"]}}]
+                                }
+                            }
+                        },
+                        "filters": {},
+                        "required_fields": ["id", "name", "base_path", "status"],
+                        "join_fields": {},
+                        "depends_on": ["security-findings"]
+                    }
+                ],
+                "estimated_cost": 0.6,
+                "requires_join": True,
+                "join_strategy": "api_id",
+                "context_filters": {},
+                "created_at": "2026-04-21T07:00:00Z"
+            }
+        }
+
 
 # Made with Bob

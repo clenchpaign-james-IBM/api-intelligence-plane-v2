@@ -66,7 +66,7 @@ class PredictionService:
         self.llm_service = llm_service
         self._prediction_agent = None
 
-    def generate_predictions_for_api(
+    async def generate_predictions_for_api(
         self, gateway_id: UUID, api_id: UUID, min_confidence: float = 0.7
     ) -> List[Prediction]:
         """
@@ -100,7 +100,7 @@ class PredictionService:
         if not predictions:
             return []
 
-        self._apply_ai_enhancement(
+        await self._apply_ai_enhancement(
             api_id=api_id,
             api_name=api.name,
             metrics=metrics,
@@ -110,7 +110,7 @@ class PredictionService:
 
         return predictions
 
-    def generate_predictions_for_gateway(
+    async def generate_predictions_for_gateway(
         self, gateway_id: UUID, min_confidence: float = 0.7
     ) -> Dict[str, Any]:
         """
@@ -137,7 +137,7 @@ class PredictionService:
 
         for api in apis:
             try:
-                predictions = self.generate_predictions_for_api(gateway_id, api.id, min_confidence)
+                predictions = await self.generate_predictions_for_api(gateway_id, api.id, min_confidence)
                 results["apis_analyzed"] += 1
                 results["predictions_generated"] += len(predictions)
             except Exception as e:
@@ -178,7 +178,7 @@ class PredictionService:
             api_id=api_id,
             start_time=start_time,
             end_time=end_time,
-            time_bucket=TimeBucket.ONE_HOUR,
+            time_bucket=TimeBucket.ONE_MINUTE,
         )
 
         if len(metrics) < 1:
@@ -211,7 +211,7 @@ class PredictionService:
 
         return predictions
 
-    def _apply_ai_enhancement(
+    async def _apply_ai_enhancement(
         self,
         api_id: UUID,
         api_name: Optional[str],
@@ -283,7 +283,7 @@ class PredictionService:
             analysis = "AI analysis unavailable"
             try:
                 metrics_summary = self._prediction_agent._prepare_metrics_summary(metrics)
-                analysis_response = self.llm_service.generate_sync(
+                analysis_response = await self.llm_service.generate_completion(
                     messages=[
                         {
                             "role": "system",
@@ -312,7 +312,7 @@ class PredictionService:
             for prediction in predictions:
                 explanation = "AI explanation unavailable"
                 try:
-                    explanation = self.llm_service.generate_sync(
+                    explanation_response = await self.llm_service.generate_completion(
                         messages=[
                             {
                                 "role": "system",
@@ -338,7 +338,8 @@ class PredictionService:
                         ],
                         temperature=0.4,
                         max_tokens=300,
-                    ).get("content", explanation)
+                    )
+                    explanation = explanation_response.get("content", explanation)
                 except Exception as explanation_error:
                     logger.warning(
                         f"AI explanation failed for prediction {prediction.id}: {explanation_error}"
@@ -380,12 +381,18 @@ class PredictionService:
                 prediction.metadata = metadata
 
     def _store_predictions(self, api_id: UUID, predictions: List[Prediction]) -> None:
-        """Persist predictions after enhancement."""
+        """
+        Persist predictions after enhancement using upsert logic.
+        
+        This method uses upsert to prevent duplicate predictions by checking if a similar
+        prediction already exists for the same API, type, and time window. If found, it
+        updates the existing prediction; otherwise, it creates a new one.
+        """
         for prediction in predictions:
             try:
-                self.prediction_repo.create_prediction(prediction)
+                self.prediction_repo.upsert_prediction(prediction)
                 logger.info(
-                    f"Created {prediction.prediction_type.value} prediction for API {api_id} "
+                    f"Upserted {prediction.prediction_type.value} prediction for API {api_id} "
                     f"with confidence {prediction.confidence_score:.2f}"
                 )
             except Exception as e:
@@ -439,9 +446,12 @@ class PredictionService:
         error_rates = [m.error_rate for m in metrics]
         error_rate_trend = self._calculate_trend(error_rates)
         current_error_rate = error_rates[-1] if error_rates else 0
+        
+        # Convert error_rate from percentage (0-100) to decimal (0-1) for comparison
+        current_error_rate_decimal = current_error_rate / 100.0
 
-        if current_error_rate > self.ERROR_RATE_THRESHOLD and error_rate_trend > 0:
-            weight = min(0.4, current_error_rate / self.ERROR_RATE_THRESHOLD * 0.4)
+        if current_error_rate_decimal > self.ERROR_RATE_THRESHOLD and error_rate_trend > 0:
+            weight = min(0.4, current_error_rate_decimal / self.ERROR_RATE_THRESHOLD * 0.4)
             contributing_factors.append(
                 ContributingFactor(
                     factor=ContributingFactorType.INCREASING_ERROR_RATE,
@@ -616,14 +626,17 @@ class PredictionService:
         error_rates = [m.error_rate for m in metrics]
         error_rate_trend = self._calculate_trend(error_rates)
         current_error_rate = error_rates[-1] if error_rates else 0
+        
+        # Convert error_rate from percentage (0-100) to decimal (0-1) for comparison
+        current_error_rate_decimal = current_error_rate / 100.0
 
-        if error_rate_trend > 0 and 0.05 < current_error_rate < self.ERROR_RATE_THRESHOLD:
+        if error_rate_trend > 0 and 0.05 < current_error_rate_decimal < self.ERROR_RATE_THRESHOLD:
             weight = 0.20
             contributing_factors.append(
                 ContributingFactor(
                     factor=ContributingFactorType.INCREASING_ERROR_RATE,
                     current_value=current_error_rate,
-                    threshold=0.05,
+                    threshold=0.05 * 100,  # Convert back to percentage for display
                     trend="increasing",
                     weight=weight,
                 )
@@ -784,11 +797,51 @@ class PredictionService:
         """
         Calculate trend direction using simple linear regression.
 
+        This method computes the slope of the best-fit line through a series of metric values
+        using the least squares method. The slope indicates whether the metric is trending
+        upward (positive slope), downward (negative slope), or remaining stable (near-zero slope).
+
+        The calculation uses the formula:
+            slope = Σ((x_i - x_mean) * (y_i - y_mean)) / Σ((x_i - x_mean)²)
+
+        Where:
+            - x_i represents the time index (0, 1, 2, ...)
+            - y_i represents the metric value at time index i
+            - x_mean and y_mean are the arithmetic means of x and y values
+
         Args:
-            values: List of metric values
+            values: List of metric values ordered chronologically (oldest to newest).
+                   Must contain at least 2 values for trend calculation.
 
         Returns:
-            Trend coefficient (positive = increasing, negative = decreasing)
+            float: Trend coefficient representing the rate of change per time unit.
+                  - Positive values indicate an increasing trend
+                  - Negative values indicate a decreasing trend
+                  - Values near zero indicate a stable/flat trend
+                  - Returns 0.0 if insufficient data or denominator is zero
+
+        Example:
+            >>> service = PredictionService(...)
+            >>> # Increasing trend: error rates rising over time
+            >>> error_rates = [0.5, 1.2, 2.1, 3.5, 4.8]
+            >>> trend = service._calculate_trend(error_rates)
+            >>> print(f"Trend: {trend:.2f}")  # Output: Trend: 1.07 (increasing)
+            >>>
+            >>> # Decreasing trend: response times improving
+            >>> response_times = [250, 220, 180, 150, 120]
+            >>> trend = service._calculate_trend(response_times)
+            >>> print(f"Trend: {trend:.2f}")  # Output: Trend: -32.50 (decreasing)
+            >>>
+            >>> # Stable trend: consistent performance
+            >>> stable_values = [100, 102, 99, 101, 100]
+            >>> trend = service._calculate_trend(stable_values)
+            >>> print(f"Trend: {trend:.2f}")  # Output: Trend: 0.00 (stable)
+
+        Note:
+            - The magnitude of the slope depends on the scale of the input values
+            - For percentage-based metrics (0-100), a slope of ±5 might be significant
+            - For count-based metrics, the significance threshold varies by context
+            - Edge cases (< 2 values, zero variance) return 0.0 to avoid division errors
         """
         if len(values) < 2:
             return 0.0

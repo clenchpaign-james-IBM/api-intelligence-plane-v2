@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams, useParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import APIList from '../components/apis/APIList';
 import APIDetail from '../components/apis/APIDetail';
@@ -19,7 +19,8 @@ import type { API } from '../types';
  * - Metrics visualization
  */
 const APIs = () => {
-  const { gatewayId } = useParams<{ gatewayId?: string }>();
+  const navigate = useNavigate();
+  const { gatewayId, apiId } = useParams<{ gatewayId?: string; apiId?: string }>();
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(gatewayId || null);
   const [selectedAPI, setSelectedAPI] = useState<API | null>(null);
   const [searchParams] = useSearchParams();
@@ -34,12 +35,30 @@ const APIs = () => {
     queryKey: ['apis', selectedGatewayId],
     queryFn: () => {
       const params: any = {};
-      if (selectedGatewayId) params.gateway_id = selectedGatewayId;
+      // Only add gateway_id if a specific gateway is selected (not null/"All Gateways")
+      if (selectedGatewayId && selectedGatewayId !== 'all') {
+        params.gateway_id = selectedGatewayId;
+      }
       return api.apis.list(params);
     },
     staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Fetch specific API if apiId is in URL
+  const { data: specificAPI } = useQuery({
+    queryKey: ['api', apiId],
+    queryFn: () => api.apis.get(apiId!),
+    enabled: !!apiId,
+    staleTime: 0,
+  });
+
+  // Set selected API when specific API is loaded from URL
+  useEffect(() => {
+    if (apiId && specificAPI && !selectedAPI) {
+      setSelectedAPI(specificAPI);
+    }
+  }, [apiId, specificAPI, selectedAPI]);
 
   // Get initial filter from URL params
   const initialShadowFilter = searchParams.get('shadow');
@@ -53,6 +72,10 @@ const APIs = () => {
   // Handle back to list
   const handleBack = () => {
     setSelectedAPI(null);
+    // If we came from a URL with apiId, navigate back to the list
+    if (apiId) {
+      navigate('/apis');
+    }
   };
 
   // Loading state

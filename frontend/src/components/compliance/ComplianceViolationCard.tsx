@@ -189,28 +189,48 @@ export const ComplianceViolationCard: React.FC<ComplianceViolationCardProps> = (
       </div>
 
       {/* Evidence */}
-      {violation.evidence && violation.evidence.length > 0 && (
-        <div className="mb-3">
-          <h5 className="text-xs font-semibold text-gray-700 mb-2">Evidence:</h5>
-          <div className="space-y-2">
-            {violation.evidence.map((evidence, index) => (
-              <div key={index} className="p-2 bg-white rounded border border-gray-200">
-                <div className="flex items-start gap-2">
-                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                    {evidence.type}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-700">{evidence.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Source: {evidence.source} • {new Date(evidence.collected_at).toLocaleString()}
-                    </p>
+      {violation.evidence && violation.evidence.length > 0 && (() => {
+        // Deduplicate evidence by creating a unique key from type + description + source
+        const uniqueEvidence = Array.from(
+          new Map(
+            violation.evidence.map(e => [
+              `${e.type}-${e.description}-${e.source}`,
+              e
+            ])
+          ).values()
+        );
+        
+        return (
+          <div className="mb-3">
+            <h5 className="text-xs font-semibold text-gray-700 mb-2">
+              Evidence: ({uniqueEvidence.length} {uniqueEvidence.length === 1 ? 'item' : 'items'})
+            </h5>
+            <div className="space-y-2">
+              {uniqueEvidence.map((evidence, index) => {
+                const collectedDate = evidence.collected_at ? new Date(evidence.collected_at) : null;
+                const isValidDate = collectedDate && !isNaN(collectedDate.getTime());
+                
+                return (
+                  <div key={index} className="p-2 bg-white rounded border border-gray-200">
+                    <div className="flex items-start gap-2">
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                        {evidence.type}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-700">{evidence.description}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Source: {evidence.source}
+                          {isValidDate && ` • ${collectedDate.toLocaleString()}`}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Remediation Steps */}
       {violation.remediation_steps && violation.remediation_steps.length > 0 && (
@@ -268,7 +288,7 @@ export const ComplianceViolationCard: React.FC<ComplianceViolationCardProps> = (
       {/* Timestamps */}
       <div className="mb-3 text-xs text-gray-500">
         <div>Detected: {new Date(violation.detected_at).toLocaleString()}</div>
-        <div>Detection Method: {violation.detected_by.replace('_', ' ')}</div>
+        <div>Detection Method: {violation.detection_method?.replace(/_/g, ' ') || 'Unknown'}</div>
         {violation.resolved_at && (
           <div>Resolved: {new Date(violation.resolved_at).toLocaleString()}</div>
         )}

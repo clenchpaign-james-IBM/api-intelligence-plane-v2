@@ -61,7 +61,7 @@
         <mxCell id="dCD7gLulzVngdIAodG_z-15" parent="bnV2XD90iinWVepP09pe-1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" value="APIs &amp;amp; Metrics" vertex="1">
           <mxGeometry height="70" width="80" x="1470" y="675" as="geometry" />
         </mxCell>
-        <mxCell id="dCD7gLulzVngdIAodG_z-17" edge="1" parent="bnV2XD90iinWVepP09pe-1" source="bnV2XD90iinWVepP09pe-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1.012;entryY=0.886;entryDx=0;entryDy=0;entryPerimeter=0;startArrow=classic;startFill=1;" target="dCD7gLulzVngdIAodG_z-0">
+        <mxCell id="dCD7gLulzVngdIAodG_z-17" edge="1" parent="bnV2XD90iinWVepP09pe-1" source="bnV2XD90iinWVepP09pe-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1.012;entryY=0.886;entryDx=0;entryDy=0;entryPerimeter=0;" target="dCD7gLulzVngdIAodG_z-0">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="dCD7gLulzVngdIAodG_z-18" edge="1" parent="bnV2XD90iinWVepP09pe-1" source="bnV2XD90iinWVepP09pe-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashed=1;" target="dCD7gLulzVngdIAodG_z-15">

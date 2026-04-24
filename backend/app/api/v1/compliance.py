@@ -54,9 +54,9 @@ class ComplianceScanResponse(BaseModel):
 class AuditReportRequest(BaseModel):
     """Request model for audit report generation."""
 
-    api_id: Optional[UUID] = Field(None, description="Optional API filter")
-    standard: Optional[ComplianceStandard] = Field(
-        None, description="Optional standard filter"
+    api_ids: Optional[List[UUID]] = Field(None, description="Optional API filters (multiple)")
+    standards: Optional[List[ComplianceStandard]] = Field(
+        None, description="Optional standard filters (multiple)"
     )
     start_date: Optional[datetime] = Field(
         None, description="Report start date (default: 90 days ago)"
@@ -415,22 +415,23 @@ async def generate_gateway_audit_report(
                 detail=f"Gateway {gateway_id} not found",
             )
         
-        # If api_id is provided, verify it belongs to the gateway
-        if request.api_id:
+        # If api_ids are provided, verify they belong to the gateway
+        if request.api_ids:
             from app.db.repositories.api_repository import APIRepository
             api_repo = APIRepository()
-            api = api_repo.get(str(request.api_id))
-            if not api or str(api.gateway_id) != str(gateway_id):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"API {request.api_id} not found in gateway {gateway_id}",
-                )
+            for api_id in request.api_ids:
+                api = api_repo.get(str(api_id))
+                if not api or str(api.gateway_id) != str(gateway_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"API {api_id} not found in gateway {gateway_id}",
+                    )
         
         logger.info(f"Generating audit report for gateway {gateway_id}")
 
         report = await compliance_service.generate_audit_report(
-            api_id=request.api_id,
-            standard=request.standard,
+            api_ids=request.api_ids,
+            standards=request.standards,
             start_date=request.start_date,
             end_date=request.end_date,
         )

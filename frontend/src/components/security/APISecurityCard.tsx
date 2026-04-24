@@ -77,7 +77,11 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
                   {api.policy_actions.some((action) => action.enabled && action.action_type === 'authentication') && (
                     <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Auth</span>
                   )}
-                  {api.policy_actions.some((action) => action.enabled && action.action_type === 'tls') && (
+                  {api.policy_actions.some((action) =>
+                    action.enabled &&
+                    action.action_type === 'tls' &&
+                    (action.config?.enforce_tls === true || action.vendor_config?.enforce_tls === true)
+                  ) && (
                     <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">TLS</span>
                   )}
                   {api.policy_actions.some((action) => action.enabled && action.action_type === 'rate_limiting') && (

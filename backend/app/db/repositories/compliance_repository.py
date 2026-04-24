@@ -23,6 +23,48 @@ class ComplianceRepository(BaseRepository[ComplianceViolation]):
             model_class=ComplianceViolation,
         )
 
+    async def find_existing_violation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        violation_type: str,
+        compliance_standard: str,
+    ) -> Optional[ComplianceViolation]:
+        """Find existing violation by unique key attributes.
+
+        Args:
+            gateway_id: Gateway identifier
+            api_id: API identifier
+            violation_type: Type of violation
+            compliance_standard: Compliance standard
+
+        Returns:
+            Existing violation if found, None otherwise
+        """
+        query = {
+            "bool": {
+                "must": [
+                    {"term": {"gateway_id": str(gateway_id)}},
+                    {"term": {"api_id": str(api_id)}},
+                    {"term": {"violation_type": violation_type}},
+                    {"term": {"compliance_standard": compliance_standard}},
+                ]
+            }
+        }
+
+        body = {
+            "query": query,
+            "size": 1,
+            "sort": [{"detected_at": {"order": "desc"}}],
+        }
+
+        response = self.client.search(index=self.index_name, body=body)
+        hits = response["hits"]["hits"]
+        
+        if hits:
+            return self.model_class(**hits[0]["_source"])
+        return None
+
     async def find_by_api_id(
         self,
         api_id: UUID,

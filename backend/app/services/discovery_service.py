@@ -335,12 +335,23 @@ class DiscoveryService:
                     )
                     
                     if existing_api:
-                        # Update existing API - update intelligence_metadata.last_seen_at
+                        # Update existing API with latest discovery data.
+                        # This must replace policy/auth/vendor metadata fields as well,
+                        # otherwise removed gateway policies remain stale in inventory.
                         updates = {
                             "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
                             "status": APIStatus.ACTIVE.value,
+                            "is_active": True,
                             "endpoints": [ep.model_dump() for ep in api.endpoints],
                             "methods": api.methods,
+                            "authentication_type": api.authentication_type.value,
+                            "authentication_config": api.authentication_config,
+                            "policy_actions": (
+                                [policy.model_dump(mode="json", exclude_none=True) for policy in api.policy_actions]
+                                if api.policy_actions is not None
+                                else None
+                            ),
+                            "vendor_metadata": api.vendor_metadata,
                             "updated_at": datetime.utcnow().isoformat(),
                         }
                         self.api_repo.update(str(existing_api.id), updates)

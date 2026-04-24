@@ -154,6 +154,44 @@
   .prose hr {
     @apply border-gray-300 my-4;
   }
+
+  /* Purple variant for AI explanations */
+  .prose-purple {
+    @apply text-purple-900;
+  }
+
+  .prose-purple h1,
+  .prose-purple h2,
+  .prose-purple h3,
+  .prose-purple h4,
+  .prose-purple h5,
+  .prose-purple h6 {
+    @apply text-purple-900 font-semibold;
+  }
+
+  .prose-purple strong {
+    @apply text-purple-900 font-semibold;
+  }
+
+  .prose-purple code {
+    @apply bg-purple-100 text-purple-900;
+  }
+
+  .prose-purple pre {
+    @apply bg-purple-100;
+  }
+
+  .prose-purple blockquote {
+    @apply border-purple-400 text-purple-800;
+  }
+
+  .prose-purple a {
+    @apply text-purple-700 hover:text-purple-900;
+  }
+
+  .prose-purple th {
+    @apply bg-purple-100;
+  }
 }
 
 /* Custom utility styles */

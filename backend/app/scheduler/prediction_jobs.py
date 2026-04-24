@@ -67,7 +67,7 @@ async def run_prediction_job() -> Dict[str, Any]:
         for gateway in gateways:
             try:
                 logger.info(f"Generating predictions for gateway {gateway.id} ({gateway.name})")
-                gateway_result = prediction_service.generate_predictions_for_gateway(
+                gateway_result = await prediction_service.generate_predictions_for_gateway(
                     gateway_id=gateway.id,
                     min_confidence=0.7
                 )

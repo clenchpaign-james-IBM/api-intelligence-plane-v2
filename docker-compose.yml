@@ -100,145 +100,170 @@ services:
       start_period: 40s
 
   # MCP Servers - Thin wrapper architecture delegating to backend API
-  mcp-discovery:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-discovery
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=discovery
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8001:8000"
-    networks:
-      - aip-network
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+  # mcp-discovery:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-discovery
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=discovery
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8001:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
 
-  mcp-metrics:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-metrics
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=metrics
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8002:8000"
-    networks:
-      - aip-network
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+  # mcp-metrics:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-metrics
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=metrics
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8002:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
 
-  mcp-security:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-security
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=security
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8003:8000"
-    networks:
-      - aip-network
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+  # mcp-security:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-security
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=security
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8003:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
 
-  mcp-optimization:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-optimization
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=optimization
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8004:8000"
-    networks:
-      - aip-network
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+  # mcp-optimization:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-optimization
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=optimization
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8004:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
 
-  mcp-compliance:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-compliance
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=compliance
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-    ports:
-      - "8005:8000"
-    networks:
-      - aip-network
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+  # mcp-compliance:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-compliance
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=compliance
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8005:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
 
-  mcp-prediction:
+  # mcp-prediction:
+  #   build:
+  #     context: ./mcp-servers
+  #     dockerfile: Dockerfile
+  #   container_name: aip-mcp-prediction
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MCP_SERVER_NAME=prediction
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./mcp-servers:/app
+  #   ports:
+  #     - "8006:8000"
+  #   networks:
+  #     - aip-network
+  #   depends_on:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 40s
+
+  mcp-unified:
     build:
       context: ./mcp-servers
       dockerfile: Dockerfile
-    container_name: aip-mcp-prediction
+    container_name: aip-mcp-unified
     environment:
       - BACKEND_URL=http://backend:8000
-      - MCP_SERVER_NAME=prediction
+      - MCP_SERVER_NAME=unified
     env_file:
       - .env
     volumes:
       - ./mcp-servers:/app
     ports:
-      - "8006:8000"
+      - "8007:8000"
     networks:
       - aip-network
     depends_on:

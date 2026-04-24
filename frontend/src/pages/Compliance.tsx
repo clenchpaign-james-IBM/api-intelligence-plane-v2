@@ -1,6 +1,6 @@
 /**
  * Compliance Page - API-Centric View
- * 
+ *
  * Main page for API compliance monitoring. APIs are the primary focus,
  * with compliance violations organized under each API.
  */
@@ -14,13 +14,15 @@ import type {
   CompliancePosture,
   ComplianceStandard,
   ComplianceSeverity,
-  ComplianceStatus
+  ComplianceStatus,
+  Gateway
 } from '../types';
 import {
   getComplianceViolations,
   getCompliancePosture
 } from '../services/compliance';
 import { api } from '../services/api';
+import { gatewayService } from '../services/gateway';
 import { ComplianceViolationCard } from '../components/compliance/ComplianceViolationCard';
 import { ComplianceDashboard } from '../components/compliance/ComplianceDashboard';
 import { AuditReportGenerator } from '../components/compliance/AuditReportGenerator';
@@ -55,7 +57,16 @@ export const Compliance: React.FC = () => {
     refetchInterval: 30000,
   });
 
-  // Fetch all compliance violations
+  // Fetch all gateways for "All Gateways" option
+  const { data: gatewaysData } = useQuery({
+    queryKey: ['gateways'],
+    queryFn: () => gatewayService.list({ limit: 100 }),
+    refetchInterval: 60000,
+  });
+
+  const allGateways = gatewaysData?.items || [];
+
+  // Fetch all compliance violations (from all gateways if "All" is selected)
   const {
     data: violationsResponse,
     isLoading: violationsLoading,
@@ -64,27 +75,162 @@ export const Compliance: React.FC = () => {
   } = useQuery({
     queryKey: ['compliance-violations', standardFilter, severityFilter, statusFilter, selectedGatewayId],
     queryFn: async () => {
+      console.log('[Compliance] Fetching violations with filters:', {
+        selectedGatewayId,
+        standardFilter,
+        severityFilter,
+        statusFilter
+      });
+
+      // If "All Gateways" is selected, fetch from all gateways and aggregate
+      if (!selectedGatewayId) {
+        const allViolations: ComplianceViolation[] = [];
+        
+        for (const gateway of allGateways) {
+          try {
+            const response = await getComplianceViolations({
+              gateway_id: gateway.id,
+              standard: standardFilter !== 'all' ? standardFilter : undefined,
+              severity: severityFilter !== 'all' ? severityFilter : undefined,
+              status: statusFilter !== 'all' ? statusFilter : undefined,
+              limit: 1000,
+            });
+            allViolations.push(...response.violations);
+          } catch (error) {
+            console.error(`Failed to fetch violations for gateway ${gateway.id}:`, error);
+          }
+        }
+        
+        console.log('[Compliance] Aggregated violations from all gateways:', allViolations.length);
+        return {
+          violations: allViolations,
+          total: allViolations.length,
+          page: 1,
+          page_size: allViolations.length,
+          filters_applied: {},
+        };
+      }
+      
+      // Single gateway selected
       const response = await getComplianceViolations({
-        gateway_id: selectedGatewayId || undefined,
+        gateway_id: selectedGatewayId,
         standard: standardFilter !== 'all' ? standardFilter : undefined,
         severity: severityFilter !== 'all' ? severityFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         limit: 1000,
       });
+      console.log('[Compliance] Fetched violations for gateway:', {
+        gatewayId: selectedGatewayId,
+        violationsCount: response.violations?.length || 0,
+        response
+      });
       return response;
     },
     refetchInterval: 30000,
+    enabled: allGateways.length > 0, // Only run when gateways are loaded
   });
 
-  // Fetch compliance posture (filtered by gateway if selected)
+  // Fetch compliance posture (aggregate from all gateways if "All" is selected)
   const {
     data: posture,
     isLoading: postureLoading,
     refetch: refetchPosture,
-  } = useQuery<CompliancePosture>({
+  } = useQuery<CompliancePosture | null>({
     queryKey: ['compliance-posture', selectedGatewayId],
-    queryFn: () => getCompliancePosture({ gateway_id: selectedGatewayId || undefined }),
+    queryFn: async () => {
+      // If "All Gateways" is selected, fetch from all gateways and aggregate
+      if (!selectedGatewayId) {
+        const allPostures: CompliancePosture[] = [];
+        
+        for (const gateway of allGateways) {
+          try {
+            const postureData = await getCompliancePosture({ gateway_id: gateway.id });
+            allPostures.push(postureData);
+          } catch (error) {
+            console.error(`Failed to fetch posture for gateway ${gateway.id}:`, error);
+          }
+        }
+        
+        // Aggregate postures
+        if (allPostures.length === 0) {
+          return null;
+        }
+        
+        const aggregated: CompliancePosture = {
+          total_violations: allPostures.reduce((sum, p) => sum + p.total_violations, 0),
+          open_violations: allPostures.reduce((sum, p) => sum + p.open_violations, 0),
+          resolved_violations: allPostures.reduce((sum, p) => sum + p.resolved_violations, 0),
+          by_severity: {
+            critical: allPostures.reduce((sum, p) => sum + p.by_severity.critical, 0),
+            high: allPostures.reduce((sum, p) => sum + p.by_severity.high, 0),
+            medium: allPostures.reduce((sum, p) => sum + p.by_severity.medium, 0),
+            low: allPostures.reduce((sum, p) => sum + p.by_severity.low, 0),
+          },
+          by_standard: {
+            GDPR: {
+              standard: 'GDPR',
+              score: Math.round(allPostures.reduce((sum, p) => sum + p.by_standard.GDPR.score, 0) / allPostures.length),
+              violations: allPostures.reduce((sum, p) => sum + p.by_standard.GDPR.violations, 0),
+              compliant_controls: allPostures.reduce((sum, p) => sum + p.by_standard.GDPR.compliant_controls, 0),
+              total_controls: allPostures.reduce((sum, p) => sum + p.by_standard.GDPR.total_controls, 0),
+              last_assessed: new Date().toISOString(),
+            },
+            HIPAA: {
+              standard: 'HIPAA',
+              score: Math.round(allPostures.reduce((sum, p) => sum + p.by_standard.HIPAA.score, 0) / allPostures.length),
+              violations: allPostures.reduce((sum, p) => sum + p.by_standard.HIPAA.violations, 0),
+              compliant_controls: allPostures.reduce((sum, p) => sum + p.by_standard.HIPAA.compliant_controls, 0),
+              total_controls: allPostures.reduce((sum, p) => sum + p.by_standard.HIPAA.total_controls, 0),
+              last_assessed: new Date().toISOString(),
+            },
+            PCI_DSS: {
+              standard: 'PCI_DSS',
+              score: Math.round(allPostures.reduce((sum, p) => sum + p.by_standard.PCI_DSS.score, 0) / allPostures.length),
+              violations: allPostures.reduce((sum, p) => sum + p.by_standard.PCI_DSS.violations, 0),
+              compliant_controls: allPostures.reduce((sum, p) => sum + p.by_standard.PCI_DSS.compliant_controls, 0),
+              total_controls: allPostures.reduce((sum, p) => sum + p.by_standard.PCI_DSS.total_controls, 0),
+              last_assessed: new Date().toISOString(),
+            },
+            SOC2: {
+              standard: 'SOC2',
+              score: Math.round(allPostures.reduce((sum, p) => sum + p.by_standard.SOC2.score, 0) / allPostures.length),
+              violations: allPostures.reduce((sum, p) => sum + p.by_standard.SOC2.violations, 0),
+              compliant_controls: allPostures.reduce((sum, p) => sum + p.by_standard.SOC2.compliant_controls, 0),
+              total_controls: allPostures.reduce((sum, p) => sum + p.by_standard.SOC2.total_controls, 0),
+              last_assessed: new Date().toISOString(),
+            },
+            ISO_27001: {
+              standard: 'ISO_27001',
+              score: Math.round(allPostures.reduce((sum, p) => sum + p.by_standard.ISO_27001.score, 0) / allPostures.length),
+              violations: allPostures.reduce((sum, p) => sum + p.by_standard.ISO_27001.violations, 0),
+              compliant_controls: allPostures.reduce((sum, p) => sum + p.by_standard.ISO_27001.compliant_controls, 0),
+              total_controls: allPostures.reduce((sum, p) => sum + p.by_standard.ISO_27001.total_controls, 0),
+              last_assessed: new Date().toISOString(),
+            },
+          },
+          by_status: {
+            open: allPostures.reduce((sum, p) => sum + p.by_status.open, 0),
+            in_progress: allPostures.reduce((sum, p) => sum + p.by_status.in_progress, 0),
+            resolved: allPostures.reduce((sum, p) => sum + p.by_status.resolved, 0),
+            accepted_risk: allPostures.reduce((sum, p) => sum + p.by_status.accepted_risk, 0),
+            false_positive: allPostures.reduce((sum, p) => sum + p.by_status.false_positive, 0),
+          },
+          overall_score: Math.round(allPostures.reduce((sum, p) => sum + p.overall_score, 0) / allPostures.length),
+          risk_level: allPostures.some(p => p.risk_level === 'critical') ? 'critical' :
+                      allPostures.some(p => p.risk_level === 'high') ? 'high' :
+                      allPostures.some(p => p.risk_level === 'medium') ? 'medium' : 'low',
+          last_scan_date: new Date().toISOString(),
+          compliance_trends: [],
+        };
+        
+        return aggregated;
+      }
+      
+      // Single gateway selected
+      return getCompliancePosture({ gateway_id: selectedGatewayId });
+    },
     refetchInterval: 30000,
+    enabled: allGateways.length > 0, // Only run when gateways are loaded
   });
 
   // Extract APIs array and violations from response
@@ -93,7 +239,17 @@ export const Compliance: React.FC = () => {
 
   // Group violations by API
   const apiComplianceData = React.useMemo(() => {
-    if (!apis || apis.length === 0 || !violations) return [];
+    if (!apis || apis.length === 0 || !violations) {
+      console.log('[Compliance] No APIs or violations:', { apisCount: apis?.length, violationsCount: violations?.length });
+      return [];
+    }
+
+    console.log('[Compliance] Grouping violations by API:', {
+      apisCount: apis.length,
+      violationsCount: violations.length,
+      sampleViolation: violations[0],
+      sampleAPI: apis[0]
+    });
 
     const violationsByApi = new Map<string, ComplianceViolation[]>();
     violations.forEach(violation => {
@@ -103,8 +259,14 @@ export const Compliance: React.FC = () => {
       violationsByApi.get(violation.api_id)!.push(violation);
     });
 
+    console.log('[Compliance] Violations grouped:', {
+      uniqueAPIIds: Array.from(violationsByApi.keys()),
+      violationCounts: Array.from(violationsByApi.entries()).map(([id, viols]) => ({ id, count: viols.length }))
+    });
+
     return apis.map((api: API) => {
       const apiViolations = violationsByApi.get(api.id) || [];
+      console.log(`[Compliance] API ${api.name} (${api.id}): ${apiViolations.length} violations`);
       const criticalCount = apiViolations.filter(v => v.severity === 'critical').length;
       const highCount = apiViolations.filter(v => v.severity === 'high').length;
       const mediumCount = apiViolations.filter(v => v.severity === 'medium').length;
@@ -194,53 +356,79 @@ export const Compliance: React.FC = () => {
         />
       </div>
 
+      {/* Show message if no gateway selected */}
+      {!selectedGatewayId && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+          <svg
+            className="mx-auto h-12 w-12 text-blue-400 mb-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            Select a Gateway to View Compliance Details
+          </h3>
+          <p className="text-blue-700">
+            Please select a specific gateway from the dropdown above to view API compliance violations and generate audit reports.
+          </p>
+        </div>
+      )}
 
-      {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setSelectedTab('overview')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              selectedTab === 'overview'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Compliance Overview
-          </button>
-          <button
-            onClick={() => setSelectedTab('by-api')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              selectedTab === 'by-api'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            APIs
-            {apis && (
-              <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                {apis.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setSelectedTab('audit')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              selectedTab === 'audit'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Audit Reports
-          </button>
-        </nav>
-      </div>
+      {/* Tabs - Only show if gateway is selected */}
+      {selectedGatewayId && (
+        <>
+          <div className="mb-6 border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setSelectedTab('overview')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  selectedTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Compliance Overview
+              </button>
+              <button
+                onClick={() => setSelectedTab('by-api')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  selectedTab === 'by-api'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                APIs
+                {apis && (
+                  <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                    {apis.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setSelectedTab('audit')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  selectedTab === 'audit'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Audit Reports
+              </button>
+            </nav>
+          </div>
 
-      {/* APIs Tab */}
-      {selectedTab === 'by-api' && (
-        <div>
-          {/* Active Filters Display */}
-          {(standardFilter !== 'all' || severityFilter !== 'all' || statusFilter !== 'all') && (
+          {/* APIs Tab */}
+          {selectedTab === 'by-api' && (
+            <div>
+              {/* Active Filters Display */}
+              {(standardFilter !== 'all' || severityFilter !== 'all' || statusFilter !== 'all') && (
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -458,43 +646,46 @@ export const Compliance: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Overview Tab */}
-      {selectedTab === 'overview' && (
-        <div>
-          {postureLoading && (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-2 text-gray-600">Loading compliance posture...</p>
             </div>
           )}
 
-          {posture && (
-            <ComplianceDashboard
-              posture={posture}
-              onFilterByStandard={handleFilterByStandard}
-              onFilterBySeverity={handleFilterBySeverity}
-              onFilterByStatus={handleFilterByStatus}
-              onViewAllViolations={handleViewAllViolations}
-            />
-          )}
-        </div>
-      )}
+          {/* Overview Tab */}
+          {selectedTab === 'overview' && (
+            <div>
+              {postureLoading && (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-gray-600">Loading compliance posture...</p>
+                </div>
+              )}
 
-      {/* Audit Reports Tab */}
-      {selectedTab === 'audit' && (
-        <div>
-          <AuditReportGenerator
-            apis={apis}
-            onReportGenerated={() => {
-              // Optionally refresh data after report generation
-              refetchViolations();
-              refetchPosture();
-            }}
-          />
-        </div>
+              {posture && (
+                <ComplianceDashboard
+                  posture={posture}
+                  onFilterByStandard={handleFilterByStandard}
+                  onFilterBySeverity={handleFilterBySeverity}
+                  onFilterByStatus={handleFilterByStatus}
+                  onViewAllViolations={handleViewAllViolations}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Audit Reports Tab */}
+          {selectedTab === 'audit' && (
+            <div>
+              <AuditReportGenerator
+                apis={apis}
+                gatewayId={selectedGatewayId}
+                onReportGenerated={() => {
+                  // Optionally refresh data after report generation
+                  refetchViolations();
+                  refetchPosture();
+                }}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

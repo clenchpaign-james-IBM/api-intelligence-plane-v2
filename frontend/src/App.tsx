@@ -126,6 +126,7 @@ function App() {
               
               {/* Feature routes - support optional gateway context */}
               <Route path="/apis" element={<APIs />} />
+              <Route path="/apis/detail/:apiId" element={<APIs />} />
               <Route path="/apis/:gatewayId" element={<APIs />} />
               <Route path="/predictions" element={<Predictions />} />
               <Route path="/predictions/:gatewayId" element={<Predictions />} />

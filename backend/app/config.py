@@ -134,25 +134,25 @@ class Settings(BaseSettings):
         default=True, description="Enable background scheduler"
     )
     API_DISCOVERY_INTERVAL_MINUTES: int = Field(
-        default=10, description="API discovery interval in minutes per gateway"
+        default=1, description="API discovery interval in minutes per gateway"
     )
     METRICS_INTERVAL_MINUTES: int = Field(
-        default=5, description="Metrics collection interval in minutes"
+        default=2, description="Metrics collection interval in minutes"
     )
     SECURITY_SCAN_INTERVAL_MINUTES: int = Field(
-        default=10, description="Security scan interval in minutes"
+        default=1, description="Security scan interval in minutes"
     )
     PREDICTION_INTERVAL_MINUTES: int = Field(
-        default=10, description="Prediction generation interval in minutes"
+        default=1, description="Prediction generation interval in minutes"
     )
     OPTIMIZATION_INTERVAL_MINUTES: int = Field(
-        default=10, description="Optimization analysis interval in minutes"
+        default=1, description="Optimization analysis interval in minutes"
     )
     TRANSACTIONAL_LOGS_INTERVAL_MINUTES: int = Field(
-        default=10, description="Transactional logs collection interval in minutes per gateway"
+        default=1, description="Transactional logs collection interval in minutes per gateway"
     )
     METRICS_AGGREGATION_BUCKET: str = Field(
-        default="10m", description="Default time bucket for metrics aggregation (1m, 5m, 1h, 1d)"
+        default="1m", description="Default time bucket for metrics aggregation (1m, 5m, 1h, 1d)"
     )
     
     # TLS/SSL Settings

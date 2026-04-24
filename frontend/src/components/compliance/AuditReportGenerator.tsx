@@ -11,11 +11,13 @@ import { generateAuditReport, exportAuditReport } from '../../services/complianc
 
 interface AuditReportGeneratorProps {
   apis: API[];
+  gatewayId: string | null;
   onReportGenerated?: () => void;
 }
 
 export const AuditReportGenerator: React.FC<AuditReportGeneratorProps> = ({
   apis,
+  gatewayId,
   onReportGenerated,
 }) => {
   const [reportType, setReportType] = useState<'comprehensive' | 'standard_specific' | 'api_specific'>('comprehensive');
@@ -47,18 +49,23 @@ export const AuditReportGenerator: React.FC<AuditReportGeneratorProps> = ({
   };
 
   const handleGenerateReport = async () => {
+    if (!gatewayId) {
+      setError('Please select a gateway first');
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
     setGeneratedReport(null);
 
     try {
+      // Backend now supports multiple API IDs and standards
       const response = await generateAuditReport({
-        report_type: reportType,
-        standards: selectedStandards.length > 0 ? selectedStandards : undefined,
+        gateway_id: gatewayId,
         api_ids: selectedApis.length > 0 ? selectedApis : undefined,
-        period_start: periodStart || undefined,
-        period_end: periodEnd || undefined,
-        include_resolved: includeResolved,
+        standards: selectedStandards.length > 0 ? selectedStandards : undefined,
+        start_date: periodStart || undefined,
+        end_date: periodEnd || undefined,
       });
 
       // Backend returns the report directly, not wrapped in a 'report' field

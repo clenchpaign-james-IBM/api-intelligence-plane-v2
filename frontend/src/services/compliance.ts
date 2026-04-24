@@ -31,18 +31,50 @@ export const scanAPICompliance = async (
 /**
  * Get all compliance violations with optional filters (gateway-scoped)
  */
-export const getComplianceViolations = async (params?: {
+export const getComplianceViolations = async (params: {
   api_id?: string;
-  gateway_id?: string;
+  gateway_id: string;
   standard?: ComplianceStandard;
   severity?: ComplianceSeverity;
   status?: ComplianceStatus;
   skip?: number;
   limit?: number;
 }): Promise<ComplianceViolationListResponse> => {
-  const response = await apiClient.get('/api/v1/compliance/violations', { params });
-  // Backend returns array directly, wrap it in expected format
-  const violations = Array.isArray(response.data) ? response.data : [];
+
+  // Build query params (excluding gateway_id as it's in the path)
+  const queryParams: any = {};
+  if (params.api_id) queryParams.api_id = params.api_id;
+  if (params.standard) queryParams.standard = params.standard;
+  if (params.severity) queryParams.severity = params.severity;
+  if (params.status) queryParams.status = params.status;
+  if (params.limit) queryParams.limit = params.limit;
+
+  const response = await apiClient.get(
+    `/api/v1/gateways/${params.gateway_id}/compliance/violations`,
+    { params: queryParams }
+  );
+  
+  console.log('[compliance.ts] Raw axios response:', {
+    hasData: !!response.data,
+    dataType: typeof response.data,
+    isArray: Array.isArray(response.data),
+    length: Array.isArray(response.data) ? response.data.length : 'N/A',
+    firstItem: Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null,
+    fullResponse: response
+  });
+  
+  // Backend returns array directly in response.data
+  // React Query may have already unwrapped this, so check both
+  const rawData = response.data || response;
+  const violations = Array.isArray(rawData) ? rawData : [];
+  
+  console.log('[compliance.ts] Wrapped violations:', {
+    count: violations.length,
+    firstViolation: violations[0],
+    rawDataType: typeof rawData,
+    rawDataIsArray: Array.isArray(rawData)
+  });
+  
   return {
     violations,
     total: violations.length,
@@ -70,13 +102,21 @@ export const getComplianceViolation = async (
 /**
  * Get compliance posture (overall compliance metrics) (gateway-scoped)
  */
-export const getCompliancePosture = async (params?: {
+export const getCompliancePosture = async (params: {
   api_id?: string;
-  gateway_id?: string;
+  gateway_id: string;
   standard?: ComplianceStandard;
 }): Promise<CompliancePosture> => {
   try {
-    const response = await apiClient.get('/api/v1/compliance/posture', { params });
+    // Build query params (excluding gateway_id as it's in the path)
+    const queryParams: any = {};
+    if (params.api_id) queryParams.api_id = params.api_id;
+    if (params.standard) queryParams.standard = params.standard;
+
+    const response = await apiClient.get(
+      `/api/v1/gateways/${params.gateway_id}/compliance/posture`,
+      { params: queryParams }
+    );
     
     // Handle both wrapped (response.data) and unwrapped (response) formats
     // React Query may unwrap the AxiosResponse before passing to our function
@@ -101,11 +141,20 @@ export const getCompliancePosture = async (params?: {
     else if (data.compliance_score < 70) riskLevel = 'high';
     else if (data.compliance_score < 85) riskLevel = 'medium';
     
+    // Helper function to calculate score from violations (inverse relationship)
+    const calculateScoreFromViolations = (violations: number): number => {
+      if (violations === 0) return 100;
+      // Score decreases as violations increase
+      // Using logarithmic scale: score = 100 - (log(violations + 1) * 20)
+      const score = Math.max(0, 100 - (Math.log10(violations + 1) * 20));
+      return Math.round(score);
+    };
+    
     // Map by_standard to ComplianceStandardScore format
     const byStandard: Record<ComplianceStandard, any> = {
       GDPR: {
         standard: 'GDPR',
-        score: 100,
+        score: calculateScoreFromViolations(data.by_standard?.gdpr || 0),
         violations: data.by_standard?.gdpr || 0,
         compliant_controls: 0,
         total_controls: 0,
@@ -113,7 +162,7 @@ export const getCompliancePosture = async (params?: {
       },
       HIPAA: {
         standard: 'HIPAA',
-        score: 100,
+        score: calculateScoreFromViolations(data.by_standard?.hipaa || 0),
         violations: data.by_standard?.hipaa || 0,
         compliant_controls: 0,
         total_controls: 0,
@@ -121,7 +170,7 @@ export const getCompliancePosture = async (params?: {
       },
       PCI_DSS: {
         standard: 'PCI_DSS',
-        score: 100,
+        score: calculateScoreFromViolations(data.by_standard?.pci_dss || 0),
         violations: data.by_standard?.pci_dss || 0,
         compliant_controls: 0,
         total_controls: 0,
@@ -129,7 +178,7 @@ export const getCompliancePosture = async (params?: {
       },
       SOC2: {
         standard: 'SOC2',
-        score: 100,
+        score: calculateScoreFromViolations(data.by_standard?.soc2 || 0),
         violations: data.by_standard?.soc2 || 0,
         compliant_controls: 0,
         total_controls: 0,
@@ -137,13 +186,18 @@ export const getCompliancePosture = async (params?: {
       },
       ISO_27001: {
         standard: 'ISO_27001',
-        score: 100,
+        score: calculateScoreFromViolations(data.by_standard?.iso_27001 || 0),
         violations: data.by_standard?.iso_27001 || 0,
         compliant_controls: 0,
         total_controls: 0,
         last_assessed: new Date().toISOString()
       },
     };
+    
+    // Use backend's compliance_score if > 0, otherwise calculate from total violations
+    const overallScore = data.compliance_score > 0
+      ? data.compliance_score
+      : calculateScoreFromViolations(data.total_violations || 0);
     
     return {
       total_violations: data.total_violations || 0,
@@ -158,7 +212,7 @@ export const getCompliancePosture = async (params?: {
         accepted_risk: acceptedRiskViolations,
         false_positive: falsePositiveViolations,
       },
-      overall_score: data.compliance_score || 100.0,
+      overall_score: overallScore,
       risk_level: riskLevel,
       last_scan_date: data.last_scan || new Date().toISOString(),
       compliance_trends: [],
@@ -166,41 +220,57 @@ export const getCompliancePosture = async (params?: {
   } catch (error) {
     console.error('Failed to fetch compliance posture:', error);
     // Return default empty posture on error
-    return {
-      total_violations: 0,
-      open_violations: 0,
-      resolved_violations: 0,
-      by_severity: { critical: 0, high: 0, medium: 0, low: 0 },
-      by_standard: {
-        GDPR: { standard: 'GDPR', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: new Date().toISOString() },
-        HIPAA: { standard: 'HIPAA', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: new Date().toISOString() },
-        PCI_DSS: { standard: 'PCI_DSS', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: new Date().toISOString() },
-        SOC2: { standard: 'SOC2', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: new Date().toISOString() },
-        ISO_27001: { standard: 'ISO_27001', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: new Date().toISOString() },
-      },
-      by_status: {
-        open: 0,
-        in_progress: 0,
-        resolved: 0,
-        accepted_risk: 0,
-        false_positive: 0
-      },
-      overall_score: 100.0,
-      risk_level: 'low',
-      last_scan_date: new Date().toISOString(),
-      compliance_trends: [],
-    };
+    return getDefaultCompliancePosture();
   }
 };
 
 /**
- * Generate an audit report
+ * Get default empty compliance posture
+ */
+function getDefaultCompliancePosture(): CompliancePosture {
+  const timestamp = new Date().toISOString();
+  return {
+    total_violations: 0,
+    open_violations: 0,
+    resolved_violations: 0,
+    by_severity: { critical: 0, high: 0, medium: 0, low: 0 },
+    by_standard: {
+      GDPR: { standard: 'GDPR', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: timestamp },
+      HIPAA: { standard: 'HIPAA', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: timestamp },
+      PCI_DSS: { standard: 'PCI_DSS', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: timestamp },
+      SOC2: { standard: 'SOC2', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: timestamp },
+      ISO_27001: { standard: 'ISO_27001', score: 100, violations: 0, compliant_controls: 0, total_controls: 0, last_assessed: timestamp },
+    },
+    by_status: {
+      open: 0,
+      in_progress: 0,
+      resolved: 0,
+      accepted_risk: 0,
+      false_positive: 0
+    },
+    overall_score: 100.0,
+    risk_level: 'low',
+    last_scan_date: timestamp,
+    compliance_trends: [],
+  };
+}
+
+/**
+ * Generate an audit report (gateway-scoped)
  */
 export const generateAuditReport = async (
   request: AuditReportRequest
 ): Promise<AuditReportResponse> => {
   try {
-    const response = await apiClient.post('/api/v1/compliance/reports/audit', request);
+    // Extract gateway_id from request and use it in the path
+    if (!request.gateway_id) {
+      throw new Error('gateway_id is required for audit report generation');
+    }
+    
+    const response = await apiClient.post(
+      `/api/v1/gateways/${request.gateway_id}/compliance/reports/audit`,
+      request
+    );
     // Handle both wrapped (response.data) and unwrapped (response) formats
     const data = response.data || response;
     return data;

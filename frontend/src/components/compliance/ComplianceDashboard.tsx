@@ -308,7 +308,13 @@ export const ComplianceDashboard: React.FC<ComplianceDashboardProps> = ({
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                     <div
-                      className="h-full bg-green-500 rounded-full transition-all duration-300"
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        standardScore.violations > 0
+                          ? standardScore.violations >= 10
+                            ? 'bg-red-500'
+                            : 'bg-orange-500'
+                          : 'bg-green-500'
+                      }`}
                       style={{
                         width: `${(standardScore.compliant_controls / standardScore.total_controls) * 100}%`,
                       }}

@@ -22,13 +22,6 @@ Auto-generated from all feature plans. Last updated: 2026-03-11
 - **HTTP Client**: Axios 1.6+
 - **Code Quality**: ESLint 8.56+, Prettier 3.1+, TypeScript 5.3+
 
-### Demo Gateway (Java 17+)
-- **Framework**: Spring Boot 3.2+
-- **Database**: OpenSearch Java Client 2.8+
-- **Metrics**: Micrometer 1.12+
-- **Build Tool**: Maven 3.9+
-- **Testing**: JUnit 5.10+
-
 ### MCP Servers (Python 3.11+)
 - **Framework**: FastMCP 0.1+
 - **Transport**: Streamable HTTP
@@ -64,13 +57,9 @@ api-intelligence-plane-v2/
 │       ├── services/    # API client services
 │       ├── hooks/       # Custom React hooks
 │       └── types/       # TypeScript types
-├── mcp-servers/         # MCP servers (FastMCP)
-│   ├── discovery_server.py
-│   ├── metrics_server.py
-│   ├── optimization_server.py
-│   └── common/          # Shared utilities
-├── demo-gateway/        # Native API Gateway (Spring Boot)
-│   └── src/main/java/com/example/gateway/
+├── mcp-servers/         # MCP server (FastMCP)
+│   ├── unified_server.py    # Unified MCP server (all functionality)
+│   └── common/              # Shared utilities
 ├── tests/               # Cross-component tests
 ├── config/              # Configuration files
 ├── k8s/                 # Kubernetes manifests
@@ -122,31 +111,14 @@ npm run format
 npm run type-check
 ```
 
-### Demo Gateway
-```bash
-# Development
-cd demo-gateway
-mvn spring-boot:run
-
-# Build
-mvn clean package
-java -jar target/demo-gateway-1.0.0.jar
-
-# Testing
-mvn test
-mvn verify
-```
-
-### MCP Servers
+### MCP Server
 ```bash
 # Development
 cd mcp-servers
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python discovery_server.py
-python metrics_server.py
-python optimization_server.py
+python unified_server.py
 ```
 
 ### Docker
@@ -177,11 +149,6 @@ docker-compose build --no-cache
 - **Linter**: ESLint (extends: recommended, typescript-eslint)
 - **Style Guide**: Airbnb TypeScript
 - **Naming**: camelCase for functions/variables, PascalCase for components/classes
-
-### Java (Demo Gateway)
-- **Style Guide**: Google Java Style Guide
-- **Formatter**: Spring Java Format
-- **Naming**: camelCase for methods/variables, PascalCase for classes
 
 ## Architecture Patterns
 

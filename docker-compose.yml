@@ -99,157 +99,7 @@ services:
       retries: 5
       start_period: 40s
 
-  # MCP Servers - Thin wrapper architecture delegating to backend API
-  # mcp-discovery:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-discovery
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=discovery
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8001:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
-  # mcp-metrics:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-metrics
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=metrics
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8002:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
-  # mcp-security:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-security
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=security
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8003:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
-  # mcp-optimization:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-optimization
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=optimization
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8004:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
-  # mcp-compliance:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-compliance
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=compliance
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8005:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
-  # mcp-prediction:
-  #   build:
-  #     context: ./mcp-servers
-  #     dockerfile: Dockerfile
-  #   container_name: aip-mcp-prediction
-  #   environment:
-  #     - BACKEND_URL=http://backend:8000
-  #     - MCP_SERVER_NAME=prediction
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./mcp-servers:/app
-  #   ports:
-  #     - "8006:8000"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     - backend
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 40s
-
+  # MCP Unified Server - Single interface for all API Intelligence Plane functionality
   mcp-unified:
     build:
       context: ./mcp-servers
@@ -275,31 +125,6 @@ services:
       retries: 5
       start_period: 40s
 
-  # Demo Gateway - Commented out until Phase 2 implementation
-  # demo-gateway:
-  #   build:
-  #     context: ./demo-gateway
-  #     dockerfile: Dockerfile
-  #   container_name: aip-demo-gateway
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=dev
-  #     - OPENSEARCH_HOST=opensearch
-  #     - OPENSEARCH_PORT=9200
-  #     - OPENSEARCH_SCHEME=http
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - aip-network
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 60s
-
 networks:
   aip-network:
     driver: bridge
@@ -308,8 +133,6 @@ volumes:
   opensearch-data:
     driver: local
   backend-cache:
-    driver: local
-  maven-cache:
     driver: local
 
 # Made with Bob

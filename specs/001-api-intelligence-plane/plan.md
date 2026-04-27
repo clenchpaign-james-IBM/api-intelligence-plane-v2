@@ -23,7 +23,7 @@ API Intelligence Plane is an AI-driven API management application that transform
 - Frontend: React.js, React Router, Axios/Fetch API
 - AI Framework: LangChain for agent orchestration, LangGraph for workflow management
 - MCP: FastMCP for server/client implementation with Streamable HTTP transport
-- Demo Gateway: Spring Boot, OpenSearch Java client
+- Gateway: Spring Boot, OpenSearch Java client
 
 **Prediction Architecture**: Single hybrid approach combining rule-based predictions (fast, deterministic baseline) followed by AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is always applied to all predictions produced by the scheduler-driven prediction workflow, with graceful fallback metadata retained on each prediction if AI enhancement fails.
 
@@ -47,9 +47,9 @@ API Intelligence Plane is an AI-driven API management application that transform
 - **TransactionalLog Model**: Uses vendor-neutral `base/transaction.py:TransactionalLog` with comprehensive fields for timing, request/response, client info, caching, backend service details, error information, and external calls. Vendor-specific fields in `vendor_metadata`. **Initial phase: WebMethodsGatewayAdapter transforms from webmethods/wm_transaction.py (264 lines, 61 fields) to vendor-neutral TransactionalLog.**
 
 **Storage**: OpenSearch (API inventory, metrics, AI insights, security findings, compliance violations, predictions, transactional logs, aggregated metrics)
-**Testing**: pytest (Backend), Jest/React Testing Library (Frontend), JUnit (Demo Gateway), Integration tests across all components, End-to-end tests using Demo API Gateway
+**Testing**: pytest (Backend), Jest/React Testing Library (Frontend), JUnit (Gateway), Integration tests across all components, End-to-end tests using Demo API Gateway
 **Target Platform**: Linux/macOS servers (Docker containers), Web browsers (Chrome, Firefox, Safari, Edge)
-**Project Type**: Distributed web application with microservices architecture (Backend API + Frontend SPA + MCP Servers + Demo Gateway)
+**Project Type**: Distributed web application with microservices architecture (Backend API + Frontend SPA + MCP Servers + Gateway)
 **Performance Goals**:
 - Process data from 1000+ APIs with <5s latency for real-time queries
 - Discovery cycles complete within 5 minutes
@@ -81,7 +81,7 @@ API Intelligence Plane is an AI-driven API management application that transform
 ### Architecture Principles
 
 **✓ PASS**: Microservices Architecture
-- Backend API, Frontend SPA, MCP Servers, and Demo Gateway are independently deployable
+- Backend API, Frontend SPA, MCP Servers, and Gateway are independently deployable
 - Each component has clear boundaries and responsibilities
 - Components communicate via well-defined interfaces (REST APIs, MCP protocol)
 
@@ -161,7 +161,7 @@ specs/001-api-intelligence-plane/
 ├── contracts/           # Interface contracts
 │   ├── backend-api.yaml       # Backend REST API specification
 │   ├── mcp-tools.md           # MCP server tools specification
-│   └── demo-gateway-api.yaml  # Demo Gateway API specification
+│   └── gateway-api.yaml  # Gateway API specification
 └── tasks.md             # Phase 2 output (NOT created by /speckit.plan)
 ```
 
@@ -220,7 +220,7 @@ api-intelligence-plane-v2/
 │   │   ├── adapters/          # Gateway adapters (Strategy + Adapter pattern)
 │   │   │   ├── base.py        # Base adapter interface defining transformation methods
 │   │   │   ├── webmethods_gateway.py  # WebMethods → vendor-neutral transformation (INITIAL PHASE)
-│   │   │   ├── demo_gateway.py        # Demo Gateway (development/testing)
+│   │   │   ├── gateway.py        # Gateway (development/testing)
 │   │   │   ├── kong_gateway.py        # Kong → vendor-neutral transformation (DEFERRED)
 │   │   │   ├── apigee_gateway.py      # Apigee → vendor-neutral transformation (DEFERRED)
 │   │   │   └── factory.py     # Adapter factory for vendor selection
@@ -283,19 +283,15 @@ api-intelligence-plane-v2/
 │   ├── vite.config.ts
 │   └── Dockerfile
 │
-├── mcp-servers/              # MCP servers (FastMCP)
-│   ├── discovery_server.py   # API discovery tools
-│   ├── metrics_server.py     # Metrics collection tools
-│   ├── security_server.py    # Security scanning tools (immediate threats)
-│   ├── compliance_server.py  # Compliance monitoring tools (audit preparation)
-│   ├── optimization_server.py # Unified optimization tools (caching, compression, rate limiting)
+├── mcp-servers/              # MCP server (FastMCP)
+│   ├── unified_server.py     # Unified MCP server (all functionality)
 │   ├── common/
 │   │   ├── mcp_base.py      # Base MCP server class
 │   │   └── opensearch.py    # Shared OpenSearch client
 │   ├── requirements.txt
 │   └── Dockerfile
 │
-├── demo-gateway/             # Native API Gateway (Java/Spring Boot)
+├── gateway/             # Native API Gateway (Java/Spring Boot)
 │   ├── src/
 │   │   └── main/
 │   │       ├── java/
@@ -348,7 +344,7 @@ api-intelligence-plane-v2/
 │   ├── backend/
 │   ├── frontend/
 │   ├── mcp-servers/
-│   └── demo-gateway/
+│   └── gateway/
 │
 ├── docs/                   # Additional documentation
 │   ├── architecture.md
@@ -369,10 +365,10 @@ api-intelligence-plane-v2/
 **Structure Decision**: Web application with microservices architecture
 
 This structure was chosen because:
-1. **Clear Separation**: Backend, Frontend, MCP Servers, and Demo Gateway are independently deployable
+1. **Clear Separation**: Backend, Frontend, MCP Servers, and Gateway are independently deployable
 2. **Microservices**: Each MCP server is a separate service with specific responsibilities
 3. **Scalability**: Components can be scaled independently based on load
-4. **Technology Diversity**: Supports Python (Backend/MCP), JavaScript/TypeScript (Frontend), and Java (Demo Gateway)
+4. **Technology Diversity**: Supports Python (Backend/MCP), JavaScript/TypeScript (Frontend), and Java (Gateway)
 5. **Testing Strategy**: Separate integration and e2e test directories for cross-component testing
 6. **Configuration Management**: Centralized config directory with environment-specific files
 7. **Deployment Flexibility**: Docker Compose for local dev, Kubernetes manifests for production

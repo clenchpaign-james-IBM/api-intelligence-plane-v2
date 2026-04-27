@@ -157,7 +157,7 @@ INFO:__main__:Mock compliance data generation complete!
 
 ### "No APIs found in system"
 - Ensure APIs are registered in the system first
-- Use the Demo Gateway to register test APIs
+- Use the Gateway to register test APIs
 
 ### "Connection refused"
 - Verify OpenSearch is running: `docker-compose ps`

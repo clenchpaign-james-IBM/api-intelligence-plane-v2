@@ -759,7 +759,7 @@ curl -X DELETE "localhost:9200/api-inventory"
 **Deliverables**:
 - ✅ Updated documentation (README.md, fresh-installation-guide.md, api-reference.md)
 - ✅ Developer guide ([`gateway-scoped-development-guide.md`](gateway-scoped-development-guide.md))
-- ✅ Demo scripts ([`scripts/demo-gateway-first.sh`](../scripts/demo-gateway-first.sh))
+- ✅ Demo scripts ([`scripts/gateway-first.sh`](../scripts/gateway-first.sh))
 - ✅ Clean codebase ready for production
 - ✅ Phase 6 summary ([`phase-6-documentation-summary.md`](phase-6-documentation-summary.md))
 

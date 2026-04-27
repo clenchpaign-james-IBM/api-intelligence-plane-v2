@@ -289,12 +289,12 @@ async def discover_apis(self) -> list[API]:
 }
 ```
 
-### NativeGatewayAdapter (Demo Gateway)
+### NativeGatewayAdapter (Gateway)
 
-**Purpose**: Transform Demo Gateway data for development/testing
+**Purpose**: Transform Gateway data for development/testing
 
 **Key Transformations**:
-1. Simple transformation from Demo Gateway REST API
+1. Simple transformation from Gateway REST API
 2. Minimal `vendor_metadata` (demo-specific fields)
 3. Support for all policy types for testing
 

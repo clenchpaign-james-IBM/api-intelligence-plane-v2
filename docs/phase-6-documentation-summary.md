@@ -79,7 +79,7 @@ Gateway (Primary Dimension)
 
 ### 4. Demo Script with Gateway Context ✅
 
-**File**: [`scripts/demo-gateway-first.sh`](../scripts/demo-gateway-first.sh)
+**File**: [`scripts/gateway-first.sh`](../scripts/gateway-first.sh)
 
 **Features**:
 - Comprehensive bash script demonstrating gateway-first architecture
@@ -199,7 +199,7 @@ Clear migration checklist provided for:
 
 1. **Read**: [Gateway-Scoped Development Guide](gateway-scoped-development-guide.md)
 2. **Review**: [Feature Scope Dimension Analysis](feature-scope-dimension-analysis.md)
-3. **Run**: `./scripts/demo-gateway-first.sh` to see it in action
+3. **Run**: `./scripts/gateway-first.sh` to see it in action
 4. **Reference**: [API Reference](api-reference.md) for endpoint patterns
 
 ### Key Files to Reference
@@ -241,7 +241,7 @@ All major areas covered:
 ### For Developers
 
 1. Review the [Gateway-Scoped Development Guide](gateway-scoped-development-guide.md)
-2. Run the demo script: `./scripts/demo-gateway-first.sh`
+2. Run the demo script: `./scripts/gateway-first.sh`
 3. Follow the migration checklist for existing features
 4. Use the provided patterns for new features
 

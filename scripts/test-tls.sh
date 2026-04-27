@@ -123,9 +123,9 @@ test_certificate "$CERTS_DIR/ca-cert.pem" "Root CA"
 test_certificate "$CERTS_DIR/opensearch/opensearch-cert.pem" "OpenSearch"
 test_certificate "$CERTS_DIR/backend/backend-cert.pem" "Backend"
 test_certificate "$CERTS_DIR/frontend/frontend-cert.pem" "Frontend"
-test_certificate "$CERTS_DIR/mcp/mcp-discovery-cert.pem" "MCP Discovery"
-test_certificate "$CERTS_DIR/mcp/mcp-metrics-cert.pem" "MCP Metrics"
-test_certificate "$CERTS_DIR/mcp/mcp-optimization-cert.pem" "MCP Optimization"
+test_certificate "$CERTS_DIR/mcp/mcp-unified-cert.pem" "MCP Discovery"
+test_certificate "$CERTS_DIR/mcp/mcp-unified-cert.pem" "MCP Metrics"
+test_certificate "$CERTS_DIR/mcp/mcp-unified-cert.pem" "MCP Optimization"
 
 # Test 2: Service Availability
 echo "=========================================="
@@ -337,10 +337,10 @@ else
 fi
 
 echo "Testing MCP Servers -> OpenSearch communication..."
-if /Users/clenchpaign/.rd/bin/docker-compose -f docker-compose-tls.yml logs mcp-discovery 2>&1 | \
+if /Users/clenchpaign/.rd/bin/docker-compose -f docker-compose-tls.yml logs mcp-unified 2>&1 | \
     grep -q "Connected to OpenSearch" || \
-    /Users/clenchpaign/.rd/bin/docker-compose -f docker-compose-tls.yml exec -T mcp-discovery \
-    curl -k --cert /app/certs/mcp-discovery-cert.pem --key /app/certs/mcp-discovery-key.pem \
+    /Users/clenchpaign/.rd/bin/docker-compose -f docker-compose-tls.yml exec -T mcp-unified \
+    curl -k --cert /app/certs/mcp-unified-cert.pem --key /app/certs/mcp-unified-key.pem \
     -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
     https://opensearch:9200/_cluster/health > /dev/null 2>&1; then
     print_result 0 "MCP Servers can communicate with OpenSearch via mTLS"

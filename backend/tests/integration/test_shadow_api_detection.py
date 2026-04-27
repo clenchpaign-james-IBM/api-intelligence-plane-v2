@@ -23,7 +23,7 @@ def mock_gateway():
     gateway = Mock()
     gateway.id = uuid4()
     gateway.name = "Test Gateway"
-    gateway.vendor = GatewayVendor.NATIVE
+    gateway.vendor = GatewayVendor.WEBMETHODS
     gateway.base_url = "http://localhost:8080"
     gateway.status = GatewayStatus.CONNECTED
     return gateway
@@ -221,7 +221,7 @@ class TestDetectShadowAPIsJob:
         gateway2 = Mock()
         gateway2.id = uuid4()
         gateway2.name = "Test Gateway 2"
-        gateway2.vendor = GatewayVendor.NATIVE
+        gateway2.vendor = GatewayVendor.WEBMETHODS
         gateway2.base_url = "http://localhost:8081"
         gateway2.status = GatewayStatus.CONNECTED
         
@@ -245,7 +245,7 @@ class TestDetectShadowAPIsJob:
         gateway2 = Mock()
         gateway2.id = uuid4()
         gateway2.name = "Test Gateway 2"
-        gateway2.vendor = GatewayVendor.NATIVE
+        gateway2.vendor = GatewayVendor.WEBMETHODS
         gateway2.base_url = "http://localhost:8081"
         gateway2.status = GatewayStatus.CONNECTED
         

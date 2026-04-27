@@ -3,7 +3,7 @@
 Tests the complete remediation workflow including:
 - Vulnerability detection
 - Automated remediation via Gateway adapter
-- Policy application to Demo Gateway
+- Policy application to Gateway
 - Verification through re-scanning
 """
 

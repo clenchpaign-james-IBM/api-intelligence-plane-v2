@@ -70,9 +70,9 @@ EOF
 generate_cert "opensearch" "opensearch" "certs/opensearch"
 generate_cert "backend" "backend" "certs/backend"
 generate_cert "frontend" "frontend" "certs/frontend"
-generate_cert "mcp-discovery" "mcp-discovery" "certs/mcp"
-generate_cert "mcp-metrics" "mcp-metrics" "certs/mcp"
-generate_cert "mcp-optimization" "mcp-optimization" "certs/mcp"
+generate_cert "mcp-unified" "mcp-unified" "certs/mcp"
+generate_cert "mcp-unified" "mcp-unified" "certs/mcp"
+generate_cert "mcp-unified" "mcp-unified" "certs/mcp"
 generate_cert "gateway" "demo-gateway" "certs/gateway"
 
 echo ""

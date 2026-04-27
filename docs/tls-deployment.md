@@ -70,12 +70,8 @@ certs/
 │   ├── frontend-key.pem
 │   └── ca-cert.pem
 ├── mcp/                     # MCP server certificates
-│   ├── mcp-discovery-cert.pem
-│   ├── mcp-discovery-key.pem
-│   ├── mcp-metrics-cert.pem
-│   ├── mcp-metrics-key.pem
-│   ├── mcp-optimization-cert.pem
-│   ├── mcp-optimization-key.pem
+│   ├── mcp-unified-cert.pem
+│   ├── mcp-unified-key.pem
 │   └── ca-cert.pem
 └── gateway/                 # Demo gateway certificates
     ├── gateway.p12          # PKCS12 keystore
@@ -124,10 +120,8 @@ NAME                      STATUS              PORTS
 aip-opensearch-tls        Up (healthy)        9200, 9600
 aip-backend-tls           Up (healthy)        8000
 aip-frontend-tls          Up (healthy)        3000
-aip-mcp-discovery-tls     Up (healthy)        8001
-aip-mcp-metrics-tls       Up (healthy)        8002
-aip-mcp-optimization-tls  Up (healthy)        8004
-aip-demo-gateway-tls      Up (healthy)        8080
+aip-mcp-unified-tls       Up (healthy)        8007
+aip-gateway-tls      Up (healthy)        8080
 ```
 
 ### 5. Test TLS Connections
@@ -253,7 +247,7 @@ OPENSEARCH_CLIENT_KEY=/app/certs/mcp-{server}-key.pem
 OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
 ```
 
-### Demo Gateway (Spring Boot)
+### Gateway (Spring Boot)
 
 **TLS Settings:**
 - Server: HTTPS with TLS 1.3

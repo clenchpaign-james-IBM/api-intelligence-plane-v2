@@ -237,14 +237,6 @@ class Settings(BaseSettings):
         default=8004, description="Optimization MCP server port"
     )
     
-    # Demo Gateway Settings
-    DEMO_GATEWAY_URL: str = Field(
-        default="http://localhost:9000", description="Demo Gateway URL"
-    )
-    DEMO_GATEWAY_API_KEY: str = Field(
-        default="demo-key-12345", description="Demo Gateway API key"
-    )
-    
     @property
     def opensearch_url(self) -> str:
         """Get the full OpenSearch URL."""

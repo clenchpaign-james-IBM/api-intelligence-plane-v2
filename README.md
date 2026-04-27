@@ -5,7 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![React 18](https://img.shields.io/badge/react-18-blue.svg)](https://reactjs.org/)
-[![Java 17](https://img.shields.io/badge/java-17-orange.svg)](https://openjdk.org/)
 
 ## Overview
 
@@ -76,7 +75,6 @@ Gateway (Primary Dimension)
 - Docker & Docker Compose
 - Python 3.11+
 - Node.js 18+
-- Java 17+
 - OpenAI API key (or other LLM provider)
 
 ### Installation
@@ -109,7 +107,7 @@ Gateway (Primary Dimension)
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - OpenSearch Dashboards: http://localhost:5601
-   - Gateway integrations: configured through backend adapters (webMethods-first)
+   - Gateway integrations: configured through backend adapters
 
 ### Manual Setup (Development)
 
@@ -133,19 +131,7 @@ npm run dev
 
 #### Gateway Integration Setup
 
-Gateway connectivity is handled through backend adapters using the Strategy pattern:
-
-```bash
-# WebMethods Gateway Adapter (Implemented)
-# - Transforms webMethods API data to vendor-neutral API model
-# - Stores webMethods-specific fields in vendor_metadata
-# - Supports policy actions, metrics, and transactional logs
-
-# Kong Gateway Adapter (Planned)
-# Apigee Gateway Adapter (Planned)
-```
-
-**Current Status**: WebMethods adapter fully implemented. Kong and Apigee adapters planned for future releases.
+Gateway connectivity is handled through backend adapters using the Strategy pattern. The WebMethods adapter is fully implemented, with Kong and Apigee adapters planned for future releases.
 
 ## Project Structure
 
@@ -166,12 +152,9 @@ api-intelligence-plane-v2/
 │       ├── components/  # React components
 │       ├── pages/       # Page components
 │       └── services/    # API clients
-├── demo-gateway/        # Demo API Gateway assets (optional for experiments)
-│   └── src/main/java/   # Spring Boot application
-├── mcp-servers/         # MCP servers (OPTIONAL - for AI agents)
-│   ├── discovery_server.py
-│   ├── metrics_server.py
-│   └── optimization_server.py
+├── mcp-servers/         # MCP server (OPTIONAL - for AI agents)
+│   ├── unified_server.py    # Unified MCP server (all functionality)
+│   └── common/              # Shared utilities
 ├── tests/               # Cross-component tests
 ├── config/              # Configuration files
 ├── k8s/                 # Kubernetes manifests
@@ -181,12 +164,11 @@ api-intelligence-plane-v2/
 **Core Components** (Required):
 - **Backend**: FastAPI service with business logic and vendor-neutral gateway normalization
 - **Frontend**: React SPA for user interface
-- **Gateway Integrations**: External gateway connectivity through adapters, currently webMethods-first
+- **Gateway Integrations**: External gateway connectivity through adapters
 - **OpenSearch**: Data storage and search
 
 **Optional Components**:
 - **MCP Servers**: For external AI agent integration (Bob IDE, Claude Desktop)
-- **Demo Gateway assets**: Experimental Spring Boot resources that are not required for the vendor-neutral flow
 
 ## Features
 
@@ -253,7 +235,6 @@ The platform includes optional AI-powered features that enhance predictions and 
   - Separated intelligence: `intelligence_metadata` wrapper
   - Vendor-specific fields: `vendor_metadata` dict
 - **MCP**: FastMCP with Streamable HTTP transport (optional)
-- **Demo Gateway Assets**: Java 17, Spring Boot 3.2 (optional/experimental)
 - **Database**: OpenSearch 2.11+
 - **AI/ML**: LangChain for agent orchestration, LiteLLM for multi-provider support
 - **Testing**: pytest, Jest, JUnit
@@ -505,7 +486,6 @@ We welcome feature requests! Please:
 - **Data Visualization**: [Recharts](https://recharts.org/) - React charting library
 - **Data Storage**: [OpenSearch](https://opensearch.org/) - Search and analytics engine
 - **MCP Protocol**: [FastMCP](https://github.com/jlowin/fastmcp) - Model Context Protocol implementation (optional)
-- **Demo Gateway**: [Spring Boot](https://spring.io/projects/spring-boot) - Java application framework
 
 ### Contributors
 

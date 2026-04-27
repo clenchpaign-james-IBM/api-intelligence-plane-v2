@@ -102,9 +102,9 @@ class ThrottlePolicy(BaseModel):
 - Default values for all optional fields
 - Alias support for API compatibility
 
-#### Demo Gateway Implementation (Java)
+#### Gateway Implementation (Java)
 
-**File**: [`demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java`](demo-gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java)
+**File**: [`gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java`](gateway/src/main/java/com/example/gateway/policy/RateLimitPolicy.java)
 
 ```java
 public class RateLimitPolicy {
@@ -141,7 +141,7 @@ public class RateLimitPolicy {
 - Type-safe with Java's type system
 - Clear structure for serialization/deserialization
 
-**File**: [`demo-gateway/src/main/java/com/example/gateway/policy/AuthenticationPolicy.java`](demo-gateway/src/main/java/com/example/gateway/policy/AuthenticationPolicy.java)
+**File**: [`gateway/src/main/java/com/example/gateway/policy/AuthenticationPolicy.java`](gateway/src/main/java/com/example/gateway/policy/AuthenticationPolicy.java)
 
 ```java
 public static class AuthenticationConfiguration {
@@ -153,7 +153,7 @@ public static class AuthenticationConfiguration {
 }
 ```
 
-**File**: [`demo-gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java`](demo-gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java)
+**File**: [`gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java`](gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java)
 
 ```java
 public static class CachingConfiguration {
@@ -1497,7 +1497,7 @@ The architecture is now production-ready and provides a solid foundation for mul
 
 - [`backend/app/models/base/api.py`](backend/app/models/base/api.py) - Current vendor-neutral API model
 - [`backend/app/models/webmethods/wm_policy_action.py`](backend/app/models/webmethods/wm_policy_action.py) - webMethods policy implementations
-- [`demo-gateway/src/main/java/com/example/gateway/policy/`](demo-gateway/src/main/java/com/example/gateway/policy/) - Demo gateway policy implementations
+- [`gateway/src/main/java/com/example/gateway/policy/`](gateway/src/main/java/com/example/gateway/policy/) - Demo gateway policy implementations
 - [Pydantic Documentation](https://docs.pydantic.dev/) - Validation and type safety
 - [OpenAPI Specification](https://swagger.io/specification/) - API schema standards
 

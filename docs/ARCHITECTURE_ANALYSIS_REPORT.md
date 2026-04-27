@@ -40,17 +40,17 @@ The project demonstrates **strong architectural alignment** with stated goals of
 
 **Recommendation**: Add validation in gateway registration API to reject unsupported vendors with clear error message.
 
-### 1.3 Demo Gateway vs Native Gateway Terminology ✅ RESOLVED
+### 1.3 Gateway vs Native Gateway Terminology ✅ RESOLVED
 
-**Issue**: Documentation previously used inconsistent terminology between "Native Gateway" and "Demo Gateway".
+**Issue**: Documentation previously used inconsistent terminology between "Native Gateway" and "Gateway".
 
 **Clarification**:
-- The "demo-gateway" (Spring Boot implementation) IS the native, vendor-neutral gateway
+- The "gateway" (Spring Boot implementation) IS the native, vendor-neutral gateway
 - It serves as both a testing gateway and reference implementation
 - "Native" refers to the vendor-neutral data models and architecture
-- There is only ONE gateway implementation for testing: the demo-gateway
+- There is only ONE gateway implementation for testing: the gateway
 
-**Status**: Terminology clarified - demo-gateway and native gateway are the same entity
+**Status**: Terminology clarified - gateway and native gateway are the same entity
 
 ---
 
@@ -203,7 +203,7 @@ Excellent consistency across:
 ### 6.2 Other Files to Review
 
 **Files to Review**:
-1. ✅ backend/app/adapters/native_gateway.py - Clarified as Demo Gateway adapter
+1. ✅ backend/app/adapters/native_gateway.py - Clarified as Gateway adapter
 2. Duplicate migration files (migration_010, migration_011)
 3. Multiple mock data scripts - consolidate
 4. docs/old-screenshots/ - outdated assets

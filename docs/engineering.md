@@ -56,7 +56,7 @@ The system follows a **microservices architecture** with clear separation of con
      │              │              │
      ▼              ▼              ▼
 ┌─────────┐  ┌──────────┐  ┌──────────────┐
-│OpenSearch│ │LLM Providers│ │Demo Gateway  │
+│OpenSearch│ │LLM Providers│ │Gateway  │
 │Port: 9200│ │(via LiteLLM)│ │(Spring Boot) │
 └─────────┘  └──────────┘  │Port: 8080    │
                             └──────────────┘
@@ -76,7 +76,7 @@ OPTIONAL: External AI Agent Integration
 2. **Backend API** orchestrates all business logic, using:
    - **OpenSearch** for data persistence and search
    - **LLM Providers** (OpenAI, Anthropic, Azure) for AI-powered analysis
-   - **Demo Gateway** for API discovery and metrics collection
+   - **Gateway** for API discovery and metrics collection
 3. **Background Schedulers** run periodic jobs (discovery, metrics, predictions)
 4. **Gateway Adapters** provide vendor-neutral interface to multiple gateway types
 
@@ -127,7 +127,7 @@ OPTIONAL: External AI Agent Integration
 6. Results stored in OpenSearch `api-inventory` index
 7. Frontend displays updated inventory automatically
 
-**Components**: Scheduler → DiscoveryService → Gateway Adapter → Demo Gateway → OpenSearch
+**Components**: Scheduler → DiscoveryService → Gateway Adapter → Gateway → OpenSearch
 
 ---
 
@@ -200,12 +200,12 @@ OPTIONAL: External AI Agent Integration
 1. User creates/updates rate limit policy in frontend
 2. Frontend sends policy to Backend API (`POST /api/v1/rate-limits`)
 3. **RateLimitService** validates and stores policy in OpenSearch
-4. Service pushes policy to **Demo Gateway** via REST API
+4. Service pushes policy to **Gateway** via REST API
 5. Gateway enforces rate limits on incoming requests
 6. Metrics collected and analyzed for policy effectiveness
 7. System can auto-adjust limits based on usage patterns
 
-**Components**: Frontend → RateLimitService → OpenSearch → Demo Gateway
+**Components**: Frontend → RateLimitService → OpenSearch → Gateway
 
 ---
 
@@ -240,7 +240,7 @@ All system data is stored in OpenSearch with the following indices:
    - **Authentication**: Basic auth (configurable)
    - **Usage**: Data persistence, search, aggregations, time-series analysis
 
-2. **Demo Gateway** (Port 8080)
+2. **Gateway** (Port 8080)
    - **Purpose**: Native API Gateway implementation for testing
    - **Protocol**: HTTP REST API
    - **Technology**: Spring Boot 3.2, Java 17
@@ -294,10 +294,8 @@ Dashboards:  http://localhost:5601
 - `opensearch` - Data store (9200)
 - `backend` - FastAPI service (8000)
 - `frontend` - React SPA (3000)
-- `demo-gateway` - Spring Boot gateway (8080)
-- `mcp-discovery` - Optional MCP server (8001)
-- `mcp-metrics` - Optional MCP server (8002)
-- `mcp-optimization` - Optional MCP server (8004)
+- `gateway` - Spring Boot gateway (8080)
+- `mcp-unified` - Optional MCP server (8007)
 
 ---
 
@@ -310,7 +308,7 @@ Namespace: api-intelligence-plane
 ├── Deployments:
 │   ├── backend (3 replicas, autoscale to 10)
 │   ├── frontend (2 replicas, autoscale to 5)
-│   └── demo-gateway (2 replicas)
+│   └── gateway (2 replicas)
 ├── StatefulSet:
 │   └── opensearch (3-node cluster)
 ├── Services:
@@ -329,7 +327,7 @@ Namespace: api-intelligence-plane
 # Build images
 docker build -t api-intelligence/backend:latest ./backend
 docker build -t api-intelligence/frontend:latest ./frontend
-docker build -t api-intelligence/gateway:latest ./demo-gateway
+docker build -t api-intelligence/gateway:latest ./gateway
 
 # Deploy to Kubernetes
 kubectl apply -f k8s/
@@ -473,15 +471,13 @@ kubectl get pods -n api-intelligence-plane
 - **Predictions**: [`frontend/src/pages/Predictions.tsx`](../frontend/src/pages/Predictions.tsx)
 - **Query Interface**: [`frontend/src/pages/Query.tsx`](../frontend/src/pages/Query.tsx)
 
-### Demo Gateway
-- **Main Application**: [`demo-gateway/src/main/java/com/example/gateway/GatewayApplication.java`](../demo-gateway/src/main/java/com/example/gateway/GatewayApplication.java)
-- **API Service**: [`demo-gateway/src/main/java/com/example/gateway/service/APIService.java`](../demo-gateway/src/main/java/com/example/gateway/service/APIService.java)
-- **Metrics Service**: [`demo-gateway/src/main/java/com/example/gateway/service/MetricsService.java`](../demo-gateway/src/main/java/com/example/gateway/service/MetricsService.java)
+### Gateway
+- **Main Application**: [`gateway/src/main/java/com/example/gateway/GatewayApplication.java`](../gateway/src/main/java/com/example/gateway/GatewayApplication.java)
+- **API Service**: [`gateway/src/main/java/com/example/gateway/service/APIService.java`](../gateway/src/main/java/com/example/gateway/service/APIService.java)
+- **Metrics Service**: [`gateway/src/main/java/com/example/gateway/service/MetricsService.java`](../gateway/src/main/java/com/example/gateway/service/MetricsService.java)
 
-### MCP Servers (Optional)
-- **Discovery Server**: [`mcp-servers/discovery_server.py`](../mcp-servers/discovery_server.py)
-- **Metrics Server**: [`mcp-servers/metrics_server.py`](../mcp-servers/metrics_server.py)
-- **Optimization Server**: [`mcp-servers/optimization_server.py`](../mcp-servers/optimization_server.py)
+### MCP Server (Optional)
+- **Unified Server**: [`mcp-servers/unified_server.py`](../mcp-servers/unified_server.py) - All MCP functionality in one server
 
 ### Database
 - **OpenSearch Client**: [`backend/app/db/client.py`](../backend/app/db/client.py)

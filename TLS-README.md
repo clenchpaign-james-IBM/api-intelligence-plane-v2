@@ -117,12 +117,8 @@ certs/
 │   └── ca-cert.pem               # CA certificate
 │
 ├── mcp/                           # MCP server certificates
-│   ├── mcp-discovery-cert.pem    # Discovery server cert
-│   ├── mcp-discovery-key.pem     # Discovery server key
-│   ├── mcp-metrics-cert.pem      # Metrics server cert
-│   ├── mcp-metrics-key.pem       # Metrics server key
-│   ├── mcp-optimization-cert.pem # Optimization server cert
-│   ├── mcp-optimization-key.pem  # Optimization server key
+│   ├── mcp-unified-cert.pem      # Unified server cert
+│   ├── mcp-unified-key.pem       # Unified server key
 │   └── ca-cert.pem               # CA certificate
 │
 └── gateway/                       # Demo gateway certificates
@@ -215,7 +211,7 @@ curl --cert certs/backend/backend-cert.pem \
      https://localhost:8001/health
 ```
 
-### Demo Gateway
+### Gateway
 
 **Port**: 8080 (HTTPS)
 

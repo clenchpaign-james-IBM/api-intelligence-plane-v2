@@ -24,7 +24,6 @@ and vendor-specific policy formats for different gateway types.
 
 Supports:
 - webMethods API Gateway
-- Native/Demo Gateway
 - Kong Gateway (future)
 - Apigee (future)
 """

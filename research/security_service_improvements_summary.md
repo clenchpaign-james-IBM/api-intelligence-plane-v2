@@ -305,7 +305,7 @@ API Metadata + Metrics + Traffic Analysis
            ↓
     Automated Remediation → Gateway Adapter
            ↓
-    Policy Application → Demo Gateway
+    Policy Application → Gateway
            ↓
     Verification → Re-scan
 ```
@@ -319,7 +319,7 @@ API Metadata + Metrics + Traffic Analysis
 
 ## Remaining Work
 
-### 1. Demo Gateway Policy Endpoints (Java) 🔴
+### 1. Gateway Policy Endpoints (Java) 🔴
 **Status**: Not Started
 
 **Required Endpoints**:
@@ -334,7 +334,7 @@ POST /policies/security-headers
 ```
 
 **Implementation Location**:
-- `demo-gateway/src/main/java/com/example/gateway/controller/PolicyController.java`
+- `gateway/src/main/java/com/example/gateway/controller/PolicyController.java`
 
 ### 2. Integration Testing 🔴
 **Status**: Not Started
@@ -389,7 +389,7 @@ POST /policies/security-headers
 
 ## Next Steps
 
-1. **Implement Demo Gateway Endpoints** (Java)
+1. **Implement Gateway Endpoints** (Java)
    - Add 6 policy endpoints to PolicyController
    - Implement policy engines for each type
    - Add policy persistence to OpenSearch
@@ -420,4 +420,4 @@ The security service has been significantly improved with:
 - ✅ Verification through re-scanning
 - ✅ Enhanced vulnerability tracking
 
-The system is now production-ready for security scanning and automated remediation, pending Demo Gateway endpoint implementation and integration testing.
+The system is now production-ready for security scanning and automated remediation, pending Gateway endpoint implementation and integration testing.

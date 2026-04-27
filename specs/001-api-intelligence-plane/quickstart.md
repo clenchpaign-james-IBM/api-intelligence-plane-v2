@@ -17,7 +17,7 @@ This guide will help you set up and run the API Intelligence Plane locally for d
 - **Docker** 24.0+ and **Docker Compose** 2.20+
 - **Python** 3.11+
 - **Node.js** 18+ and **npm** 9+
-- **Java** 17+ (for Demo Gateway)
+- **Java** 17+ (for Gateway)
 - **Git**
 
 ### System Requirements
@@ -81,7 +81,7 @@ MCP_METRICS_PORT=8002
 MCP_SECURITY_PORT=8003
 MCP_OPTIMIZATION_PORT=8004
 
-# Demo Gateway
+# Gateway
 DEMO_GATEWAY_PORT=9000
 ```
 
@@ -107,7 +107,7 @@ curl http://localhost:8000/health
 # Check frontend
 curl http://localhost:3000
 
-# Check Demo Gateway
+# Check Gateway
 curl http://localhost:9000/health
 
 # Check MCP servers
@@ -122,7 +122,7 @@ curl http://localhost:8004/health
 - **Frontend UI**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
-- **Demo Gateway**: http://localhost:9000
+- **Gateway**: http://localhost:9000
 - **OpenSearch Dashboards**: http://localhost:5601
 
 ---
@@ -171,17 +171,8 @@ cd mcp-servers
 # Install dependencies
 pip install -r requirements.txt
 
-# Start discovery server
-python discovery_server.py &
-
-# Start metrics server
-python metrics_server.py &
-
-# Start security server
-python security_server.py &
-
-# Start optimization server
-python optimization_server.py &
+# Start unified MCP server
+python unified_server.py &
 ```
 
 ### 4. Set Up Frontend
@@ -196,10 +187,10 @@ npm install
 npm run dev
 ```
 
-### 5. Set Up Demo Gateway
+### 5. Set Up Gateway
 
 ```bash
-cd demo-gateway
+cd gateway
 
 # Build with Maven
 ./mvnw clean package
@@ -212,7 +203,7 @@ java -jar target/native-gateway-1.0.0.jar
 
 ## Initial Configuration
 
-### 1. Register Demo Gateway
+### 1. Register Gateway
 
 ```bash
 curl -X POST http://localhost:8000/gateways \
@@ -228,7 +219,7 @@ curl -X POST http://localhost:8000/gateways \
   }'
 ```
 
-### 2. Register Sample APIs in Demo Gateway
+### 2. Register Sample APIs in Gateway
 
 ```bash
 # Register a sample API
@@ -333,10 +324,10 @@ curl -X POST http://localhost:8000/query \
 docker-compose logs -f backend
 
 # MCP server logs
-docker-compose logs -f mcp-discovery
+docker-compose logs -f mcp-unified
 
-# Demo Gateway logs
-docker-compose logs -f demo-gateway
+# Gateway logs
+docker-compose logs -f gateway
 
 # All logs
 docker-compose logs -f
@@ -413,16 +404,16 @@ curl -XGET http://localhost:9200/_cluster/health -u admin:Admin@123
 # Check MCP server health
 curl http://localhost:8001/health
 
-# Restart MCP servers
-docker-compose restart mcp-discovery mcp-metrics mcp-security mcp-optimization
+# Restart MCP server
+docker-compose restart mcp-unified
 
 # Check logs
-docker-compose logs mcp-discovery
+docker-compose logs mcp-unified
 ```
 
-### Demo Gateway Not Starting
+### Gateway Not Starting
 
-**Problem**: Demo Gateway fails to start
+**Problem**: Gateway fails to start
 
 **Solution**:
 ```bash
@@ -433,10 +424,10 @@ java -version  # Should be 17+
 lsof -i :9000
 
 # Check Gateway logs
-docker-compose logs demo-gateway
+docker-compose logs gateway
 
 # Rebuild Gateway
-cd demo-gateway
+cd gateway
 ./mvnw clean package
 ```
 
@@ -455,8 +446,8 @@ curl http://localhost:9000/health
 # Manually trigger discovery
 curl -X POST http://localhost:8000/gateways/{gateway_id}/discover
 
-# Check discovery logs
-docker-compose logs mcp-discovery
+# Check unified server logs
+docker-compose logs mcp-unified
 ```
 
 ### LLM Queries Failing
@@ -556,7 +547,7 @@ kubectl apply -f k8s/opensearch/
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
 kubectl apply -f k8s/mcp-servers/
-kubectl apply -f k8s/demo-gateway/
+kubectl apply -f k8s/gateway/
 
 # Check deployment status
 kubectl get pods -n api-intelligence-plane

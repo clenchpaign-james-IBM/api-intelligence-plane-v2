@@ -20,8 +20,6 @@ class GatewayVendor(str, Enum):
     discovery, metrics collection, and policy management.
     
     Attributes:
-        NATIVE: Native demo gateway included with the Intelligence Plane for testing
-               and demonstration purposes.
         WEBMETHODS: Software AG webMethods API Gateway - Enterprise API management platform.
         KONG: Kong Gateway - Open-source and enterprise API gateway.
         APIGEE: Google Apigee API Management - Cloud-native API platform.
@@ -30,7 +28,6 @@ class GatewayVendor(str, Enum):
         CUSTOM: Custom or unsupported gateway vendor requiring custom adapter implementation.
     """
 
-    NATIVE = "native"
     WEBMETHODS = "webmethods"
     KONG = "kong"
     APIGEE = "apigee"

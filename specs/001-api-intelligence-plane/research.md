@@ -343,7 +343,7 @@ Focus on **Integration** and **End-to-End** testing, skip unit tests per require
 - **API Testing**: httpx for async HTTP testing
 - **E2E Testing**: Playwright or Cypress
 - **Mock Data**: Factory pattern for test data generation
-- **Test Containers**: Docker containers for OpenSearch, Demo Gateway
+- **Test Containers**: Docker containers for OpenSearch, Gateway
 
 ### Test Data Strategy
 - Mock API Gateway responses
@@ -382,10 +382,8 @@ Services:
 - backend: FastAPI application
 - frontend: Nginx serving React build
 - opensearch: OpenSearch cluster
-- mcp-discovery: MCP server for API discovery
-- mcp-metrics: MCP server for metrics analysis
-- mcp-security: MCP server for security scanning
-- demo-gateway: Native API Gateway
+- mcp-unified: Unified MCP server for all functionality
+- gateway: Native API Gateway
 ```
 
 ### Alternatives Considered

@@ -4,12 +4,15 @@ Prediction Repository
 Handles CRUD operations and queries for API failure predictions.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 from app.db.repositories.base import BaseRepository
 from app.models.prediction import Prediction, PredictionType, PredictionStatus, PredictionSeverity
+
+logger = logging.getLogger(__name__)
 
 
 class PredictionRepository(BaseRepository[Prediction]):
@@ -29,6 +32,78 @@ class PredictionRepository(BaseRepository[Prediction]):
             Created prediction with ID
         """
         return self.create(prediction)
+
+    def upsert_prediction(self, prediction: Prediction) -> Prediction:
+        """
+        Create or update a prediction based on api_id, prediction_type, and predicted_time.
+        
+        This prevents duplicate predictions by checking if a similar prediction already exists
+        for the same API, type, and time window (within 1 hour).
+        
+        Args:
+            prediction: Prediction model instance
+            
+        Returns:
+            Created or updated prediction
+        """
+        # Search for existing prediction with same api_id, type, and similar predicted_time
+        try:
+            # Look for predictions within 1 hour of the predicted time
+            time_window_start = prediction.predicted_time - timedelta(hours=1)
+            time_window_end = prediction.predicted_time + timedelta(hours=1)
+            
+            result = self.client.search(
+                index=self.index_name,
+                body={
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"api_id": str(prediction.api_id)}},
+                                {"term": {"prediction_type": prediction.prediction_type.value}},
+                                {"term": {"status": PredictionStatus.ACTIVE.value}},
+                                {
+                                    "range": {
+                                        "predicted_time": {
+                                            "gte": time_window_start.isoformat(),
+                                            "lte": time_window_end.isoformat(),
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "size": 1,
+                    "sort": [{"created_at": {"order": "desc"}}]
+                }
+            )
+            
+            if result['hits']['total']['value'] > 0:
+                # Update existing prediction
+                existing_hit = result['hits']['hits'][0]
+                existing_id = existing_hit['_source']['id']
+                
+                update_doc = {
+                    "confidence_score": prediction.confidence_score,
+                    "severity": prediction.severity.value,
+                    "contributing_factors": [f.dict() for f in prediction.contributing_factors],
+                    "recommended_actions": prediction.recommended_actions,
+                    "metadata": prediction.metadata,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+                
+                updated = self.update(existing_id, update_doc)
+                if updated:
+                    return updated
+            
+            # No existing prediction found, create new one
+            return self.create(prediction)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to upsert prediction: {e}")
+            # Fallback to create
+            return self.create(prediction)
 
     def get_prediction(self, prediction_id: str) -> Optional[Prediction]:
         """

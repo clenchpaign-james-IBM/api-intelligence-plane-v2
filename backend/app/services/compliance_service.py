@@ -20,6 +20,7 @@ from app.models.compliance import (
     ComplianceStandard,
     ComplianceStatus,
     ComplianceSeverity,
+    AuditTrailEntry,
 )
 from app.services.llm_service import LLMService
 
@@ -119,7 +120,7 @@ class ComplianceService:
                 ]
                 analysis_result["violations"] = filtered_violations
 
-            # Store violations
+            # Store or update violations (deduplication)
             stored_violations = []
             for violation_data in analysis_result.get("violations", []):
                 # Convert dict to ComplianceViolation if needed
@@ -128,9 +129,41 @@ class ComplianceService:
                 else:
                     violation = violation_data
 
-                # Store in database
-                self.compliance_repository.create(violation)
-                stored_violations.append(violation)
+                # Check if violation already exists
+                existing = await self.compliance_repository.find_existing_violation(
+                    gateway_id=violation.gateway_id,
+                    api_id=violation.api_id,
+                    violation_type=violation.violation_type.value,
+                    compliance_standard=violation.compliance_standard.value,
+                )
+
+                if existing:
+                    # Update existing violation
+                    updated_violation = await self._update_existing_violation(
+                        existing, violation
+                    )
+                    stored_violations.append(updated_violation)
+                    logger.info(
+                        f"Updated existing violation {existing.id} for API {api_id}"
+                    )
+                else:
+                    # Create new violation
+                    self.compliance_repository.create(violation)
+                    stored_violations.append(violation)
+                    logger.info(
+                        f"Created new violation for API {api_id}: {violation.violation_type.value}"
+                    )
+
+            # Update API's violation count in intelligence metadata
+            if api.intelligence_metadata:
+                api.intelligence_metadata.violation_count = len(stored_violations)
+                self.api_repository.update(
+                    str(api_id),
+                    {"intelligence_metadata": api.intelligence_metadata.model_dump()}
+                )
+                logger.info(
+                    f"Updated API {api_id} violation count to {len(stored_violations)}"
+                )
 
             logger.info(
                 f"Compliance scan complete. Found {len(stored_violations)} violations"
@@ -256,16 +289,16 @@ class ComplianceService:
 
     async def generate_audit_report(
         self,
-        api_id: Optional[UUID] = None,
-        standard: Optional[ComplianceStandard] = None,
+        api_ids: Optional[List[UUID]] = None,
+        standards: Optional[List[ComplianceStandard]] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Generate comprehensive audit report.
 
         Args:
-            api_id: Optional API filter
-            standard: Optional compliance standard filter
+            api_ids: Optional API filters (multiple)
+            standards: Optional compliance standard filters (multiple)
             start_date: Report start date (default: 90 days ago)
             end_date: Report end date (default: now)
 
@@ -282,18 +315,36 @@ class ComplianceService:
                 start_date = end_date - timedelta(days=90)
 
             # Get audit report data from repository
-            # Note: generate_audit_report_data doesn't take api_id parameter
-            report_data = await self.compliance_repository.generate_audit_report_data(
-                standard=standard,
-                start_date=start_date,
-                end_date=end_date
-            )
+            # If multiple standards specified, aggregate data
+            if standards and len(standards) > 0:
+                # Aggregate data for multiple standards
+                all_report_data = []
+                for standard in standards:
+                    data = await self.compliance_repository.generate_audit_report_data(
+                        standard=standard,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    all_report_data.append(data)
+                
+                # Merge report data
+                report_data = self._merge_report_data(all_report_data)
+            else:
+                # Get data for all standards
+                report_data = await self.compliance_repository.generate_audit_report_data(
+                    standard=None,
+                    start_date=start_date,
+                    end_date=end_date
+                )
             
-            # If api_id specified, filter violations
-            if api_id:
-                # Get violations for specific API
-                violations = await self.compliance_repository.find_by_api_id(api_id)
-                report_data["api_specific_violations"] = [v.dict() for v in violations]
+            # If api_ids specified, filter violations
+            if api_ids and len(api_ids) > 0:
+                # Get violations for specific APIs
+                all_violations = []
+                for api_id in api_ids:
+                    violations = await self.compliance_repository.find_by_api_id(api_id)
+                    all_violations.extend(violations)
+                report_data["api_specific_violations"] = [v.dict() for v in all_violations]
 
             # Get violations needing audit attention
             violations_needing_audit = await self.compliance_repository.find_violations_needing_audit(
@@ -410,6 +461,64 @@ Violations requiring audit attention: {len(violations_needing_audit)}
 Immediate action required for {critical + high} high-priority violations.
 Recommend addressing violations needing audit attention within 30 days.
 """
+
+    def _merge_report_data(self, report_data_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Merge multiple report data dictionaries into one.
+
+        Args:
+            report_data_list: List of report data dictionaries
+
+        Returns:
+            Merged report data
+        """
+        if not report_data_list:
+            return {}
+        
+        if len(report_data_list) == 1:
+            return report_data_list[0]
+        
+        # Initialize merged data with first report
+        merged = report_data_list[0].copy()
+        
+        # Merge subsequent reports
+        for report_data in report_data_list[1:]:
+            # Merge summary
+            if "summary" in report_data:
+                summary = merged.get("summary", {})
+                for key, value in report_data["summary"].items():
+                    if isinstance(value, (int, float)):
+                        summary[key] = summary.get(key, 0) + value
+                    else:
+                        summary[key] = value
+                merged["summary"] = summary
+            
+            # Merge by_standard
+            if "by_standard" in report_data:
+                by_standard = merged.get("by_standard", {})
+                for standard, count in report_data["by_standard"].items():
+                    by_standard[standard] = by_standard.get(standard, 0) + count
+                merged["by_standard"] = by_standard
+            
+            # Merge by_severity
+            if "by_severity" in report_data:
+                by_severity = merged.get("by_severity", {})
+                for severity, count in report_data["by_severity"].items():
+                    by_severity[severity] = by_severity.get(severity, 0) + count
+                merged["by_severity"] = by_severity
+            
+            # Merge audit_evidence
+            if "audit_evidence" in report_data:
+                evidence = merged.get("audit_evidence", [])
+                evidence.extend(report_data["audit_evidence"])
+                merged["audit_evidence"] = evidence
+            
+            # Merge recommendations
+            if "recommendations" in report_data:
+                recommendations = merged.get("recommendations", [])
+                recommendations.extend(report_data["recommendations"])
+                merged["recommendations"] = recommendations
+        
+        return merged
 
     def _calculate_severity_breakdown(
         self,
@@ -595,5 +704,80 @@ Recommend addressing violations needing audit attention within 30 days.
             })
         
         return issues
+
+    async def _update_existing_violation(
+        self,
+        existing: ComplianceViolation,
+        new_violation: ComplianceViolation,
+    ) -> ComplianceViolation:
+        """Update existing violation with new data while preserving history.
+
+        Args:
+            existing: Existing violation from database
+            new_violation: New violation data from scan
+
+        Returns:
+            Updated violation
+        """
+        # Preserve original detection time and ID
+        updated_data = existing.model_dump()
+        
+        # Update key fields that may have changed
+        updated_data["severity"] = new_violation.severity
+        updated_data["description"] = new_violation.description
+        updated_data["affected_endpoints"] = new_violation.affected_endpoints
+        updated_data["updated_at"] = datetime.utcnow()
+        
+        # If violation was previously remediated but detected again, reopen it
+        if existing.status == ComplianceStatus.REMEDIATED:
+            updated_data["status"] = ComplianceStatus.OPEN
+            updated_data["remediated_at"] = None
+            
+            # Add audit trail entry for reopening
+            audit_entry = AuditTrailEntry(
+                timestamp=datetime.utcnow(),
+                action="violation_reopened",
+                performed_by="compliance_agent",
+                details="Violation detected again after previous remediation",
+                status_before=ComplianceStatus.REMEDIATED.value,
+                status_after=ComplianceStatus.OPEN.value,
+            )
+            updated_data["audit_trail"].append(audit_entry.model_dump())
+        
+        # Merge evidence - add new evidence without duplicating
+        # Use type, source, and description as key (not timestamp, as it changes on each scan)
+        existing_evidence_keys = {
+            (e.type, e.source, e.description)
+            for e in existing.evidence
+        }
+        for new_evidence in new_violation.evidence:
+            evidence_key = (
+                new_evidence.type,
+                new_evidence.source,
+                new_evidence.description,
+            )
+            if evidence_key not in existing_evidence_keys:
+                updated_data["evidence"].append(new_evidence.model_dump())
+                existing_evidence_keys.add(evidence_key)  # Add to set to prevent duplicates in this update
+        
+        # Add audit trail entry for update
+        audit_entry = AuditTrailEntry(
+            timestamp=datetime.utcnow(),
+            action="violation_updated",
+            performed_by="compliance_agent",
+            details="Violation re-detected during compliance scan, evidence updated",
+            status_before=existing.status.value,
+            status_after=updated_data["status"],
+        )
+        updated_data["audit_trail"].append(audit_entry.model_dump())
+        
+        # Update in database
+        updated_violation = ComplianceViolation(**updated_data)
+        self.compliance_repository.update(
+            str(existing.id),
+            updated_violation.model_dump()
+        )
+        
+        return updated_violation
 
 # Made with Bob

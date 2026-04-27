@@ -256,7 +256,7 @@ const Dashboard = () => {
               .map((api: API) => (
                 <Link
                   key={api.id}
-                  to={`/apis/${api.id}`}
+                  to={`/apis/detail/${api.id}`}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                 >
                   <div className="flex-1">
@@ -293,7 +293,7 @@ const Dashboard = () => {
               .map((api: API) => (
                 <Link
                   key={api.id}
-                  to={`/apis/${api.id}`}
+                  to={`/apis/detail/${api.id}`}
                   className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
                 >
                   <div className="flex-1">

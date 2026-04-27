@@ -57,6 +57,7 @@ export interface IntelligenceMetadata {
   risk_score?: number;
   security_score?: number;
   compliance_status?: Record<string, boolean>;
+  violation_count?: number;
   usage_trend?: string;
   has_active_predictions?: boolean;
 }
@@ -895,20 +896,23 @@ export interface ComplianceViolation {
   status: ComplianceStatus;
   title: string;
   description: string;
-  regulation_reference: string;
+  regulation_reference?: string;
+  regulatory_reference?: string;
+  affected_endpoints?: string[];
   evidence: ComplianceEvidence[];
-  remediation_steps: string[];
+  remediation_steps?: string[];
   remediation_documentation?: RemediationDocumentation;
   detected_at: string;
-  detected_by: DetectionMethod;
+  detection_method: DetectionMethod;
   resolved_at?: string;
   remediated_at?: string;
   last_audit_date?: string;
   next_audit_date?: string;
   audit_trail: AuditTrailEntry[];
-  risk_score: number;
-  business_impact: string;
-  data: Record<string, any>;
+  risk_score?: number;
+  risk_level?: string;
+  business_impact?: string;
+  data?: Record<string, any>;
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -1089,12 +1093,11 @@ export interface ComplianceScanResponse {
 
 // Audit Report Request/Response
 export interface AuditReportRequest {
-  report_type: 'comprehensive' | 'standard_specific' | 'api_specific';
-  standards?: ComplianceStandard[];
+  gateway_id: string;
   api_ids?: string[];
-  period_start?: string;
-  period_end?: string;
-  include_resolved?: boolean;
+  standards?: ComplianceStandard[];
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface AuditReportResponse {

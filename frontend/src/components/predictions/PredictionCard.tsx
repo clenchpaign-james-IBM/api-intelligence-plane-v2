@@ -1,8 +1,7 @@
 import { AlertTriangle, Clock, TrendingUp, CheckCircle, XCircle, Sparkles } from 'lucide-react';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import FactorsChart from './FactorsChart';
-import { api } from '../../services/api';
 import type { Prediction } from '../../types';
 
 interface PredictionCardProps {
@@ -22,14 +21,9 @@ interface PredictionCardProps {
  * - Recommended actions
  */
 const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCardProps) => {
-  const [showAiExplanation, setShowAiExplanation] = useState(false);
-
-  // Fetch AI explanation when detailed view is shown
-  const { data: aiExplanation, isLoading: explanationLoading } = useQuery({
-    queryKey: ['prediction-explanation', prediction.id],
-    queryFn: () => api.predictions.getExplanation(prediction.id),
-    enabled: detailed && showAiExplanation,
-  });
+  // AI explanation is already in metadata, no need to fetch
+  const aiExplanation = prediction.metadata?.ai_explanation as string | undefined;
+  const isAiEnhanced = prediction.metadata?.ai_enhanced === true;
 
   // Severity colors
   const severityColors = {
@@ -86,7 +80,7 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
               <h3 className="font-semibold text-gray-900">
                 {prediction.api_name || `API ${prediction.api_id.slice(0, 8)}`}
               </h3>
-              {prediction.metadata?.ai_explanation && (
+              {isAiEnhanced && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
                   <Sparkles className="w-3 h-3" />
                   AI Enhanced
@@ -207,46 +201,25 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
         </div>
       )}
 
-      {/* AI Explanation Section - Only show for AI-enhanced predictions */}
-      {detailed && prediction.metadata?.ai_explanation && (
+      {/* AI Explanation Section - Always show if available */}
+      {detailed && isAiEnhanced && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <button
-            onClick={() => setShowAiExplanation(!showAiExplanation)}
-            className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium text-sm transition-colors"
-          >
-            <Sparkles className="w-4 h-4" />
-            {showAiExplanation ? 'Hide' : 'Show'} AI Explanation
-          </button>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-purple-600" />
+            <h5 className="text-sm font-semibold text-purple-900">AI-Powered Analysis</h5>
+          </div>
           
-          {showAiExplanation && (
-            <div className="mt-3 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
-              {explanationLoading ? (
-                <div className="flex items-center gap-2 text-purple-600">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                  <span className="text-sm">Loading AI explanation...</span>
-                </div>
-              ) : aiExplanation ? (
-                <div className="space-y-3">
-                  {/* Display the explanation string with proper formatting */}
-                  {aiExplanation.explanation ? (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="w-5 h-5 text-purple-600" />
-                        <h5 className="text-sm font-semibold text-purple-900">AI-Powered Analysis</h5>
-                      </div>
-                      <div className="text-sm text-purple-900 whitespace-pre-line leading-relaxed">
-                        {aiExplanation.explanation}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-purple-700">No explanation text available.</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-purple-700">No AI explanation available for this prediction.</p>
-              )}
-            </div>
-          )}
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
+            {aiExplanation ? (
+              <div className="prose prose-sm prose-purple max-w-none text-purple-900">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {aiExplanation}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-purple-700">AI explanation not available.</p>
+            )}
+          </div>
         </div>
       )}
 

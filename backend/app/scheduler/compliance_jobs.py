@@ -42,23 +42,23 @@ class ComplianceScheduler:
         """Register all compliance-related scheduled jobs."""
         # Compliance scan job - runs every 24 hours (daily at 2 AM)
         # Scheduled for audit preparation, not immediate threat response
-        self.scheduler.add_job(
-            func=self._run_compliance_scan,
-            trigger=CronTrigger(hour=15, minute=8),
-            id="compliance_scan",
-            name="Daily Compliance Scan - All APIs",
-            replace_existing=True,
-            max_instances=1,  # Prevent overlapping scans
-        )
-
         # self.scheduler.add_job(
         #     func=self._run_compliance_scan,
-        #     trigger=IntervalTrigger(minutes=1),
+        #     trigger=CronTrigger(hour=15, minute=8),
         #     id="compliance_scan",
         #     name="Daily Compliance Scan - All APIs",
         #     replace_existing=True,
         #     max_instances=1,  # Prevent overlapping scans
         # )
+
+        self.scheduler.add_job(
+            func=self._run_compliance_scan,
+            trigger=IntervalTrigger(minutes=1),
+            id="compliance_scan",
+            name="Daily Compliance Scan - All APIs",
+            replace_existing=True,
+            max_instances=1,  # Prevent overlapping scans
+        )
 
         # Audit report generation - runs weekly on Monday at 9 AM
         self.scheduler.add_job(

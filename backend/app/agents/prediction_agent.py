@@ -230,7 +230,7 @@ Provide a detailed analysis of trends, risks, and health status."""
             # Use prediction service to generate ML-based predictions
             api_id = UUID(state["api_id"]) if isinstance(state["api_id"], str) else state["api_id"]
             gateway_id = UUID(state["gateway_id"]) if isinstance(state["gateway_id"], str) else state["gateway_id"]
-            predictions = self.prediction_service.generate_predictions_for_api(
+            predictions = await self.prediction_service.generate_predictions_for_api(
                 gateway_id=gateway_id,
                 api_id=api_id,
                 min_confidence=0.7,

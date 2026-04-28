@@ -25,6 +25,94 @@ API Intelligence Plane is an AI-driven API management application that transform
 - MCP: FastMCP for server/client implementation with Streamable HTTP transport
 - Gateway: Spring Boot, OpenSearch Java client
 
+**Architecture**: Vendor-neutral with gateway-specific adapters
+
+**Data Models**:
+- **Vendor-Neutral**: `base/api.py`, `base/metric.py`, `base/transaction.py`
+- **WebMethods-Specific**: `webmethods/wm_api.py`, `webmethods/wm_policy_action.py`, `webmethods/wm_transaction.py`
+
+**Policy System**:
+- **Structured Configs**: 11 Pydantic models for type-safe configurations
+- **Normalizer**: WebMethods → Vendor-Neutral transformation
+- **Denormalizer**: Vendor-Neutral → WebMethods transformation
+
+**Metrics Architecture**:
+- **Time-Bucketed**: 1m, 5m, 1h, 1d with monthly index rotation
+- **Separate Storage**: Not embedded in API documents
+- **Drill-Down**: Trace from metrics to raw transactional logs
+
+**WebMethods Integration**:
+- **REST API**: Complete integration with WebMethods API Gateway
+- **OpenSearch**: Transactional log collection
+- **Policy Application**: Real Gateway policy changes
+- **Analytics**: Full analytics pipeline with aggregation
+
+### Architecture Overview
+
+**Vendor-Neutral Design**: The system uses vendor-neutral data models with gateway-specific adapters:
+
+- **Vendor-Neutral Models**:
+  - [`base/api.py:API`](../../backend/app/models/base/api.py) (600+ lines) - API metadata
+  - [`base/metric.py:Metric`](../../backend/app/models/base/metric.py) (400+ lines) - Time-bucketed metrics
+  - [`base/transaction.py:TransactionalLog`](../../backend/app/models/base/transaction.py) (350+ lines) - Raw transactional events
+  - [`base/policy_configs.py`](../../backend/app/models/base/policy_configs.py) - 11 structured policy configuration models
+
+- **Gateway Adapters**:
+  - [`WebMethodsGatewayAdapter`](../../backend/app/adapters/webmethods_gateway.py) (800+ lines) - **IMPLEMENTED**
+  - KongGatewayAdapter - **DEFERRED**
+  - ApigeeGatewayAdapter - **DEFERRED**
+
+- **Policy Conversion**: Normalizer/denormalizer pattern for bidirectional transformation
+  - [`policy_normalizer.py`](../../backend/app/utils/webmethods/policy_normalizer.py) - Vendor-specific → Vendor-neutral (structured Pydantic configs)
+  - [`policy_denormalizer.py`](../../backend/app/utils/webmethods/policy_denormalizer.py) - Vendor-neutral → Vendor-specific (supports both dict and structured)
+
+- **Time-Bucketed Metrics**: Separate storage with 4 time buckets (1m, 5m, 1h, 1d) with monthly index rotation
+- **Gateway-First Operations**: All operations scoped by gateway_id
+
+**WebMethods-Specific Models** (Initial Phase):
+- [`webmethods/wm_api.py`](../../backend/app/models/webmethods/wm_api.py) (480 lines) - Native WebMethods API structure
+- [`webmethods/wm_policy_action.py`](../../backend/app/models/webmethods/wm_policy_action.py) (1184 lines) - Native policy action models
+- [`webmethods/wm_transaction.py`](../../backend/app/models/webmethods/wm_transaction.py) (264 lines, 61 fields) - Native transactional log structure
+
+**MCP Server Architecture**:
+- **Implementation**: Single unified server ([`mcp-servers/unified_server.py`](../../mcp-servers/unified_server.py), 2000+ lines, port 8007)
+- **Previous**: 6 individual servers (ports 8001-8006) - **DEPRECATED**
+- **Features**: 80+ tools across 10 categories, thin wrapper over backend REST API, single connection point
+- **Migration**: See [`docs/UNIFIED_MCP_SERVER_MIGRATION.md`](../../docs/UNIFIED_MCP_SERVER_MIGRATION.md)
+
+**Model Architecture Details**:
+
+1. **API Model** (`base/api.py:API`):
+   ```python
+   class API(BaseModel):
+       id: UUID
+       gateway_id: UUID  # Gateway association
+       name: str
+       version_info: VersionInfo  # Structured version
+       api_definition: Optional[APIDefinition]  # OpenAPI spec
+       policy_actions: List[PolicyAction]  # Type-safe policies
+       intelligence_metadata: IntelligenceMetadata  # AI-derived fields
+       vendor_metadata: Dict[str, Any]  # Vendor extensibility
+   ```
+   - ❌ Removed: `current_metrics` (now separate)
+   - ✅ Added: `gateway_id`, `policy_actions`, `intelligence_metadata`, `vendor_metadata`
+   - ✅ Enhanced: Structured `version_info` and `api_definition`
+
+2. **Metric Model** (`base/metric.py:Metric`):
+   - **Storage**: Separate time-bucketed indices `api-metrics-{bucket}-{YYYY.MM}`
+   - **Time Buckets**: 1m (24h), 5m (7d), 1h (30d), 1d (90d)
+   - **Dimensions**: gateway_id, api_id, application_id, operation, timestamp, time_bucket
+   - **Metrics**: Response times (avg/min/max/p50/p95/p99), error rates, throughput, cache metrics, timing breakdown
+
+3. **TransactionalLog Model** (`base/transaction.py:TransactionalLog`):
+   - **Purpose**: Raw transactional event storage for analytics and drill-down
+   - **Fields**: 61 comprehensive fields including timing, request/response, client info, caching, backend service details, error information, external calls
+   - **Storage**: Daily indices `transactional-logs-YYYY.MM.DD`
+
+4. **Policy Configuration Models** (`base/policy_configs.py`):
+   - 11 Pydantic models for type-safe policy configurations:
+     1. AuthenticationConfig, 2. AuthorizationConfig, 3. RateLimitConfig, 4. CachingConfig, 5. CompressionConfig, 6. TLSConfig, 7. CORSConfig, 8. ValidationConfig, 9. SecurityHeadersConfig, 10. LoggingConfig, 11. TransformationConfig
+
 **Prediction Architecture**: Single hybrid approach combining rule-based predictions (fast, deterministic baseline) followed by AI-enhanced analysis (deep insights, natural language explanations). AI enhancement is always applied to all predictions produced by the scheduler-driven prediction workflow, with graceful fallback metadata retained on each prediction if AI enhancement fails.
 
 **Security Architecture**: Hybrid approach combining rule-based security checks with AI-enhanced analysis. Uses multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection. Real remediation via Gateway adapter with 6 security policy types: authentication, authorization, TLS, CORS, validation, and security headers. Focuses on immediate threat response.
@@ -34,12 +122,81 @@ API Intelligence Plane is an AI-driven API management application that transform
 **Analytics Architecture**: ETL pipeline for vendor-neutral transactional data collection and aggregation. Three-model architecture (API metadata from `api.py:API`, TransactionalLog raw events from `transaction.py:TransactionalLog`, Metrics aggregated from `metric.py:Metric`). Multi-gateway support via gateway_id dimension. Time-series aggregation into 1-minute, 5-minute, 1-hour, and 1-day buckets with retention policies (1m/24h, 5m/7d, 1h/30d, 1d/90d). Drill-down pattern from aggregated metrics to raw transactional logs. Supports comprehensive vendor-neutral transactional event model with timing metrics, request/response data, external calls, and error tracking. **Initial phase: WebMethodsGatewayAdapter transforms from wm_transaction.py to vendor-neutral TransactionalLog.**
 
 **WebMethods Integration Architecture**:
-- **API Discovery**: Uses `GET /rest/apigateway/apis` for listing and `GET /rest/apigateway/apis/{api_id}` for detailed information
-- **Policy Management**: Uses `GET /rest/apigateway/policies/{policy_id}` to read policies and `PUT /rest/apigateway/policies/{policy_id}` to update
-- **Policy Actions**: Uses `GET /rest/apigateway/policyActions/{policyaction_id}` to read and `POST /rest/apigateway/policyActions` to create enforcement objects
-- **Transactional Logs**: Queries OpenSearch with filter `eventType: "Transactional"` for analytics data
-- **Policy Stages**: Supports multi-stage pipeline (transport, requestPayloadProcessing, IAM, LMT, routing, responseProcessing)
-- **Data Transformation**: All WebMethods data transformed to vendor-neutral models with WebMethods-specific fields in `vendor_metadata`
+
+### REST API Endpoints
+
+1. **API Discovery & Management**:
+   - `GET /rest/apigateway/apis` - List all APIs registered in the gateway
+     - Returns: Array of API summaries with basic metadata (name, version, id, status)
+     - Used for: Initial discovery and periodic synchronization
+   
+   - `GET /rest/apigateway/apis/{api_id}` - Get detailed API information
+     - Returns: Complete API details including OpenAPI specification, policies, endpoints, versions
+     - Key fields: `apiDefinition` (OpenAPI spec), `nativeEndpoint` (backend URLs), `policies` (policy IDs), `gatewayEndPointList` (exposed endpoints)
+     - Used for: Detailed API analysis, policy extraction, endpoint mapping
+
+2. **Policy Management**:
+   - `GET /rest/apigateway/policies/{policy_id}` - Get policy configuration
+     - Returns: Policy with enforcement stages and attached policy actions
+     - Policy stages: `transport`, `requestPayloadProcessing`, `IAM`, `LMT`, `routing`, `responseProcessing`
+     - Used for: Understanding current security/optimization policies
+   
+   - `PUT /rest/apigateway/policies/{policy_id}` - Update policy configuration
+     - Request: Modified policy with updated `policyEnforcements` array
+     - Used for: Applying security fixes and optimization recommendations
+
+3. **Policy Actions (Enforcement Objects)**:
+   - `GET /rest/apigateway/policyActions/{policyaction_id}` - Get policy action configuration
+     - Returns: Policy action with `templateKey` (type) and `parameters` (configuration)
+     - Template examples: `validateAPISpec`, `requireHTTPS`, `rateLimiting`, `authentication`
+     - Used for: Understanding individual policy configurations
+   
+   - `POST /rest/apigateway/policyActions` - Create new policy action
+     - Request: Policy action with `templateKey` and `parameters`
+     - Returns: Created policy action with assigned ID
+     - Used for: Creating new security/optimization policies
+
+4. **Transactional Logs (Analytics)**:
+   - OpenSearch Query - Query transactional event logs
+     - Filter: `eventType: "Transactional"`
+     - Returns: Raw transactional events with timing, request/response data, errors, cache metrics
+     - Key fields: `totalTime`, `providerTime` (backend), `gatewayTime`, `statusCode`, `applicationId`, `cacheHit`, `externalCalls`
+     - Used for: Metrics aggregation, performance analysis, drill-down queries
+
+### Data Transformation Flow
+
+1. **API Discovery**: `GET /apis` → Transform to vendor-neutral `api.py:API`
+2. **API Details**: `GET /apis/{id}` → Extract OpenAPI spec, policies, endpoints → Store in `api_definition`, `policy_actions`, `vendor_metadata`
+3. **Policy Reading**: `GET /policies/{id}` → Transform to vendor-neutral `PolicyAction` with `vendor_config`
+4. **Policy Application**: Create `PolicyAction` → `POST /policyActions` → `PUT /policies/{id}` to attach
+5. **Analytics Collection**: OpenSearch query → Transform to vendor-neutral `TransactionalLog` → Aggregate to `Metric`
+
+### WebMethodsGatewayAdapter Responsibilities
+
+The [`WebMethodsGatewayAdapter`](../../backend/app/adapters/webmethods_gateway.py) implements the following transformations:
+
+1. **API Transformation**: WebMethods API response → Vendor-neutral API model
+   - Maps `apiDefinition` to `api_definition` (OpenAPI structure)
+   - Extracts policy IDs and transforms to `policy_actions` array
+   - Stores WebMethods-specific fields in `vendor_metadata`
+   - Populates `intelligence_metadata` with discovery information
+
+2. **Policy Transformation**: WebMethods Policy/PolicyAction → Vendor-neutral PolicyAction
+   - Maps `templateKey` to vendor-neutral policy type
+   - Stores WebMethods parameters in `vendor_config`
+   - Handles policy stage mapping (transport, IAM, LMT, etc.)
+
+3. **Transactional Log Collection**: OpenSearch query → Vendor-neutral TransactionalLog
+   - Transforms WebMethods field names to vendor-neutral names (`providerTime` → `backend_time_ms`)
+   - Extracts timing metrics, error information, cache data
+   - Stores WebMethods-specific fields in `vendor_metadata`
+
+4. **Policy Application**: Vendor-neutral PolicyAction → WebMethods API calls
+   - Creates policy actions via `POST /policyActions`
+   - Attaches to policies via `PUT /policies/{id}`
+   - Verifies application through re-reading
+
+See [`research/webmethods-api-endpoints-summary.md`](../../research/webmethods-api-endpoints-summary.md) for detailed API documentation.
 
 **Data Model Architecture**:
 - **API Model**: Uses vendor-neutral `base/api.py:API` with comprehensive structure including `policy_actions` (vendor-neutral types with `vendor_config`), `api_definition` (OpenAPI/Swagger), `endpoints`, `version_info`, `maturity_state`, `groups`, and intelligence plane fields in `intelligence_metadata` (`health_score`, `is_shadow`, `discovery_method`, `risk_score`, `security_score`). Vendor-specific fields in `vendor_metadata`. **Does NOT include** embedded metrics (stored separately). **Initial phase: WebMethodsGatewayAdapter transforms from webmethods/wm_api.py (480 lines) to vendor-neutral API model.**
@@ -86,11 +243,11 @@ API Intelligence Plane is an AI-driven API management application that transform
 - Components communicate via well-defined interfaces (REST APIs, MCP protocol)
 
 **✓ PASS**: Vendor-Neutral with Gateway Adapters
-- All API Gateways use vendor-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter)
-- All adapters transform vendor-specific data to vendor-neutral models (`api.py:API`, `metric.py:Metric`, `transaction.py:TransactionalLog`)
-- Vendor-specific fields stored in `vendor_metadata` dict for extensibility
-- Consistent intelligence plane functionality (predictions, security, compliance, optimization) regardless of source gateway
-- **Initial phase: Only WebMethodsGatewayAdapter implemented; Kong and Apigee deferred**
+- All gateways use vendor-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter)
+- All adapters transform to vendor-neutral models (`base/api.py:API`, `base/metric.py:Metric`, `base/transaction.py:TransactionalLog`)
+- Vendor-specific fields in `vendor_metadata` for extensibility
+- Consistent intelligence plane functionality (predictions, security, compliance, optimization) regardless of gateway vendor
+- **Initial phase**: Only WebMethodsGatewayAdapter implemented; Kong and Apigee deferred to future phases
 
 **✓ PASS**: Model-Agnostic AI Architecture
 - LiteLLM provides unified interface to multiple LLM providers
@@ -185,22 +342,24 @@ api-intelligence-plane-v2/
 │   │   │   │   └── query.py
 │   │   │   └── deps.py        # Dependency injection
 │   │   ├── models/            # Pydantic models
-│   │   │   ├── api.py         # Vendor-neutral API model
+│   │   │   ├── base/                    # Vendor-neutral models
+│   │   │   │   ├── api.py
+│   │   │   │   ├── metric.py
+│   │   │   │   ├── transaction.py
+│   │   │   │   ├── policy_configs.py   # 11 structured configs
+│   │   │   │   └── policy_helpers.py
+│   │   │   ├── webmethods/             # WebMethods-specific
+│   │   │   │   ├── wm_api.py
+│   │   │   │   ├── wm_policy.py
+│   │   │   │   ├── wm_policy_action.py
+│   │   │   │   └── wm_transaction.py
 │   │   │   ├── gateway.py
-│   │   │   ├── metric.py      # Vendor-neutral Metric model
 │   │   │   ├── prediction.py  # Includes ContributingFactorType enum (13 types)
 │   │   │   ├── vulnerability.py  # Security vulnerabilities only
 │   │   │   ├── compliance.py  # Compliance violations (separate from security)
 │   │   │   ├── recommendation.py
 │   │   │   ├── rate_limit.py
-│   │   │   ├── query.py
-│   │   │   ├── transaction.py  # Vendor-neutral TransactionalLog model (raw events)
-│   │   │   └── webmethods/    # WebMethods native models (for transformation)
-│   │   │       ├── __init__.py
-│   │   │       ├── wm_api.py  # WebMethods API model (480 lines, comprehensive OpenAPI structure)
-│   │   │       ├── wm_policy.py  # WebMethods Policy models (271 lines)
-│   │   │       ├── wm_policy_action.py  # WebMethods Policy Action models (1184 lines, 10 policy types)
-│   │   │       └── wm_transaction.py  # WebMethods TransactionalLog model (264 lines, 61 fields)
+│   │   │   └── query.py
 │   │   ├── services/          # Business logic
 │   │   │   ├── discovery_service.py
 │   │   │   ├── metrics_service.py

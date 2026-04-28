@@ -122,7 +122,7 @@ Remediation → SecurityService → Adapter → Gateway (policy application only
 ### 2.4 Gateway Integration
 - **Abstract Interface**: 6 security policy methods defined
 - **WebMethods Adapter**: All methods implemented with verification
-- **Demo Gateway Adapter**: Reference implementation for testing
+- **Gateway Adapter**: Reference implementation for testing
 - **Real Remediation**: Direct policy application to Gateway
 
 ---
@@ -149,7 +149,7 @@ Remediation → SecurityService → Adapter → Gateway (policy application only
 |-------------|--------|-------|
 | FR-013: Continuous scanning | ✅ COMPLETE | Scheduler runs every 1 hour |
 | FR-014: Severity categorization | ✅ COMPLETE | 4 levels with CVSS validation |
-| FR-015: Automated remediation | ✅ COMPLETE | WebMethods + Demo Gateway |
+| FR-015: Automated remediation | ✅ COMPLETE | WebMethods + Gateway |
 | FR-016: Verification | ✅ COMPLETE | Real re-scanning after remediation |
 | FR-017: Manual remediation tickets | ✅ COMPLETE | Detailed remediation actions |
 | FR-018: Rescan on new vulnerabilities | ✅ COMPLETE | 1-hour rescan cycle |
@@ -194,7 +194,7 @@ Remediation → SecurityService → Adapter → Gateway (policy application only
 - ✅ Remediation status tracker
 
 ### 5.4 Gateway Integration ✅
-- ✅ Demo Gateway: All 6 security policies implemented
+- ✅ Gateway: All 6 security policies implemented
 - ✅ WebMethods Gateway: All 6 security policies implemented
 - ✅ Real policy application and verification
 

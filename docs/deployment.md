@@ -102,7 +102,7 @@ Optional: External AI Agent Integration
 |-----------|-----|--------|------|----------|----------|
 | Frontend | 0.5 | 512 MB | 1 GB | 2-3 | Yes |
 | Backend | 2 | 4 GB | 10 GB | 3-5 | Yes |
-| Demo Gateway | 1 | 2 GB | 5 GB | 2-3 | Yes |
+| Gateway | 1 | 2 GB | 5 GB | 2-3 | Yes |
 | OpenSearch | 4 | 8 GB | 100 GB | 3 | Yes |
 | MCP Servers | 0.5 | 1 GB | 2 GB | 1 each | No (for AI agents) |
 
@@ -231,7 +231,7 @@ BACKUP_RETENTION_DAYS=30
    - API Docs: http://localhost:8000/docs
    - OpenSearch: http://localhost:9200
    - OpenSearch Dashboards: http://localhost:5601
-   - Demo Gateway: http://localhost:8080
+   - Gateway: http://localhost:8080
    - MCP Discovery Server: http://localhost:8001 (optional, for AI agents)
    - MCP Metrics Server: http://localhost:8002 (optional, for AI agents)
    - MCP Optimization Server: http://localhost:8004 (optional, for AI agents)
@@ -446,14 +446,14 @@ kubectl wait --for=condition=ready pod -l app=frontend \
   --timeout=180s -n api-intelligence-plane
 ```
 
-### Deploy Demo Gateway
+### Deploy Gateway
 
 ```bash
 # Apply demo gateway manifests
-kubectl apply -f k8s/demo-gateway/ -n api-intelligence-plane
+kubectl apply -f k8s/gateway/ -n api-intelligence-plane
 
 # Wait for gateway to be ready
-kubectl wait --for=condition=ready pod -l app=demo-gateway \
+kubectl wait --for=condition=ready pod -l app=gateway \
   --timeout=180s -n api-intelligence-plane
 ```
 
@@ -556,8 +556,8 @@ MCP servers are included in the default `docker-compose.yml`:
 # Start all services including MCP servers
 docker-compose up -d
 
-# Start only MCP servers (requires backend and opensearch)
-docker-compose up -d mcp-discovery mcp-metrics mcp-optimization
+# Start only MCP server (requires backend and opensearch)
+docker-compose up -d mcp-unified
 
 # Verify MCP servers are running
 curl http://localhost:8001/mcp
@@ -579,9 +579,7 @@ kubectl wait --for=condition=ready pod -l app=mcp-servers \
 kubectl get pods -l app=mcp-servers -n api-intelligence-plane
 
 # Check MCP server logs
-kubectl logs -f deployment/mcp-discovery -n api-intelligence-plane
-kubectl logs -f deployment/mcp-metrics -n api-intelligence-plane
-kubectl logs -f deployment/mcp-optimization -n api-intelligence-plane
+kubectl logs -f deployment/mcp-unified -n api-intelligence-plane
 ```
 
 ### Configure AI Agents to Use MCP Servers
@@ -652,10 +650,8 @@ curl -X POST http://localhost:8001/mcp \
 MCP servers are stateless and can be scaled horizontally:
 
 ```bash
-# Scale MCP servers in Kubernetes
-kubectl scale deployment mcp-discovery --replicas=2 -n api-intelligence-plane
-kubectl scale deployment mcp-metrics --replicas=2 -n api-intelligence-plane
-kubectl scale deployment mcp-optimization --replicas=2 -n api-intelligence-plane
+# Scale MCP server in Kubernetes
+kubectl scale deployment mcp-unified --replicas=2 -n api-intelligence-plane
 ```
 
 ### Security Considerations for MCP Servers
@@ -681,13 +677,13 @@ kubectl scale deployment mcp-optimization --replicas=2 -n api-intelligence-plane
 
 ```bash
 # Check if MCP server is running
-docker-compose ps mcp-discovery
+docker-compose ps mcp-unified
 
 # View MCP server logs
-docker-compose logs -f mcp-discovery
+docker-compose logs -f mcp-unified
 
 # Test backend connectivity from MCP server
-docker-compose exec mcp-discovery curl http://backend:8000/health
+docker-compose exec mcp-unified curl http://backend:8000/health
 ```
 
 #### AI Agent Cannot Connect
@@ -712,10 +708,10 @@ curl -X POST http://localhost:8001/mcp \
 curl http://localhost:8000/health
 
 # Verify OpenSearch connectivity
-docker-compose exec mcp-discovery curl http://opensearch:9200/_cluster/health
+docker-compose exec mcp-unified curl http://opensearch:9200/_cluster/health
 
 # Check MCP server environment variables
-docker-compose exec mcp-discovery env | grep -E "(OPENSEARCH|BACKEND)"
+docker-compose exec mcp-unified env | grep -E "(OPENSEARCH|BACKEND)"
 ```
 
 ### MCP Server Documentation
@@ -735,7 +731,7 @@ For detailed MCP server documentation, see:
    - Backend: 3-5 replicas
    - Frontend: 2-3 replicas
    - OpenSearch: 3-node cluster
-   - Demo Gateway: 2-3 replicas
+   - Gateway: 2-3 replicas
 
 2. **Pod Disruption Budgets**:
    ```yaml
@@ -1023,7 +1019,7 @@ curl http://localhost:3000
 # OpenSearch health
 curl http://localhost:9200/_cluster/health?pretty
 
-# Demo Gateway health
+# Gateway health
 curl http://localhost:8080/actuator/health
 ```
 

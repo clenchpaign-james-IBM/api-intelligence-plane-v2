@@ -12,7 +12,7 @@ The API Intelligence Plane is an AI-driven API management platform that provides
 **Main Components:**
 - **Frontend (React/TypeScript)** - Web UI dashboard running on port 3000, containerized with Vite dev server
 - **Backend API (FastAPI/Python)** - Core business logic on port 8000, handles all API operations, LLM integration, and scheduling
-- **Demo Gateway (Spring Boot/Java)** - Native API Gateway implementation on port 8080 for testing and demonstration
+- **Gateway (Spring Boot/Java)** - Native API Gateway implementation on port 8080 for testing and demonstration
 - **OpenSearch 2.18** - Data storage and search engine on ports 9200/9600
 - **MCP Servers (FastMCP/Python)** - Optional AI agent integration servers (ports 8001, 8002, 8004) for external tools like Bob IDE
 - **Background Scheduler** - APScheduler for automated discovery, metrics collection, predictions, and security scans
@@ -87,7 +87,7 @@ The API Intelligence Plane is an AI-driven API management platform that provides
 - **Backend TLS:** Uvicorn SSL configuration in [`backend/app/main.py`](backend/app/main.py:164-177) with cert/key files
 - **OpenSearch TLS:** Security plugin with transport and HTTP layer encryption ([`docs/tls-deployment.md`](docs/tls-deployment.md:160-173))
 - **Frontend TLS:** Vite HTTPS server configuration ([`docs/tls-deployment.md`](docs/tls-deployment.md:209-233))
-- **Demo Gateway TLS:** Spring Boot SSL with PKCS12 keystore and client auth ([`docs/tls-deployment.md`](docs/tls-deployment.md:258-273))
+- **Gateway TLS:** Spring Boot SSL with PKCS12 keystore and client auth ([`docs/tls-deployment.md`](docs/tls-deployment.md:258-273))
 - **MCP Servers TLS:** Individual certificates per server ([`docs/tls-deployment.md`](docs/tls-deployment.md:236-254))
 
 **Configuration:**
@@ -157,7 +157,7 @@ The API Intelligence Plane is an AI-driven API management platform that provides
   - OpenSearch cluster health monitoring
   - Docker healthchecks for all services ([`docker-compose.yml`](docker-compose.yml:28-32, 93-98, 122-127))
 - **Metrics Collection:**
-  - Demo Gateway Actuator endpoints (health, metrics, prometheus) ([`demo-gateway/src/main/resources/application.yml`](demo-gateway/src/main/resources/application.yml:59-72))
+  - Gateway Actuator endpoints (health, metrics, prometheus) ([`gateway/src/main/resources/application.yml`](gateway/src/main/resources/application.yml:59-72))
   - Micrometer metrics export configured
   - APScheduler for automated metrics collection ([`backend/app/config.py`](backend/app/config.py:131-132))
 - **Logging:**
@@ -185,7 +185,7 @@ The API Intelligence Plane is an AI-driven API management platform that provides
 - **Input Validation:** Pydantic models for all API inputs (type-safe validation)
 - **Rate Limiting:** 
   - Intelligent rate limiting feature implemented ([`README.md`](README.md:213-216))
-  - Demo Gateway rate limit policies ([`demo-gateway/src/main/resources/application.yml`](demo-gateway/src/main/resources/application.yml:49-53))
+  - Gateway rate limit policies ([`gateway/src/main/resources/application.yml`](gateway/src/main/resources/application.yml:49-53))
   - Backend rate limit service and API endpoints
 - **Timeouts:** 
   - API timeout 30s ([`frontend/src/services/api.ts`](frontend/src/services/api.ts:31))

@@ -125,7 +125,11 @@ metrics = await client.get_api_metrics(
 await client.close()
 ```
 
-### 2. Discovery MCP Server (`mcp-servers/discovery_server.py`)
+### 2. Unified MCP Server (`mcp-servers/unified_server.py`)
+
+**Note**: Individual MCP servers have been consolidated into a single Unified MCP Server. See `mcp-servers/README_UNIFIED_SERVER.md` for details.
+
+The Unified MCP Server provides all functionality previously split across multiple servers:
 
 **Port:** 8001  
 **Transport:** Streamable HTTP
@@ -142,7 +146,6 @@ await client.close()
 - Performs client-side filtering for advanced queries
 - No direct OpenSearch access
 
-### 3. Metrics MCP Server (`mcp-servers/metrics_server.py`)
 
 **Port:** 8002  
 **Transport:** Streamable HTTP
@@ -159,7 +162,6 @@ await client.close()
 - Performs client-side trend analysis
 - No direct OpenSearch access
 
-### 4. Optimization MCP Server (`mcp-servers/optimization_server.py`)
 
 **Port:** 8004  
 **Transport:** Streamable HTTP

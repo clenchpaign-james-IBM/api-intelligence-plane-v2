@@ -284,10 +284,6 @@ frontend/node_modules/
 frontend/dist/
 frontend/build/
 
-# Demo Gateway specific
-demo-gateway/target/
-demo-gateway/.mvn/
-
 # Test outputs
 tests/__pycache__/
 tests/*.pyc

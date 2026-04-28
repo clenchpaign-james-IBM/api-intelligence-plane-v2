@@ -98,8 +98,8 @@ async def test_rate_limit_apply():
             print(f"   ✗ Failed to verify policy: {e}")
             return False
         
-        # Step 4: Test Demo Gateway endpoint
-        print(f"\n4. Testing Demo Gateway rate limit endpoint...")
+        # Step 4: Test Gateway endpoint
+        print(f"\n4. Testing Gateway rate limit endpoint...")
         try:
             gateway_url = "http://localhost:8081"
             api_id = test_policy["api_id"]
@@ -126,7 +126,7 @@ async def test_rate_limit_apply():
                 
         except Exception as e:
             print(f"   ⚠ Could not verify Gateway policy: {e}")
-            print(f"   ⚠ This is expected if Demo Gateway is not running")
+            print(f"   ⚠ This is expected if Gateway is not running")
         
         print("\n" + "=" * 80)
         print("✓ Rate Limit Policy Application Test Complete!")

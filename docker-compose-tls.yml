@@ -130,172 +130,39 @@ services:
       retries: 5
       start_period: 40s
 
-  # MCP Discovery Server with mTLS
-  mcp-discovery:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-discovery-tls
-    environment:
-      # TLS Server Configuration
-      - TLS_ENABLED=true
-      - TLS_CERT_FILE=/app/certs/mcp-discovery-cert.pem
-      - TLS_KEY_FILE=/app/certs/mcp-discovery-key.pem
-      - TLS_CA_FILE=/app/certs/ca-cert.pem
-      
-      # OpenSearch mTLS Configuration
-      - MCP_SERVER_NAME=discovery
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=https
-      - OPENSEARCH_USE_SSL=true
-      - OPENSEARCH_VERIFY_CERTS=true
-      - OPENSEARCH_USERNAME=admin
-      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
-      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-discovery-cert.pem
-      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-discovery-key.pem
-      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-      - ./certs/mcp:/app/certs:ro
-    ports:
-      - "8001:8000"
-    networks:
-      - aip-network-tls
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-
-  # MCP Metrics Server with mTLS
-  mcp-metrics:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-metrics-tls
-    environment:
-      # TLS Server Configuration
-      - TLS_ENABLED=true
-      - TLS_CERT_FILE=/app/certs/mcp-metrics-cert.pem
-      - TLS_KEY_FILE=/app/certs/mcp-metrics-key.pem
-      - TLS_CA_FILE=/app/certs/ca-cert.pem
-      
-      # OpenSearch mTLS Configuration
-      - MCP_SERVER_NAME=metrics
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=https
-      - OPENSEARCH_USE_SSL=true
-      - OPENSEARCH_VERIFY_CERTS=true
-      - OPENSEARCH_USERNAME=admin
-      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
-      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-metrics-cert.pem
-      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-metrics-key.pem
-      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-      - ./certs/mcp:/app/certs:ro
-    ports:
-      - "8002:8000"
-    networks:
-      - aip-network-tls
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-
-  # MCP Optimization Server with mTLS
-  mcp-optimization:
-    build:
-      context: ./mcp-servers
-      dockerfile: Dockerfile
-    container_name: aip-mcp-optimization-tls
-    environment:
-      # TLS Server Configuration
-      - TLS_ENABLED=true
-      - TLS_CERT_FILE=/app/certs/mcp-optimization-cert.pem
-      - TLS_KEY_FILE=/app/certs/mcp-optimization-key.pem
-      - TLS_CA_FILE=/app/certs/ca-cert.pem
-      
-      # OpenSearch mTLS Configuration
-      - MCP_SERVER_NAME=optimization
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=https
-      - OPENSEARCH_USE_SSL=true
-      - OPENSEARCH_VERIFY_CERTS=true
-      - OPENSEARCH_USERNAME=admin
-      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
-      - OPENSEARCH_CLIENT_CERT=/app/certs/mcp-optimization-cert.pem
-      - OPENSEARCH_CLIENT_KEY=/app/certs/mcp-optimization-key.pem
-      - OPENSEARCH_CA_CERT=/app/certs/ca-cert.pem
-    env_file:
-      - .env
-    volumes:
-      - ./mcp-servers:/app
-      - ./certs/mcp:/app/certs:ro
-    ports:
-      - "8004:8000"
-    networks:
-      - aip-network-tls
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-
-  # Demo Gateway (HTTP only - external service)
-  demo-gateway:
-    build:
-      context: ./demo-gateway
-      dockerfile: Dockerfile
-    container_name: aip-demo-gateway-tls
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      # HTTP Configuration (no TLS)
-      - SERVER_SSL_ENABLED=false
-      
-      # OpenSearch mTLS Configuration
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - OPENSEARCH_SCHEME=https
-      - OPENSEARCH_USERNAME=admin
-      - OPENSEARCH_PASSWORD=SecureP@ssw0rd2024!
-      - OPENSEARCH_SSL_VERIFY=false
-    volumes:
-      - ./certs/ca:/app/certs/ca:ro
-      - ./certs/opensearch:/app/certs/opensearch:ro
-    ports:
-      - "8080:8080"
-    networks:
-      - aip-network-tls
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 90s
+  # MCP Unified Server with mTLS - Single interface for all API Intelligence Plane functionality
+  mcp-unified:
+  build:
+    context: ./mcp-servers
+    dockerfile: Dockerfile
+  container_name: aip-mcp-unified-tls
+  environment:
+    # TLS Server Configuration
+    - TLS_ENABLED=true
+    - TLS_CERT_FILE=/app/certs/mcp-unified-cert.pem
+    - TLS_KEY_FILE=/app/certs/mcp-unified-key.pem
+    - TLS_CA_FILE=/app/certs/ca-cert.pem
+    
+    # Backend Configuration
+    - BACKEND_URL=https://backend:8000
+    - MCP_SERVER_NAME=unified
+  env_file:
+    - .env
+  volumes:
+    - ./mcp-servers:/app
+    - ./certs/mcp:/app/certs:ro
+  ports:
+    - "8007:8000"
+  networks:
+    - aip-network-tls
+  depends_on:
+    - backend
+  healthcheck:
+    test: ["CMD-SHELL", "curl -s http://localhost:8000/mcp | grep -q 'jsonrpc' || exit 1"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 40s
 
 networks:
   aip-network-tls:

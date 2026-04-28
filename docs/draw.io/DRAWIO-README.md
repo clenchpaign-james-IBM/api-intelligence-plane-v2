@@ -12,9 +12,9 @@ This directory contains all architecture diagrams from `architecture.md` convert
 - Frontend (React) - Dashboard, APIs, Security, Query UI
 - Backend API (FastAPI) - Single source of truth
 - OpenSearch - Data store
-- Demo Gateway - Spring Boot native API Gateway
+- Gateway - Spring Boot native API Gateway
 
-**Flow**: Frontend → Backend → (OpenSearch + Demo Gateway)
+**Flow**: Frontend → Backend → (OpenSearch + Gateway)
 
 ---
 
@@ -33,14 +33,14 @@ This directory contains all architecture diagrams from `architecture.md` convert
 
 ### 3. High-Level System Architecture
 **File**: `01-high-level-architecture.drawio`  
-**Description**: Complete system overview showing Frontend, Backend (with Services/Agents/Adapters), data stores, LLM providers, Demo Gateway, and optional MCP integration for external AI agents.
+**Description**: Complete system overview showing Frontend, Backend (with Services/Agents/Adapters), data stores, LLM providers, Gateway, and optional MCP integration for external AI agents.
 
 **Key Components**:
 - Frontend (React SPA) - Port 3000
 - Backend API (FastAPI) - Port 8000
 - OpenSearch - Port 9200
 - LLM Providers (via LiteLLM)
-- Demo Gateway - Port 8080
+- Gateway - Port 8080
 - Optional: MCP Servers (8001-8004) for AI agent integration
 
 ---
@@ -60,9 +60,9 @@ This directory contains all architecture diagrams from `architecture.md` convert
 
 ### 5. Core Application Data Flow
 **File**: `03-core-data-flow.drawio`
-**Description**: Primary data flow from user through frontend to backend, then branching to OpenSearch and Demo Gateway.
+**Description**: Primary data flow from user through frontend to backend, then branching to OpenSearch and Gateway.
 
-**Flow**: User → Frontend → Backend → (OpenSearch + Demo Gateway)
+**Flow**: User → Frontend → Backend → (OpenSearch + Gateway)
 
 ---
 
@@ -106,7 +106,7 @@ This directory contains all architecture diagrams from `architecture.md` convert
 - opensearch (9200)
 - backend (8000)
 - frontend (3000)
-- demo-gateway (8080)
+- gateway (8080)
 
 **Optional Services** (for AI agent integration):
 - mcp-discovery (8001)
@@ -120,7 +120,7 @@ This directory contains all architecture diagrams from `architecture.md` convert
 **Description**: Kubernetes production deployment with namespace, deployments, services, and monitoring.
 
 **Components**:
-- **Deployments**: backend (3 replicas), frontend (2 replicas), demo-gateway (2 replicas)
+- **Deployments**: backend (3 replicas), frontend (2 replicas), gateway (2 replicas)
 - **StatefulSet**: opensearch (3 nodes)
 - **Services**: backend-service, frontend-service, opensearch-service
 - **Infrastructure**: Ingress, ConfigMap

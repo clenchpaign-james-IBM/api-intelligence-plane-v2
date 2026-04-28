@@ -55,7 +55,7 @@ All servers use the **Streamable HTTP** transport protocol.
 
 #### Example 1: Get Server Information
 ```
-Query: "What capabilities does the discovery server have?"
+Query: "What capabilities does the unified server have?"
 
 Expected Tool Call: server_info()
 
@@ -91,7 +91,7 @@ Response: Filtered list of APIs meeting the criteria
 
 #### Example 5: Check Server Health
 ```
-Query: "Is the discovery server healthy?"
+Query: "Is the unified server healthy?"
 
 Expected Tool Call: health()
 
@@ -368,8 +368,8 @@ import asyncio
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-async def query_discovery_server():
-    """Connect to Discovery server and list APIs."""
+async def query_unified_server():
+    """Connect to Unified server and list APIs."""
     async with streamable_http_client("http://localhost:8001/mcp") as (read, write, _):
         async with ClientSession(read, write) as session:
             # Initialize session
@@ -387,7 +387,7 @@ async def query_discovery_server():
             print(f"Search results: {result.content}")
 
 # Run the example
-asyncio.run(query_discovery_server())
+asyncio.run(query_unified_server())
 ```
 
 ### Multi-Server Query Example
@@ -496,9 +496,7 @@ If Bob IDE cannot connect to MCP servers:
 
 4. **View server logs:**
    ```bash
-   docker-compose logs mcp-discovery
-   docker-compose logs mcp-metrics
-   docker-compose logs mcp-optimization
+   docker-compose logs mcp-unified
    ```
 
 ### Common Configuration Errors
@@ -563,9 +561,7 @@ If tools fail to execute:
 
 4. **View MCP server logs:**
    ```bash
-   docker-compose logs -f mcp-discovery
-   docker-compose logs -f mcp-metrics
-   docker-compose logs -f mcp-optimization
+   docker-compose logs -f mcp-unified
    ```
 
 ---
@@ -582,6 +578,6 @@ If tools fail to execute:
 ## Support
 
 For issues or questions:
-1. Check server logs: `docker-compose logs mcp-<server-name>`
-2. Run connection tests: `python mcp-servers/tests/test_mcp_connection.py`
-3. Review architecture docs: `docs/mcp-architecture.md`
+1. Check server logs: `docker-compose logs mcp-unified`
+2. Review architecture docs: `docs/mcp-architecture.md`
+3. See unified server documentation: `mcp-servers/README_UNIFIED_SERVER.md`

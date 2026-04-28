@@ -644,10 +644,8 @@ The platform continuously monitors API ecosystems, automatically discovers all A
 - **Kong Gateway**: `backend/app/adapters/kong_gateway.py` - Kong integration
 - **Apigee Gateway**: `backend/app/adapters/apigee_gateway.py` - Apigee integration
 
-### MCP Servers (Optional - For External AI Agents)
-- **Discovery Server**: `mcp-servers/discovery_server.py` - API discovery via MCP
-- **Metrics Server**: `mcp-servers/metrics_server.py` - Metrics via MCP
-- **Optimization Server**: `mcp-servers/optimization_server.py` - Optimization via MCP
+### MCP Server (Optional - For External AI Agents)
+- **Unified Server**: `mcp-servers/unified_server.py` - All API Intelligence Plane functionality via MCP
 
 ---
 
@@ -673,7 +671,7 @@ The platform continuously monitors API ecosystems, automatically discovers all A
 - **Frontend**: React 18, TypeScript, Vite, TanStack Query, Tailwind CSS
 - **Database**: OpenSearch 2.11+ (search, analytics, time-series storage)
 - **AI/ML**: LangChain for agent orchestration, LiteLLM for multi-provider LLM support
-- **Demo Gateway**: Java 17, Spring Boot 3.2
+- **Gateway**: Java 17, Spring Boot 3.2
 - **MCP**: FastMCP with Streamable HTTP transport (optional)
 - **Infrastructure**: Docker, Kubernetes, Prometheus, Grafana
 

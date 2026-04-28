@@ -83,7 +83,7 @@ async def test_backend_health() -> bool:
 
 async def test_gateway_health() -> bool:
     """Test Gateway health"""
-    print_step("STEP 2", "Testing Demo Gateway Health")
+    print_step("STEP 2", "Testing Gateway Health")
     
     try:
         async with httpx.AsyncClient(timeout=TEST_TIMEOUT) as client:
@@ -91,14 +91,14 @@ async def test_gateway_health() -> bool:
             
             if response.status_code == 200:
                 data = response.json()
-                print_success(f"Demo Gateway is healthy: {data.get('status')}")
+                print_success(f"Gateway is healthy: {data.get('status')}")
                 return True
             else:
                 print_error(f"Gateway health check failed: {response.status_code}")
                 return False
                 
     except Exception as e:
-        print_error(f"Failed to connect to Demo Gateway: {e}")
+        print_error(f"Failed to connect to Gateway: {e}")
         return False
 
 
@@ -286,7 +286,7 @@ async def main():
         
         # Test Gateway health
         if not await test_gateway_health():
-            print_error("\nDemo Gateway is not available. Please start the Gateway service.")
+            print_error("\nGateway is not available. Please start the Gateway service.")
             return 1
         
         # Create test API

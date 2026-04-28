@@ -62,7 +62,7 @@ async def test_gateway(gateway_repository):
     """Create a test Gateway."""
     gateway = Gateway(
         id=uuid4(),
-        name="Test Demo Gateway",
+        name="Test Gateway",
         type=GatewayType.NATIVE,
         base_url="http://localhost:8081",
         api_key="test-api-key",
@@ -91,7 +91,7 @@ class TestDiscoveryFlow:
         """Test Gateway registration and retrieval."""
         # Verify Gateway was created
         assert test_gateway.id is not None
-        assert test_gateway.name == "Test Demo Gateway"
+        assert test_gateway.name == "Test Gateway"
         assert test_gateway.type == GatewayType.NATIVE
         assert test_gateway.status == GatewayStatus.ACTIVE
         

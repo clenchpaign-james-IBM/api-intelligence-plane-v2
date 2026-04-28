@@ -4,86 +4,96 @@
 **Created**: 2026-03-09
 **Updated**: 2026-04-10 (WebMethods-First Phase)
 **Status**: Draft
-**Input**: User description: "Build 'API Intelligence Plane', an AI-driven API management application, that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to your existing API Gateways that provides AI-driven visibility, decision-making and automation for APIs. The Core Capabilities includes Autonomous API discovery (including shadow APIs), Predictive Health Management (Predict API failures 24-48 hours in advance), Continuous security scanning and automated remediation, Real-time performance optimization recommendations, Real-time rate limiting and Natural language query interface. **The system uses vendor-neutral data models (`api.py:API`, `metric.py:Metric`, `transaction.py:TransactionalLog`) with vendor-specific gateway adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter) that transform vendor data to vendor-neutral format. For the initial release, ONLY WebMethodsGatewayAdapter is implemented using models from `backend/app/models/webmethods/`. Kong and Apigee adapters are deferred to future phases.**"
+**Input**: User description: "Build 'API Intelligence Plane', an AI-driven API management application, that transforms API management from reactive firefighting to proactive, autonomous operations. It acts as an always-on intelligent companion to your existing API Gateways that provides AI-driven visibility, decision-making and automation for APIs. The Core Capabilities includes Autonomous API discovery (including shadow APIs), Predictive Health Management (Predict API failures 24-48 hours in advance), Continuous security scanning and automated remediation, Real-time performance optimization recommendations, Real-time rate limiting and Natural language query interface. **The system uses vendor-neutral data models with vendor-specific gateway adapters that transform vendor data to vendor-neutral format. For the initial release, ONLY WebMethods API Gateway integration is implemented. Kong and Apigee adapters are deferred to future phases.**"
 
-## WebMethods API Gateway Integration
+## What We're Building
 
-### REST API Endpoints
+### The Vision
 
-The WebMethods API Gateway provides the following REST API endpoints for integration:
+API Intelligence Plane transforms how organizations manage their APIs - from reactive firefighting to proactive, intelligent operations. It acts as an always-on intelligent companion that works alongside your existing API Gateway infrastructure.
 
-#### 1. API Discovery & Management
-- **GET `/rest/apigateway/apis`**: List all APIs registered in the gateway
-  - Returns: Array of API summaries with basic metadata (name, version, id, status)
-  - Used for: Initial discovery and periodic synchronization
+**The Problem We're Solving:**
+- Organizations lose visibility as their API landscape grows
+- Teams spend excessive time firefighting API issues reactively
+- Security vulnerabilities and compliance gaps go undetected
+- Performance problems impact users before teams can respond
+- Manual API management doesn't scale
 
-- **GET `/rest/apigateway/apis/{api_id}`**: Get detailed API information
-  - Returns: Complete API details including OpenAPI specification, policies, endpoints, versions
-  - Key fields: `apiDefinition` (OpenAPI spec), `nativeEndpoint` (backend URLs), `policies` (policy IDs), `gatewayEndPointList` (exposed endpoints)
-  - Used for: Detailed API analysis, policy extraction, endpoint mapping
+**What Success Looks Like:**
+- Complete visibility into all APIs, including undocumented ones
+- Advance warning of problems before they impact users
+- Automated security and compliance monitoring
+- Proactive performance optimization
+- Natural language access to insights
 
-#### 2. Policy Management
-- **GET `/rest/apigateway/policies/{policy_id}`**: Get policy configuration
-  - Returns: Policy with enforcement stages and attached policy actions
-  - Policy stages: `transport`, `requestPayloadProcessing`, `IAM`, `LMT`, `routing`, `responseProcessing`
-  - Used for: Understanding current security/optimization policies
+### Multi-Gateway Support
 
-- **PUT `/rest/apigateway/policies/{policy_id}`**: Update policy configuration
-  - Request: Modified policy with updated `policyEnforcements` array
-  - Used for: Applying security fixes and optimization recommendations
+**What**: The system works with your existing API Gateway infrastructure, regardless of vendor.
 
-#### 3. Policy Actions (Enforcement Objects)
-- **GET `/rest/apigateway/policyActions/{policyaction_id}`**: Get policy action configuration
-  - Returns: Policy action with `templateKey` (type) and `parameters` (configuration)
-  - Template examples: `validateAPISpec`, `requireHTTPS`, `rateLimiting`, `authentication`
-  - Used for: Understanding individual policy configurations
+**Why**: Organizations often use multiple gateway vendors across different teams or environments. The system provides consistent capabilities across all your gateways.
 
-- **POST `/rest/apigateway/policyActions`**: Create new policy action
-  - Request: Policy action with `templateKey` and `parameters`
-  - Returns: Created policy action with assigned ID
-  - Used for: Creating new security/optimization policies
+**Initial Release**: Starts with WebMethods API Gateway support. Additional gateway vendors will be added in future releases based on customer needs.
 
-#### 4. Transactional Logs (Analytics)
-- **OpenSearch Query**: Query transactional event logs
-  - Filter: `eventType: "Transactional"`
-  - Returns: Raw transactional events with timing, request/response data, errors, cache metrics
-  - Key fields: `totalTime`, `providerTime` (backend), `gatewayTime`, `statusCode`, `applicationId`, `cacheHit`, `externalCalls`
-  - Used for: Metrics aggregation, performance analysis, drill-down queries
+**User Benefit**: You get the same powerful capabilities regardless of which gateway technology you use, and can manage multiple gateway instances from a single interface.
 
-### Data Transformation Flow
+### Key User Experiences
 
-1. **API Discovery**: `GET /apis` → Transform to vendor-neutral [`api.py:API`](../../backend/app/models/base/api.py)
-2. **API Details**: `GET /apis/{id}` → Extract OpenAPI spec, policies, endpoints → Store in `api_definition`, `policy_actions`, `vendor_metadata`
-3. **Policy Reading**: `GET /policies/{id}` → Transform to vendor-neutral [`PolicyAction`](../../backend/app/models/base/api.py:PolicyAction) with `vendor_config`
-4. **Policy Application**: Create [`PolicyAction`](../../backend/app/models/base/api.py:PolicyAction) → `POST /policyActions` → `PUT /policies/{id}` to attach
-5. **Analytics Collection**: OpenSearch query → Transform to vendor-neutral [`transaction.py:TransactionalLog`](../../backend/app/models/base/transaction.py) → Aggregate to [`metric.py:Metric`](../../backend/app/models/base/metric.py)
+1. **Unified Management**: Manage all your API gateways from one place, with each gateway instance independently controlled
 
-### WebMethodsGatewayAdapter Responsibilities
+2. **Role-Based Workflows**:
+   - **Security Engineers**: Get immediate alerts for active threats requiring rapid response
+   - **Compliance Officers**: Access scheduled audit reports and compliance monitoring
+   - **Platform Engineers**: Receive optimization recommendations and performance insights
+   - **Operations Teams**: View health dashboards and failure predictions
 
-The [`WebMethodsGatewayAdapter`](../../backend/app/adapters/webmethods_gateway.py) implements the following transformations:
+3. **Time-Travel Analysis**:
+   - See what's happening right now (real-time monitoring)
+   - Understand what happened recently (short-term trends)
+   - Review historical patterns (long-term analysis)
+   - The system automatically manages data retention so you always have the right level of detail
 
-1. **API Transformation**: WebMethods API response → Vendor-neutral API model
-   - Maps `apiDefinition` to `api_definition` (OpenAPI structure)
-   - Extracts policy IDs and transforms to `policy_actions` array
-   - Stores WebMethods-specific fields in `vendor_metadata`
-   - Populates `intelligence_metadata` with discovery information
+4. **Drill-Down Investigation**: Start with high-level dashboards and drill into specific transactions when investigating issues
 
-2. **Policy Transformation**: WebMethods Policy/PolicyAction → Vendor-neutral PolicyAction
-   - Maps `templateKey` to vendor-neutral policy type
-   - Stores WebMethods parameters in `vendor_config`
-   - Handles policy stage mapping (transport, IAM, LMT, etc.)
+5. **AI-Powered Insights**: Get natural language explanations of complex issues, not just raw data and charts
 
-3. **Transactional Log Collection**: OpenSearch query → Vendor-neutral TransactionalLog
-   - Transforms WebMethods field names to vendor-neutral names (`providerTime` → `backend_time_ms`)
-   - Extracts timing metrics, error information, cache data
-   - Stores WebMethods-specific fields in `vendor_metadata`
+## External Integration Interface (MCP Server)
 
-4. **Policy Application**: Vendor-neutral PolicyAction → WebMethods API calls
-   - Creates policy actions via `POST /policyActions`
-   - Attaches to policies via `PUT /policies/{id}`
-   - Verifies application through re-reading
+### What It Is
 
-See [`research/webmethods-api-endpoints-summary.md`](../../research/webmethods-api-endpoints-summary.md) for detailed API documentation.
+The system provides an **External Integration Interface** that allows AI agents and automation tools to interact with all platform capabilities programmatically. This enables external workflows, custom integrations, and AI-powered automation scenarios.
+
+### Why It Matters
+
+Organizations often need to:
+- Integrate API intelligence into existing DevOps workflows
+- Build custom automation using AI agents
+- Create specialized dashboards or reporting tools
+- Extend the platform with custom capabilities
+- Integrate with other enterprise systems
+
+The External Integration Interface makes all of this possible through a single, unified connection point.
+
+### What You Can Do
+
+Through this interface, external tools can:
+- **Manage Gateways**: Register, configure, and monitor API gateways
+- **Query APIs**: Search and retrieve API information
+- **Access Metrics**: Get performance data and analytics
+- **Monitor Security**: Check vulnerabilities and security posture
+- **Track Compliance**: Review compliance status and violations
+- **Get Predictions**: Access failure predictions and risk assessments
+- **Apply Optimizations**: Implement performance improvements
+- **Natural Language Queries**: Ask questions in plain English
+
+### Use Cases
+
+1. **DevOps Automation**: AI agents that automatically respond to predictions by scaling resources or applying fixes
+2. **Custom Dashboards**: Build specialized views for specific teams or use cases
+3. **Compliance Reporting**: Automated generation of compliance reports for auditors
+4. **Security Orchestration**: Integration with SIEM and security automation platforms
+5. **ChatOps Integration**: Slack/Teams bots that provide API intelligence on demand
+
+**Technical Details**: For MCP server architecture, available tools, and integration patterns, see the [MCP Server section in plan.md](./plan.md#mcp-server-architecture).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -112,14 +122,13 @@ As a DevOps engineer, I need to receive advance warnings of potential API failur
 
 **Independent Test**: Can be tested by simulating degrading API conditions (increasing error rates, latency spikes, resource exhaustion patterns) and verifying that predictions are generated 24-48 hours before critical thresholds are reached. Delivers value by enabling proactive intervention.
 
-**Prediction Architecture**: The system uses a **single hybrid approach** where rule-based predictions are always generated first and then AI enhancement is applied to every prediction for deeper insights and natural language explanations. Prediction generation is scheduler-driven only and is not triggered from the frontend. If AI enhancement fails or is unavailable, the system stores the rule-based prediction with graceful fallback metadata.
+**How It Works**: The system analyzes historical patterns and current trends to identify APIs at risk of failure. Each prediction includes:
+- **Confidence Score**: How certain the system is about the prediction
+- **Contributing Factors**: What specific issues are causing the risk (performance degradation, capacity issues, dependency problems, etc.)
+- **Recommended Actions**: Specific steps you can take to prevent the failure
+- **AI-Enhanced Insights**: Natural language explanations of why the failure is predicted and what to do about it
 
-**Contributing Factors**: Predictions include strongly-typed contributing factors categorized into:
-- **Performance** (7 types): error rates, response times, latency, timeouts
-- **Availability** (2 types): declining availability, declining throughput
-- **Capacity** (1 type): rapid request growth
-- **Dependencies** (1 type): downstream service degradation
-- **Traffic** (1 type): abnormal traffic patterns
+**Technical Details**: For prediction architecture, contributing factor types, and AI enhancement approach, see the [Technical Context section in plan.md](./plan.md#prediction-architecture).
 
 **Acceptance Scenarios**:
 
@@ -141,11 +150,15 @@ As a security engineer, I need continuous security scanning of all APIs with aut
 
 **Urgency**: IMMEDIATE - Active threats requiring rapid remediation
 
-**Architecture**:
-- **Hybrid Approach**: Single mode combining rule-based checks with intelligent AI enhancement
-- **Multi-Source Analysis**: Uses API metadata, real-time metrics, and traffic patterns for accurate detection
-- **Real Remediation**: Direct policy application to Gateway via adapter interface
-- **Focus**: Active vulnerabilities and security threats
+**Focus**: Immediate threat response and vulnerability remediation
+
+**How It Works**:
+- **Continuous Scanning**: Automatically scans all APIs for security vulnerabilities using both rule-based checks and AI analysis
+- **Severity Classification**: Categorizes vulnerabilities as critical, high, medium, or low priority
+- **Automated Remediation**: Can automatically apply security fixes (authentication, encryption, access controls, etc.) directly to your gateway
+- **Verification**: Confirms that fixes actually resolved the vulnerabilities through re-scanning
+
+**Technical Details**: For security architecture, policy types, and vulnerability categories, see the [Technical Context section in plan.md](./plan.md#security-architecture).
 
 **Independent Test**: Can be tested by deploying APIs with known security issues (exposed credentials, missing authentication, vulnerable dependencies), verifying detection within scanning cycles, and confirming automated remediation actions are applied to the Gateway. Delivers value by reducing security exposure time.
 
@@ -170,11 +183,15 @@ As a compliance officer, I need continuous compliance monitoring of all APIs wit
 
 **Urgency**: SCHEDULED - Audit preparation and regulatory reporting timelines
 
-**Architecture**:
-- **AI-Driven Analysis**: Intelligent detection of compliance violations across multiple standards
-- **Multi-Source Analysis**: Uses API metadata, configuration, traffic patterns, and data handling for comprehensive assessment
-- **Audit Trail**: Complete documentation of compliance status, violations, and remediation history
-- **Standards Coverage**: GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001
+**Focus**: Regulatory compliance and audit readiness
+
+**How It Works**:
+- **Multi-Standard Monitoring**: Continuously monitors APIs for compliance with GDPR, HIPAA, SOC2, PCI-DSS, and ISO 27001
+- **Violation Detection**: Identifies compliance gaps in data protection, access controls, encryption, audit logging, and data retention
+- **Audit Trail**: Maintains complete documentation of all compliance checks, violations, and remediation actions
+- **Report Generation**: Generates comprehensive audit reports with evidence and recommendations for external auditors
+
+**Technical Details**: For compliance architecture, standards coverage, and AI-driven analysis approach, see the [Technical Context section in plan.md](./plan.md#compliance-architecture).
 
 **Independent Test**: Can be tested by deploying APIs with known compliance gaps (missing data retention policies, inadequate encryption, improper data handling), verifying detection of violations, and confirming comprehensive audit reports are generated. Delivers value by ensuring regulatory compliance and audit readiness.
 
@@ -197,17 +214,14 @@ As a platform engineer, I need real-time recommendations for optimizing API perf
 
 **Why this priority**: Performance optimization delivers measurable business value (improved user experience, abuse prevention, better resource utilization) but requires the monitoring foundation from P1 stories.
 
-**Architecture**: 
-- **API-Centric**: All optimizations are generated and applied per-API
-- **Gateway-Level Scope**: Limited to proxy-level optimizations (caching, compression, rate limiting) that can be validated with gateway-observable metrics
-- **Hybrid Approach**: Rule-based analysis with optional AI-enhanced recommendations
-- **Real-time Application**: Recommendations can be applied directly to the Gateway via enhanced adapter interface
-- **AI Control**: AI-driven mode enabled via OPTIMIZATION_AI_ENABLED environment variable
+**How It Works**:
+- **Usage Analysis**: Analyzes actual API usage patterns to identify optimization opportunities
+- **Optimization Types**: Recommends caching (faster responses), compression (reduced bandwidth), and rate limiting (abuse prevention)
+- **Impact Estimation**: Provides estimated performance improvements for each recommendation
+- **Direct Application**: Can apply optimizations directly to your gateway with one click
+- **Validation**: Measures actual improvements after applying optimizations
 
-**Optimization Types** (Gateway-Level Only):
-1. **Caching**: Response caching policies with TTL and invalidation strategies
-2. **Compression**: Payload compression (gzip/brotli) for bandwidth optimization
-3. **Rate Limiting**: Dynamic rate limiting that adapts to usage patterns and business priorities
+**Technical Details**: For optimization architecture, AI control settings, and gateway-level scope, see the [Technical Context section in plan.md](./plan.md#performance-goals).
 
 **Independent Test**: Can be tested by monitoring APIs under various load conditions, verifying that optimization recommendations are generated based on observed patterns, applying recommendations to the Gateway, and measuring performance improvements. Delivers value through reduced latency, prevented abuse, and optimized resource usage.
 
@@ -252,29 +266,25 @@ As an API operations manager using WebMethods API Gateway, I need to collect and
 
 **Urgency**: OPERATIONAL - Continuous monitoring and analysis for operational excellence
 
-**Architecture**:
-- **ETL Pipeline**: Periodic collection (every 5 minutes) → Store raw logs → Aggregate into metrics
-- **Multi-Gateway Support**: `gateway_id` as primary dimension for data segregation
-- **Time-Series Aggregation**: 1-minute (24 hours), 5-minute (7 days), 1-hour (30 days), 1-day (90 days) buckets
-- **Drill-Down Pattern**: Users can trace from aggregated metrics back to raw transactional logs
-- **Three-Model Architecture**: API (metadata), TransactionalLog (raw events), Metrics (aggregated)
+**How It Works**:
+- **Automatic Collection**: Collects detailed transaction data from your WebMethods gateway every 5 minutes
+- **Multi-Resolution Storage**: Stores metrics at multiple time resolutions (1-minute, 5-minute, 1-hour, 1-day) with automatic retention management
+- **Drill-Down Analysis**: Start with high-level metrics and drill down to individual transactions to investigate issues
+- **Multi-Gateway Support**: Keeps data from different gateway instances separate for independent analysis
 
-**Data Models**:
-- **TransactionalLog**: 61-field model capturing complete transaction details including timing metrics (creation_date, total_time, provider_time, gateway_time), request/response data, external calls, and error information
-- **Metrics**: Aggregated model with dimensions (gateway_id, api_id, application_id, timestamp, time_bucket) and calculated metrics (response times, error rates, throughput, cache metrics)
-- **API**: Existing comprehensive API model from wm_api.py (keep as-is)
+**Technical Details**: For ETL pipeline, data models, and time-series aggregation details, see the [Technical Context section in plan.md](./plan.md#analytics-architecture).
 
 **Independent Test**: Connect to WebMethods API Gateway, verify transactional logs are collected every 5 minutes, confirm metrics are aggregated into time buckets, validate drill-down from metrics to raw logs, and verify multi-gateway data segregation.
 
 **Acceptance Scenarios**:
 
-1. **Given** a WebMethods API Gateway is connected, **When** the collection cycle runs, **Then** transactional logs are fetched and stored in OpenSearch with all 61 fields preserved
-2. **Given** raw transactional logs are collected, **When** the aggregation service runs, **Then** metrics are calculated and stored in appropriate time buckets (1m, 5m, 1h, 1d) with gateway_id dimension
-3. **Given** multiple gateway instances are connected, **When** viewing metrics, **Then** data is properly segregated by gateway_id and can be filtered independently
-4. **Given** a user views aggregated metrics, **When** they click on a metric spike, **Then** the system displays the underlying raw transactional logs that contributed to that metric
-5. **Given** transactional logs contain external service calls, **When** analyzing performance, **Then** the system tracks and displays external call durations and their impact on total response time
-6. **Given** time-bucketed metrics exist, **When** retention periods expire, **Then** older buckets are automatically deleted (1m after 24 hours, 5m after 7 days, 1h after 30 days, 1d after 90 days)
-7. **Given** transactional logs contain error information, **When** analyzing failures, **Then** the system categorizes errors by origin (NATIVE, GATEWAY) and provides detailed error context
+1. **Given** an API Gateway is connected, **When** the collection cycle runs, **Then** transactional logs are collected and stored
+2. **Given** transactional data is collected, **When** viewing metrics, **Then** data is available at multiple time resolutions (real-time, recent, historical)
+3. **Given** multiple gateway instances are connected, **When** viewing metrics, **Then** data from each gateway can be viewed independently
+4. **Given** a user views aggregated metrics, **When** they click on a metric spike, **Then** the system displays the underlying individual transactions
+5. **Given** transactional logs contain external service calls, **When** analyzing performance, **Then** the system shows how external services impact response times
+6. **Given** data is collected over time, **When** retention periods expire, **Then** older data is automatically cleaned up
+7. **Given** transactional logs contain error information, **When** analyzing failures, **Then** the system categorizes errors and provides context
 
 ---
 
@@ -311,131 +321,125 @@ As an API operations manager using WebMethods API Gateway, I need to collect and
 ### Functional Requirements
 
 #### Discovery & Monitoring
-- **FR-001**: System MUST automatically discover all APIs registered in connected API Gateways with comprehensive metadata including `policy_actions`, `api_definition`, OpenAPI specifications, and vendor-specific fields stored in `vendor_metadata`. **Initial phase: WebMethods integration via WebMethodsGatewayAdapter using models from `backend/app/models/webmethods/`.**
-- **FR-002**: System MUST detect shadow APIs (undocumented or unregistered APIs) by analyzing traffic patterns and Gateway logs, marking them with `is_shadow` flag in `intelligence_metadata`
-- **FR-003**: System MUST catalog discovered APIs with vendor-neutral structure including `policy_actions` (vendor-neutral types), `api_definition` (OpenAPI/Swagger), `endpoints`, `version_info`, `maturity_state`, `groups`, and intelligence plane fields in `intelligence_metadata` (`health_score`, `is_shadow`, `discovery_method`, `discovered_at`, `last_seen_at`)
-- **FR-004**: System MUST continuously monitor API health metrics in time-bucketed format (1m, 5m, 1h, 1d) including response times (avg/min/max/p50/p95/p99), error rates, throughput, availability, cache metrics, and timing breakdown (`gateway_time_avg`, `backend_time_avg`)
-- **FR-005**: System MUST support multiple API Gateway vendors through vendor-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter) that transform vendor data to vendor-neutral models. **Initial phase: Only WebMethodsGatewayAdapter implemented; Kong and Apigee deferred.**
+- **FR-001**: System MUST automatically discover all APIs registered in connected API Gateways with complete metadata including configurations, policies, and API specifications. **Initial phase: WebMethods integration only.**
+- **FR-002**: System MUST detect shadow APIs (undocumented or unregistered APIs) by analyzing traffic patterns and gateway logs
+- **FR-003**: System MUST catalog discovered APIs with comprehensive information including endpoints, versions, maturity state, groups, and health indicators
+- **FR-004**: System MUST continuously monitor API health metrics including response times, error rates, throughput, availability, and cache effectiveness
+- **FR-005**: System MUST support multiple API Gateway vendors with consistent functionality across all vendors. **Initial phase: WebMethods only; additional vendors in future releases.**
 - **FR-006**: System MUST complete discovery cycles for new or changed APIs within 5 minutes of deployment
-- **FR-077**: System MUST store metrics separately from API entities in time-bucketed OpenSearch indices (`metrics-1m`, `metrics-5m`, `metrics-1h`, `metrics-1d`) with `gateway_id` dimension
-- **FR-078**: System MUST use vendor-neutral `policy_actions` with `PolicyAction` model supporting vendor-specific configurations via `vendor_config` field
-- **FR-079**: System MUST NOT embed metrics in API entity; metrics queried separately from time-bucketed indices by `api_id` and `time_bucket`
-- **FR-080**: System MUST store vendor-specific fields in `vendor_metadata` dict for API model and TransactionalLog model
-- **FR-081**: System MUST use vendor-neutral field naming (`backend_time_avg` not `provider_time_avg`, `client_id` not `application_id`)
 
 #### Predictive Health Management
-- **FR-007**: System MUST analyze historical API performance data to identify patterns indicating potential failures using a single hybrid approach where rule-based analysis is followed by AI enhancement
-- **FR-008**: System MUST generate failure predictions 24-48 hours in advance with confidence scores and strongly-typed contributing factors
-- **FR-009**: System MUST provide recommended preventive actions with each prediction, categorized by contributing factor type
+- **FR-007**: System MUST analyze historical API performance data to identify patterns indicating potential failures
+- **FR-008**: System MUST generate failure predictions 24-48 hours in advance with confidence scores and root causes
+- **FR-009**: System MUST provide recommended preventive actions with each prediction
 - **FR-010**: System MUST track prediction accuracy and continuously improve prediction models
 - **FR-011**: System MUST account for seasonal patterns, expected traffic variations, and scheduled maintenance when generating predictions
 - **FR-012**: System MUST alert operations teams when prediction confidence exceeds configurable thresholds
-- **FR-012a**: System MUST apply AI enhancement to every generated prediction after rule-based prediction analysis completes
-- **FR-012b**: System MUST use 13 strongly-typed contributing factor categories: increasing_error_rate, degrading_response_time, gradual_response_time_increase, high_latency_under_load, spike_in_5xx_errors, spike_in_4xx_errors, timeout_rate_increasing, declining_availability, declining_throughput, rapid_request_growth, downstream_service_degradation, abnormal_traffic_pattern
-- **FR-012c**: System MUST gracefully fallback to rule-based predictions when AI enhancement fails or is unavailable while preserving per-prediction fallback metadata
 
 #### Security Scanning & Remediation
-- **FR-013**: System MUST continuously scan all discovered APIs for security vulnerabilities using hybrid approach (rule-based + AI-enhanced)
+- **FR-013**: System MUST continuously scan all discovered APIs for security vulnerabilities
 - **FR-014**: System MUST categorize vulnerabilities by severity (critical, high, medium, low) based on industry standards
-- **FR-015**: System MUST automatically remediate common vulnerabilities by applying security policies directly to the Gateway when automated remediation is enabled
-- **FR-016**: System MUST verify that automated remediation actions successfully resolve vulnerabilities through real re-scanning
+- **FR-015**: System MUST automatically remediate common vulnerabilities by applying security fixes directly to the gateway when automated remediation is enabled
+- **FR-016**: System MUST verify that automated remediation actions successfully resolve vulnerabilities
 - **FR-017**: System MUST create detailed remediation tickets for vulnerabilities requiring manual intervention
 - **FR-018**: System MUST rescan affected APIs within 1 hour when new vulnerabilities are published
 - **FR-019**: System MUST maintain an audit log of all security scans and remediation actions
-- **FR-019a**: System MUST use multi-source data analysis (API metadata, real-time metrics, traffic patterns) for accurate vulnerability detection
-- **FR-019b**: System MUST support applying 6 types of security policies to Gateway: authentication, authorization, TLS, CORS, validation, and security headers
-- **FR-019c**: System MUST track remediation actions with status, timestamps, Gateway policy IDs, and error messages
-- **FR-019d**: System MUST provide remediation actions that can be directly applied to Gateway APIs, policies, and configurations
-- **FR-019e**: System MUST send immediate alerts to security teams for critical vulnerabilities
-- **FR-019f**: System MUST prioritize vulnerabilities based on exploitability and business impact
+- **FR-020**: System MUST send immediate alerts to security teams for critical vulnerabilities
+- **FR-021**: System MUST prioritize vulnerabilities based on exploitability and business impact
 
 #### Compliance Monitoring & Audit Reporting
-- **FR-020**: System MUST continuously monitor all discovered APIs for compliance violations using AI-driven analysis
-- **FR-021**: System MUST detect compliance violations for GDPR, HIPAA, SOC2, PCI-DSS, and ISO 27001 standards
-- **FR-022**: System MUST categorize compliance violations by standard and severity
-- **FR-023**: System MUST generate comprehensive audit reports with evidence, timelines, and control effectiveness
-- **FR-024**: System MUST maintain complete audit trail of compliance status, violations, and remediation history
-- **FR-025**: System MUST verify data protection controls including encryption, access controls, and data retention policies
-- **FR-026**: System MUST update compliance rules when new regulations are published
-- **FR-027**: System MUST provide compliance posture dashboard with coverage percentage and audit readiness score
-- **FR-028**: System MUST support compliance report export for external auditors
-- **FR-029**: System MUST track compliance remediation with documentation suitable for audit evidence
-- **FR-030**: System MUST separate compliance violations from security vulnerabilities in reporting and UI
+- **FR-022**: System MUST continuously monitor all discovered APIs for compliance violations
+- **FR-023**: System MUST detect compliance violations for GDPR, HIPAA, SOC2, PCI-DSS, and ISO 27001 standards
+- **FR-024**: System MUST categorize compliance violations by standard and severity
+- **FR-025**: System MUST generate comprehensive audit reports with evidence, timelines, and control effectiveness
+- **FR-026**: System MUST maintain complete audit trail of compliance status, violations, and remediation history
+- **FR-027**: System MUST verify data protection controls including encryption, access controls, and data retention policies
+- **FR-028**: System MUST update compliance rules when new regulations are published
+- **FR-029**: System MUST provide compliance posture dashboard with coverage percentage and audit readiness score
+- **FR-030**: System MUST support compliance report export for external auditors
+- **FR-031**: System MUST track compliance remediation with documentation suitable for audit evidence
+- **FR-032**: System MUST separate compliance violations from security vulnerabilities in reporting and user interface
 
-#### Performance Optimization & Rate Limiting (MERGED)
-- **FR-031**: System MUST analyze API usage patterns to identify gateway-level optimization opportunities (caching, compression, rate limiting)
-- **FR-032**: System MUST generate specific optimization recommendations with estimated impact for each API
-- **FR-033**: System MUST prioritize recommendations by expected impact and implementation effort in a unified view
-- **FR-034**: System MUST measure and report performance improvements after optimizations are applied
-- **FR-035**: System MUST identify caching opportunities and estimate potential cache hit rates
-- **FR-036**: System MUST validate optimization effectiveness and adjust recommendations based on results
-- **FR-037**: System MUST support applying caching policies directly to the API Gateway via adapter interface
-- **FR-038**: System MUST support applying compression policies directly to the API Gateway via adapter interface
-- **FR-039**: System MUST support applying rate limiting policies directly to the API Gateway via adapter interface
+#### Performance Optimization & Rate Limiting
+- **FR-033**: System MUST analyze API usage patterns to identify optimization opportunities (caching, compression, rate limiting)
+- **FR-034**: System MUST generate specific optimization recommendations with estimated impact for each API
+- **FR-035**: System MUST prioritize recommendations by expected impact and implementation effort
+- **FR-036**: System MUST measure and report performance improvements after optimizations are applied
+- **FR-037**: System MUST identify caching opportunities and estimate potential cache hit rates
+- **FR-038**: System MUST validate optimization effectiveness and adjust recommendations based on results
+- **FR-039**: System MUST support applying optimizations directly to the API Gateway
 - **FR-040**: System MUST implement dynamic rate limiting that adapts to actual usage patterns
 - **FR-041**: System MUST detect and throttle abusive traffic patterns while maintaining legitimate user access
 - **FR-042**: System MUST support priority-based rate limiting for different API consumer tiers
 - **FR-043**: System MUST temporarily adjust rate limits to accommodate legitimate traffic bursts
 - **FR-044**: System MUST learn from traffic patterns and refine rate limiting strategies over time
-- **FR-045**: System MUST use hybrid approach (rule-based + AI-enhanced) for optimization recommendations
-- **FR-046**: System MUST enable AI-driven optimization mode via OPTIMIZATION_AI_ENABLED environment variable
-- **FR-047**: System MUST gracefully fallback to rule-based recommendations when AI enhancement fails
-- **FR-048**: System MUST present all optimization types (caching, compression, rate limiting) in a unified interface
+- **FR-045**: System MUST present all optimization types in a unified interface
 
 #### Natural Language Interface
-- **FR-049**: System MUST accept natural language queries about API health, performance, security, compliance, and predictions
-- **FR-050**: System MUST provide accurate, contextual answers with relevant data and visualizations
-- **FR-051**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
-- **FR-052**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
+- **FR-046**: System MUST accept natural language queries about API health, performance, security, compliance, and predictions
+- **FR-047**: System MUST provide accurate, contextual answers with relevant data and visualizations
+- **FR-048**: System MUST handle ambiguous queries by asking clarifying questions or providing multiple interpretations
+- **FR-049**: System MUST support common query patterns including status checks, trend analysis, and root cause investigation
 
-#### Analytics Integration (Vendor-Neutral)
-- **FR-063**: System MUST collect transactional logs from connected API Gateways every 5 minutes using vendor-specific adapters. **Initial phase: WebMethodsGatewayAdapter only.**
-- **FR-064**: System MUST store raw transactional logs in vendor-neutral format in OpenSearch with daily indices (transactional-logs-YYYY.MM.DD)
-- **FR-065**: System MUST aggregate transactional logs into time-bucketed metrics (1-minute, 5-minute, 1-hour, 1-day)
-- **FR-066**: System MUST calculate response time metrics (average, min, max, p50, p95, p99) from transactional data
-- **FR-067**: System MUST calculate error rates and categorize by error origin (backend, gateway, client, network)
-- **FR-068**: System MUST calculate throughput metrics (requests per second) per API and gateway
-- **FR-069**: System MUST calculate cache effectiveness metrics (hit/miss/bypass counts and rates) from transactional data
-- **FR-070**: System MUST track external service call performance with detailed timing and success metrics
-- **FR-071**: System MUST support drill-down from aggregated metrics to raw transactional logs
-- **FR-072**: System MUST segregate data by gateway_id dimension for multi-gateway deployments
-- **FR-073**: System MUST apply retention policies (1m: 24 hours, 5m: 7 days, 1h: 30 days, 1d: 90 days, raw logs: 90 days)
-- **FR-074**: System MUST provide API endpoints for querying metrics by gateway, API, client, operation, and time range
-- **FR-075**: System MUST handle missing or incomplete transactional log fields gracefully using optional fields
-- **FR-076**: System MUST validate transactional log data before storage and aggregation with field validators
+#### Analytics Integration
+- **FR-050**: System MUST collect transactional logs from connected API Gateways regularly. **Initial phase: WebMethods only.**
+- **FR-051**: System MUST store transactional logs for analysis and reporting
+- **FR-052**: System MUST aggregate transactional data into metrics at multiple time resolutions
+- **FR-053**: System MUST calculate response time metrics (average, percentiles) from transactional data
+- **FR-054**: System MUST calculate error rates and categorize by error origin
+- **FR-055**: System MUST calculate throughput metrics per API and gateway
+- **FR-056**: System MUST calculate cache effectiveness metrics from transactional data
+- **FR-057**: System MUST track external service call performance
+- **FR-058**: System MUST support drill-down from aggregated metrics to individual transactions
+- **FR-059**: System MUST segregate data by gateway for multi-gateway deployments
+- **FR-060**: System MUST apply automatic data retention policies
+- **FR-061**: System MUST provide query capabilities by gateway, API, client, operation, and time range
+- **FR-062**: System MUST handle missing or incomplete data gracefully
 
-#### Multi-Vendor Support (Vendor-Neutral with Adapters)
-- **FR-053**: System MUST support multiple API Gateway vendors through vendor-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter). **Initial phase: Only WebMethodsGatewayAdapter implemented.**
-- **FR-054**: System MUST transform data from all gateway vendors into vendor-neutral structures: `api.py:API` (API metadata), `metric.py:Metric` (time-bucketed metrics), and `transaction.py:TransactionalLog` (raw events)
-- **FR-055**: System MUST handle vendor-specific capabilities through `vendor_metadata` dict in API, Metric, and TransactionalLog models, and `vendor_config` in PolicyAction
-- **FR-056**: System MUST maintain consistent intelligence plane functionality (predictions, security, compliance, optimization) regardless of source gateway vendor
-- **FR-057**: System MUST provide policy application interface using vendor-neutral `PolicyAction` model with vendor-specific configurations in `vendor_config` field
-- **FR-082**: System MUST use vendor-specific adapters (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter) for all gateway integration (no direct integration). **Initial phase: Only WebMethodsGatewayAdapter implemented; Kong and Apigee deferred.**
-- **FR-083**: Gateway adapters MUST implement transformation methods that convert vendor-specific API data to vendor-neutral `API` model with proper `vendor_metadata` population. **Initial phase: WebMethodsGatewayAdapter transforms from wm_api.py models.**
-- **FR-084**: Gateway adapters MUST implement transformation methods that convert vendor-specific metrics to vendor-neutral `Metric` model with time-bucketed structure
-- **FR-085**: Gateway adapters MUST implement transformation methods that convert vendor-specific transactional logs to vendor-neutral `TransactionalLog` model. **Initial phase: WebMethodsGatewayAdapter transforms from wm_transaction.py.**
-- **FR-086**: Gateway adapters MUST support collecting transactional logs from vendor gateways for analytics integration
-- **FR-087**: Gateway adapters MUST transform vendor-specific policy configurations to vendor-neutral `PolicyAction` model and vice versa. **Initial phase: WebMethodsGatewayAdapter transforms from wm_policy_action.py models.**
+#### Multi-Vendor Support
+- **FR-063**: System MUST support multiple API Gateway vendors with consistent functionality. **Initial phase: WebMethods only; additional vendors in future releases.**
+- **FR-064**: System MUST transform data from all gateway vendors into a standardized format
+- **FR-065**: System MUST handle vendor-specific capabilities while maintaining consistent user experience
+- **FR-066**: System MUST maintain consistent intelligence plane functionality (predictions, security, compliance, optimization) regardless of gateway vendor
+- **FR-067**: System MUST support applying policies and configurations to different gateway vendors
+
+#### External Integration Interface (MCP Server)
+- **FR-073**: System MUST provide a unified external integration interface for AI agents and automation tools
+- **FR-074**: System MUST expose all platform capabilities through the integration interface
+- **FR-075**: System MUST support programmatic access to gateway management, API discovery, metrics, security, compliance, predictions, and optimization features
+- **FR-076**: System MUST provide natural language query capabilities through the integration interface
+- **FR-077**: System MUST maintain consistent authentication and authorization for external integrations
+- **FR-078**: System MUST provide health monitoring and status information for the integration interface
+- **FR-079**: System MUST support multiple concurrent external connections without performance degradation
 
 #### Data & Persistence
-- **FR-058**: System MUST persist API inventory, health metrics, predictions, security findings, compliance violations, and optimization recommendations
-- **FR-059**: System MUST retain historical data for trend analysis and model training for at least 90 days
-- **FR-060**: System MUST support data export for compliance and external analysis
-- **FR-061**: System MUST ensure data integrity and consistency across all operations
-- **FR-062**: System MUST maintain separate storage for security vulnerabilities and compliance violations
+- **FR-068**: System MUST persist API inventory, health metrics, predictions, security findings, compliance violations, and optimization recommendations
+- **FR-069**: System MUST retain historical data for trend analysis and model training for at least 90 days
+- **FR-070**: System MUST support data export for compliance and external analysis
+- **FR-071**: System MUST ensure data integrity and consistency across all operations
+- **FR-072**: System MUST maintain separate storage for security vulnerabilities and compliance violations
 
 ### Key Entities
 
-- **API**: Represents a vendor-neutral API with comprehensive OpenAPI definition structure including `api_definition` (OpenAPI/Swagger), `policy_actions` (vendor-neutral types with `vendor_config`), `endpoints`, `version_info`, and vendor-specific metadata in `vendor_metadata`. Enhanced with intelligence plane fields in `intelligence_metadata`: `health_score`, `is_shadow`, `discovery_method`, `discovered_at`, `last_seen_at`, `risk_score`, `security_score`. **Does NOT include** embedded metrics (stored separately). All gateway vendors transform to this structure via adapters. **Initial phase: WebMethodsGatewayAdapter transforms from wm_api.py models.**
-- **Gateway**: Represents a connected API Gateway with vendor information, connection details, capabilities, and associated APIs. Supports multiple vendors through adapter pattern (WebMethodsGatewayAdapter, KongGatewayAdapter, ApigeeGatewayAdapter). **Initial phase: Only webMethods gateways supported.** Credentials are optional and can be configured separately for `base_url` and `transactional_logs_url`, allowing for different authentication methods or no authentication for each endpoint.
-- **Metric**: Represents time-bucketed aggregated metrics (1m, 5m, 1h, 1d) with dimensions (`gateway_id`, `api_id`, `application_id`, `operation`, `timestamp`, `time_bucket`) and calculated values (response times with avg/min/max/p50/p95/p99, error rates, throughput, cache metrics with hit/miss/bypass counts and rates, timing breakdown with `gateway_time_avg`/`backend_time_avg`, HTTP status code breakdown). Stored separately from API entities in time-bucketed OpenSearch indices. Includes optional per-endpoint breakdown via `endpoint_metrics`.
-- **Prediction**: Represents a failure prediction with target API, predicted failure time, confidence score, contributing factors, recommended actions, and per-prediction AI enhancement metadata with graceful fallback details
-- **Vulnerability**: Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions (excludes compliance violations)
-- **ComplianceViolation**: Represents a compliance violation with affected API, compliance standard (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001), violation type, evidence, audit trail, and remediation documentation
-- **Optimization Recommendation**: Represents a performance optimization opportunity (caching, compression, or rate limiting) with target API, recommendation type, estimated impact, implementation effort, and validation results
-- **Query**: Represents a natural language query with original text, interpreted intent, results, and user feedback
-- **TransactionalLog**: Represents a vendor-neutral raw transactional event with comprehensive fields including timing metrics (`timestamp`, `total_time_ms`, `backend_time_ms`, `gateway_time_ms`), request/response data, external calls, error information, client information, and gateway/API identifiers. Vendor-specific fields stored in `vendor_metadata`. Defined in `transaction.py`. **Initial phase: WebMethodsGatewayAdapter transforms from wm_transaction.py.**
-- **ExternalCall**: Represents an external service call within a transaction with call type, URL, method, timing, status code, success flag, request/response sizes, and error message
+- **API**: Represents a discovered API with its definition, endpoints, version information, policies, and health indicators. Includes intelligence metrics like health score, shadow API detection, and risk assessment. **Initial phase: WebMethods APIs only.**
+
+- **Gateway**: Represents a connected API Gateway instance with vendor information, connection details, and capabilities. Supports multiple gateway vendors. **Initial phase: WebMethods gateways only.**
+
+- **Metric**: Represents performance measurements for APIs including response times, error rates, throughput, availability, and cache effectiveness. Available at multiple time resolutions for different analysis needs.
+
+- **Prediction**: Represents a failure prediction with target API, predicted failure time, confidence score, root causes, and recommended preventive actions.
+
+- **Vulnerability**: Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions.
+
+- **ComplianceViolation**: Represents a compliance violation with affected API, compliance standard (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001), violation type, evidence, audit trail, and remediation documentation.
+
+- **Optimization Recommendation**: Represents a performance optimization opportunity (caching, compression, or rate limiting) with target API, recommendation type, estimated impact, implementation effort, and validation results.
+
+- **Query**: Represents a natural language query with original text, interpreted intent, results, and user feedback.
+
+- **TransactionalLog**: Represents an individual API transaction with timing information, request/response data, external service calls, error information, and client details.
+
+- **ExternalCall**: Represents an external service call made during an API transaction, including timing, status, and error information.
 
 ## Success Criteria *(mandatory)*
 
@@ -463,42 +467,47 @@ As an API operations manager using WebMethods API Gateway, I need to collect and
 - **SC-020**: Multi-gateway deployments maintain data segregation with zero cross-contamination
 - **SC-021**: Retention policies are enforced automatically with 99.9% accuracy
 - **SC-022**: System processes at least 10,000 transactional events per minute per gateway
+- **SC-023**: External integration interface responds to requests within 2 seconds for 95% of operations
+- **SC-024**: External integration interface supports at least 10 concurrent AI agent connections
+- **SC-025**: External integration interface provides access to 100% of platform capabilities
 
 ## Assumptions
 
-1. **Gateway Access**: Organizations have administrative access to their API Gateways and can provide necessary credentials for integration via vendor-specific adapters. **Initial phase: webMethods API Gateway access required.**
-2. **Network Connectivity**: The API Intelligence Plane can establish network connections to connected API Gateways (webMethods, Kong, Apigee, etc.). **Initial phase: webMethods connectivity required.**
+1. **Gateway Access**: Organizations have administrative access to their API Gateways and can provide necessary credentials for integration. **Initial phase: WebMethods API Gateway access required.**
+2. **Network Connectivity**: The API Intelligence Plane can establish network connections to connected API Gateways. **Initial phase: WebMethods connectivity required.**
 3. **Data Volume**: Individual APIs handle between 100 to 100,000 requests per minute, with total system capacity for millions of requests per minute across all APIs
-4. **Historical Data**: At least 7 days of historical API metrics are available in time-bucketed format (1m, 5m, 1h, 1d) for initial model training
-5. **Remediation Authority**: The system has appropriate permissions to apply automated remediation actions and optimization policies through vendor-specific adapters
-6. **Gateway Capabilities**: All supported API Gateways provide REST APIs for API management, policy actions, metrics collection, and transactional logs. Vendor-specific adapters handle transformation to vendor-neutral models. **Initial phase: webMethods API Gateway REST APIs required.**
+4. **Historical Data**: At least 7 days of historical API metrics are available for initial model training
+5. **Remediation Authority**: The system has appropriate permissions to apply automated remediation actions and optimization policies
+6. **Gateway Capabilities**: All supported API Gateways provide APIs for management, policy application, and metrics collection. **Initial phase: WebMethods API Gateway required.**
 7. **User Expertise**: Users have basic understanding of API concepts and operations, though technical expertise is not required for natural language interface
 8. **Deployment Model**: The system can be deployed as a cloud service, on-premises installation, or hybrid configuration based on organizational requirements
-9. **Vendor Cooperation**: All supported API Gateway vendors provide stable APIs and documentation. Vendor-specific adapters maintained for each supported gateway. **Initial phase: webMethods API Gateway documentation and stable APIs required.**
+9. **Vendor Cooperation**: All supported API Gateway vendors provide stable APIs and documentation. **Initial phase: WebMethods API Gateway required.**
 10. **Compliance**: Organizations have appropriate data handling and privacy policies in place for API traffic analysis
-11. **Policy Application**: All supported API Gateways support policy actions for security, optimization, and compliance. Vendor-specific adapters transform vendor-neutral `PolicyAction` to gateway-specific policies. **Initial phase: webMethods policy actions supported.**
-12. **Vendor-Neutral Architecture**: The system uses vendor-neutral data models with vendor-specific adapters for gateway integration, ensuring consistent functionality across all vendors. **Initial phase: WebMethodsGatewayAdapter implemented using models from `backend/app/models/webmethods/`; Kong and Apigee adapters deferred.**
+11. **Policy Application**: All supported API Gateways support policy actions for security, optimization, and compliance. **Initial phase: WebMethods policy actions supported.**
 
 ## Dependencies
 
-1. **API Gateway Integrations**: Requires integration libraries or SDKs for each supported Gateway vendor with policy management capabilities. **Initial phase: webMethods integration libraries required.**
+1. **API Gateway Access**: Requires access to API Gateway management interfaces. **Initial phase: WebMethods API Gateway required.**
 2. **Machine Learning Infrastructure**: Requires computational resources for training and running prediction models
-3. **Time Series Database**: Requires high-performance time series database for storing and querying API metrics
+3. **Data Storage**: Requires storage infrastructure for API metrics, logs, and historical data
 4. **Natural Language Processing**: Requires NLP capabilities for query understanding and response generation
-5. **Security Vulnerability Database**: Requires access to current vulnerability databases and security advisories
+5. **Security Intelligence**: Requires access to current vulnerability databases and security advisories
 6. **Monitoring Infrastructure**: Requires infrastructure for continuous data collection and processing
-7. **Authentication System**: Requires secure authentication and authorization for system access and Gateway connections
+7. **Authentication System**: Requires secure authentication and authorization for system access and gateway connections
 8. **Notification System**: Requires notification infrastructure for alerts and predictions
+9. **External Integration Protocol**: Requires support for external integration protocols for AI agent connectivity
+
+**Technical Implementation Details**: For specific technology stack, database schemas, and integration patterns, see the [Technical Context section in plan.md](./plan.md).
 
 ## Out of Scope
 
 1. **API Development**: This system monitors and manages existing APIs but does not provide API development or design tools
 2. **Gateway Replacement**: This system complements existing API Gateways but does not replace them
 3. **Application Performance Monitoring**: This system focuses on API-level monitoring, not application-level code profiling
-4. **Custom Gateway Development**: This system integrates with existing Gateways but does not provide custom Gateway implementation
+4. **Custom Gateway Development**: This system integrates with existing gateways but does not provide custom gateway implementation
 5. **API Marketplace**: This system does not provide API discovery or marketplace features for external API consumers
 6. **Billing and Monetization**: This system does not handle API billing, usage-based pricing, or revenue management
 7. **API Documentation Generation**: This system catalogs APIs but does not generate or host API documentation
 8. **Load Testing**: This system monitors production traffic but does not provide load testing or synthetic monitoring capabilities
-9. **Backend Service Optimization**: This system focuses on gateway-level optimizations only; backend service optimizations (query optimization, connection pooling, resource allocation) are out of scope
+9. **Backend Service Optimization**: This system focuses on gateway-level optimizations; backend service optimizations are out of scope
 10. **Cost Savings Calculation**: The system does not calculate or track cost savings from optimization recommendations

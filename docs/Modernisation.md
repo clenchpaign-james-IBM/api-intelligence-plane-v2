@@ -32,7 +32,7 @@ The API Intelligence Plane represents a **greenfield modern microservices archit
 - **HTTP Client**: Axios 1.7+
 - **Code Quality**: ESLint 9.15+, Prettier 3.3+
 
-### Demo Gateway (Native Implementation)
+### Gateway (Native Implementation)
 - **Framework**: Spring Boot 3.2.11 (Java 17)
 - **Database Client**: OpenSearch Java Client 2.18
 - **Metrics**: Micrometer 1.12+ (Prometheus integration)
@@ -78,21 +78,21 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 |-------|----------------------|-------|
 | **Modern Python Backend** | `backend/requirements.txt` (FastAPI 0.115+, Python 3.11+) | Latest stable versions, no legacy dependencies |
 | **Modern React Frontend** | `frontend/package.json` (React 18.3+, Vite 6.0+) | Vite (not Webpack), modern build tooling |
-| **Modern Java Gateway** | `demo-gateway/pom.xml` (Spring Boot 3.2.11, Java 17) | Latest Spring Boot 3.x, no legacy Spring versions |
+| **Modern Java Gateway** | `gateway/pom.xml` (Spring Boot 3.2.11, Java 17) | Latest Spring Boot 3.x, no legacy Spring versions |
 | **AI/ML Integration** | `backend/requirements.txt` (LangChain 0.3+, LangGraph 0.2+, LiteLLM 1.52+) | Modern AI orchestration frameworks |
 | **MCP Protocol Support** | `mcp-servers/requirements.txt` (FastMCP 3.0+, MCP 1.1+) | Cutting-edge Model Context Protocol |
 | **Microservices Architecture** | `docker-compose.yml` (6 services: opensearch, backend, frontend, 3x mcp, gateway) | Clear service separation |
-| **Container-First** | `backend/Dockerfile`, `frontend/Dockerfile`, `demo-gateway/Dockerfile` | Multi-stage builds, non-root users |
+| **Container-First** | `backend/Dockerfile`, `frontend/Dockerfile`, `gateway/Dockerfile` | Multi-stage builds, non-root users |
 | **Modern TypeScript** | `frontend/tsconfig.json`, `frontend/package.json` (TS 5.7+) | Latest TypeScript with strict mode |
 | **Modern State Management** | `frontend/package.json` (TanStack Query 5.62+) | Modern server state management (not Redux) |
 | **Modern CSS** | `frontend/package.json` (Tailwind CSS 3.4+) | Utility-first CSS framework |
 | **Modern Testing** | `backend/requirements.txt` (pytest 8.3+), `frontend/package.json` (vitest 2.1+) | Modern test frameworks |
-| **Modern Build Tools** | `frontend/package.json` (Vite 6.0+), `demo-gateway/pom.xml` (Maven 3.9+) | Latest build tooling |
+| **Modern Build Tools** | `frontend/package.json` (Vite 6.0+), `gateway/pom.xml` (Maven 3.9+) | Latest build tooling |
 | **Modern Database** | `docker-compose.yml` (OpenSearch 2.18) | Modern search/analytics engine |
 | **Modern Security** | `backend/requirements.txt` (cryptography 44.0+), `docs/tls-deployment.md` | TLS 1.3, FIPS 140-3 |
 | **Modern Async** | `backend/requirements.txt` (aiohttp 3.11+, httpx 0.28+) | Async-first HTTP clients |
 | **Modern Scheduling** | `backend/requirements.txt` (APScheduler 3.10+) | Modern job scheduling |
-| **Modern Metrics** | `demo-gateway/pom.xml` (Micrometer 1.12+) | Modern observability |
+| **Modern Metrics** | `gateway/pom.xml` (Micrometer 1.12+) | Modern observability |
 | **Modern Code Quality** | `backend/requirements.txt` (Black 24.10+, mypy 1.13+), `frontend/package.json` (ESLint 9.15+) | Latest linting/formatting tools |
 
 ---
@@ -115,7 +115,7 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
        │                   │                    │
        ▼                   ▼                    ▼
 ┌─────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ OpenSearch  │  │  Demo Gateway    │  │  MCP Servers     │
+│ OpenSearch  │  │  Gateway    │  │  MCP Servers     │
 │   2.18      │  │  (Spring Boot)   │  │  (FastMCP)       │
 └─────────────┘  └──────────────────┘  └──────────────────┘
 ```
@@ -136,7 +136,7 @@ This is a **modern-first greenfield project**, not a modernization/migration. Ke
 - Tailwind CSS for styling
 - Recharts for data visualization
 
-**Demo Gateway (Java 17)**
+**Gateway (Java 17)**
 - Spring Boot 3.2 (latest stable)
 - OpenSearch Java Client
 - Micrometer for metrics

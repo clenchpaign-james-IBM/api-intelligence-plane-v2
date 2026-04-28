@@ -39,10 +39,7 @@ docker-compose ps
 # - opensearch (port 9200)
 # - backend (port 8000)
 # - frontend (port 3000)
-# - demo-gateway (port 8080)
-# - mcp-discovery (port 8001)
-# - mcp-metrics (port 8002)
-# - mcp-optimization (port 8004)
+# - mcp-unified (port 8007)
 ```
 
 ### 3. Wait for Services to Initialize
@@ -55,7 +52,6 @@ docker-compose logs -f
 # - "OpenSearch is ready"
 # - "Application startup complete" (backend)
 # - "Local: http://localhost:3000/" (frontend)
-# - "Started GatewayApplication" (demo-gateway)
 
 # Press Ctrl+C to stop following logs
 ```
@@ -505,8 +501,7 @@ docker-compose logs -f
 # Specific service
 docker-compose logs -f backend
 docker-compose logs -f frontend
-docker-compose logs -f demo-gateway
-docker-compose logs -f mcp-discovery
+docker-compose logs -f mcp-unified
 
 # Last 100 lines
 docker-compose logs --tail=100 backend

@@ -16,7 +16,7 @@ Successfully implemented **comprehensive improvements** for Phase 5: User Story 
 5. ✅ `backend/app/adapters/native_gateway.py` - Implemented all 6 security methods
 6. ✅ `backend/app/config.py` - Added security configuration
 
-### Demo Gateway (Java) - 7 files created
+### Gateway (Java) - 7 files created
 1. ✅ `AuthenticationPolicy.java` - OAuth2, JWT, API keys (165 lines)
 2. ✅ `AuthorizationPolicy.java` - RBAC, ABAC (165 lines)
 3. ✅ `TlsPolicy.java` - HTTPS enforcement, TLS versions (165 lines)
@@ -62,7 +62,7 @@ Successfully implemented **comprehensive improvements** for Phase 5: User Story 
 ### 4. Real Remediation & Verification ✅
 **Problem**: Simulated remediation with fake actions  
 **Solution**: Real Gateway adapter integration
-- Applies actual policies to Demo Gateway via REST API
+- Applies actual policies to Gateway via REST API
 - Tracks policy IDs and error messages
 - Re-scans API after remediation for verification
 
@@ -110,7 +110,7 @@ API Metadata + Metrics + Traffic Analysis
            ↓
     Automated Remediation → Gateway Adapter
            ↓
-    Policy Application → Demo Gateway
+    Policy Application → Gateway
            ↓
     Verification → Re-scan
 ```
@@ -169,7 +169,7 @@ API Metadata + Metrics + Traffic Analysis
 
 ### Lines of Code
 - **Backend Python**: ~2,000 lines modified/added
-- **Demo Gateway Java**: ~1,310 lines created
+- **Gateway Java**: ~1,310 lines created
 - **Frontend TypeScript**: ~50 lines modified
 - **Tests**: ~900 lines created
 - **Documentation**: ~900 lines created
@@ -197,7 +197,7 @@ API Metadata + Metrics + Traffic Analysis
 - [x] Real remediation actions via Gateway adapter
 - [x] Compliance detection (GDPR, HIPAA, PCI-DSS, SOC2)
 - [x] Verification through re-scanning
-- [x] Demo Gateway policy endpoints (6 endpoints)
+- [x] Gateway policy endpoints (6 endpoints)
 - [x] Gateway adapter security methods (6 methods)
 - [x] Comprehensive test coverage (900+ lines)
 - [x] Frontend type definitions updated
@@ -212,8 +212,8 @@ cd backend
 pytest tests/integration/test_security_scanning.py -v
 pytest tests/e2e/test_remediation_workflow.py -v
 
-# Demo Gateway
-cd demo-gateway
+# Gateway
+cd gateway
 mvn clean test
 mvn package
 
@@ -235,7 +235,7 @@ kubectl apply -f k8s/
 
 ### 3. Verify Deployment
 1. Check backend health: `curl http://localhost:8000/health`
-2. Check Demo Gateway: `curl http://localhost:8080/actuator/health`
+2. Check Gateway: `curl http://localhost:8080/actuator/health`
 3. Check frontend: `curl http://localhost:3000`
 4. Run security scan: `POST /api/v1/security/scan/{api_id}`
 5. Verify compliance detection in response
@@ -252,7 +252,7 @@ kubectl apply -f k8s/
 All requested improvements and next steps have been successfully implemented:
 
 ✅ **Backend**: Hybrid scanning, real remediation, compliance detection  
-✅ **Demo Gateway**: 6 security policy classes + controller with 6 endpoints  
+✅ **Gateway**: 6 security policy classes + controller with 6 endpoints  
 ✅ **Frontend**: Enhanced TypeScript types for compliance and remediation  
 ✅ **Tests**: Comprehensive integration and E2E test coverage  
 ✅ **Documentation**: Complete implementation summary and guides  

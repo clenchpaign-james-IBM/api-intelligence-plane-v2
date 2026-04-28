@@ -63,7 +63,7 @@ API Intelligence Plane is an AI-driven API management platform that transforms A
     ┌──────┴──────┐     ┌─────┴─────┐     ┌──────┴──────┐
     ▼             ▼     ▼           ▼     ▼             ▼
 ┌─────────┐  ┌─────────────────────────┐  ┌──────────────────┐
-│OpenSearch│ │  LLM Providers          │  │  Demo Gateway    │
+│OpenSearch│ │  LLM Providers          │  │  Gateway    │
 │  (Data   │ │  (OpenAI, Anthropic,    │  │  (Spring Boot)   │
 │  Store)  │ │   Azure, etc.)          │  │  Native API      │
 │          │ │  via LiteLLM            │  │  Gateway Impl    │
@@ -97,12 +97,12 @@ API Intelligence Plane is an AI-driven API management platform that transforms A
 |-----------|---------------|------------|------|----------|
 | **Frontend** | User interface, visualization, interaction | React 18, TypeScript, Vite | 3000 | Yes |
 | **Backend API** | Business logic, orchestration, data processing | FastAPI, Python 3.11+ | 8000 | Yes |
-| **Demo Gateway** | Native API Gateway implementation | Spring Boot 3.2, Java 17 | 8080 | Yes |
+| **Gateway** | Native API Gateway implementation | Spring Boot 3.2, Java 17 | 8080 | Yes |
 | **OpenSearch** | Data persistence, search, analytics | OpenSearch 2.11+ | 9200 | Yes |
 | **LLM Providers** | AI-powered analysis and predictions | OpenAI, Anthropic, Azure | N/A | Optional |
 | **MCP Servers** | Protocol adapters for external AI agents | FastMCP, Python 3.11+ | 8001-8004 | Optional |
 
-**Note**: MCP servers are **optional** components that enable external AI agents (like Bob IDE or Claude Desktop) to interact with the platform. The core application (Frontend + Backend + Demo Gateway + OpenSearch) functions independently without MCP servers.
+**Note**: MCP servers are **optional** components that enable external AI agents (like Bob IDE or Claude Desktop) to interact with the platform. The core application (Frontend + Backend + Gateway + OpenSearch) functions independently without MCP servers.
 
 ---
 
@@ -206,7 +206,7 @@ src/
 - Security scans: Every 1 hour
 - Optimization analysis: Every 30 minutes
 
-### 3. Demo Gateway (Spring Boot)
+### 3. Gateway (Spring Boot)
 
 **Purpose**: Native API Gateway implementation for testing and demonstration
 
@@ -337,7 +337,7 @@ async def discover_apis(gateway_id: str) -> dict:
        │                 │
        ▼                 ▼
 ┌──────────────┐  ┌──────────────┐
-│  OpenSearch  │  │ Demo Gateway │
+│  OpenSearch  │  │ Gateway │
 │  (Storage)   │  │ (APIs)       │
 └──────────────┘  └──────────────┘
 ```
@@ -624,7 +624,7 @@ async def discover_apis(
 - **HTTP Client**: Axios 1.6+
 - **Code Quality**: ESLint 8.56+, Prettier 3.1+, TypeScript 5.3+
 
-### Demo Gateway
+### Gateway
 - **Framework**: Spring Boot 3.2+
 - **Database**: OpenSearch Java Client 2.8+
 - **Metrics**: Micrometer 1.12+
@@ -736,7 +736,7 @@ All operations are logged with:
    - Transport: HTTP/HTTPS
    - Purpose: Data persistence and search
 
-3. **Backend ↔ Demo Gateway**
+3. **Backend ↔ Gateway**
    - Protocol: REST API (JSON)
    - Authentication: None (MVP)
    - Transport: HTTP/HTTPS
@@ -788,7 +788,7 @@ Docker Compose (Core Application)
 ├── opensearch (9200)
 ├── backend (8000)
 ├── frontend (3000)
-└── demo-gateway (8080)
+└── gateway (8080)
 
 Optional (for AI agent integration):
 ├── mcp-discovery (8001)
@@ -803,7 +803,7 @@ Kubernetes Cluster
 ├── Namespace: api-intelligence-plane
 │   ├── Deployment: backend (3 replicas)
 │   ├── Deployment: frontend (2 replicas)
-│   ├── Deployment: demo-gateway (2 replicas)
+│   ├── Deployment: gateway (2 replicas)
 │   ├── StatefulSet: opensearch (3 nodes)
 │   ├── Service: backend-service
 │   ├── Service: frontend-service

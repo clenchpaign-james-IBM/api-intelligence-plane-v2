@@ -149,7 +149,7 @@ api-intelligence-plane-v2/
 │       ├── services/    # API clients
 │       └── hooks/       # Custom hooks
 ├── mcp-servers/         # MCP servers (optional)
-├── demo-gateway/        # Java Spring Boot gateway
+├── gateway/        # Java Spring Boot gateway
 ├── docs/                # Documentation
 └── specs/               # Feature specifications
 ```
@@ -300,7 +300,7 @@ export function MetricsCard({ apiId, metrics }: MetricsCardProps) {
 }
 ```
 
-### Java (Demo Gateway)
+### Java (Gateway)
 
 #### Style Guide
 

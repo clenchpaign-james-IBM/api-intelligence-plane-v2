@@ -19,14 +19,14 @@ This is a distributed web application with microservices architecture:
 - **Backend**: `backend/app/`
 - **Frontend**: `frontend/src/`
 - **MCP Servers**: `mcp-servers/`
-- **Demo Gateway**: `demo-gateway/src/main/java/`
+- **Gateway**: `gateway/src/main/java/`
 - **Tests**: `tests/integration/` and `tests/e2e/`
 
-## Phase 0: Vendor-Neutral Model Refactoring (IN PROGRESS)
+## Phase 0: Vendor-Neutral Model Refactoring
 
 **Purpose**: Refactor entire application to use vendor-neutral data models for API, Metric, and TransactionalLog
 
-**Status**: MODELS COMPLETE - Application refactoring IN PROGRESS
+**Status**: MOSTLY COMPLETE ✅
 
 **🔴 DATA MIGRATION DECISION**: **FRESH DATA APPROACH - NO MIGRATION** 🔴
 - **Decision**: Starting with fresh data instead of migrating from old indices
@@ -54,15 +54,27 @@ This is a distributed web application with microservices architecture:
 - ✅ Updated specification documents (spec.md, plan.md, tasks.md)
 - ✅ Updated Gateway model to support separate optional credentials for base_url and transactional_logs_url (2026-04-10)
 
+**Completed Sections**:
+- ✅ 0.2: Model Updates (5 tasks)
+- ✅ 0.3: Import Path Updates (42 tasks)
+- ✅ 0.4: Service Layer Rewrite (10 tasks)
+- ✅ 0.5: Adapter Layer Implementation (4 tasks)
+- ✅ 0.6: Repository Layer Updates (4 tasks)
+- ✅ 0.7: Database Index Schemas (6 tasks)
+- ✅ 0.8: Agent Layer Updates (4 tasks)
+- ✅ 0.9: API Endpoint Updates (4 tasks)
+- ✅ 0.10: Frontend Complete Rewrite (12 tasks)
+- ⚠️ 0.11: Testing & Validation (1/3 tasks - T090-R complete)
+- ✅ 0.12: Documentation (4 tasks)
+- ✅ 0.13: Final Validation (3/5 tasks)
+
 **Remaining Work**:
-- Import path updates (50+ files)
-- Service layer logic refactoring (complete rewrite of API/Metric creation logic)
-- Adapter layer implementation (WebMethods adapter from scratch)
-- Repository layer updates (new query patterns for time-bucketed metrics)
-- API endpoint updates (new response structures)
-- Frontend complete rewrite (new TypeScript interfaces and components)
-- Database migrations (new index structures)
-- Comprehensive testing (integration and E2E)
+- Integration tests need updates (T091-R) - 2 days
+- E2E tests need updates (T092-R) - 1 day
+- Security issues must be fixed - 5.75 days
+- Performance benchmarks must be executed - 1 day
+
+**Estimated Time to Production**: 2-4 weeks
 
 ---
 
@@ -93,12 +105,12 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-### 0.3: Import Path Updates (Week 1: 5 days)
+### 0.3: Import Path Updates (Week 1: 5 days) ✅ COMPLETED
 
 **Purpose**: Update all import statements from `app.models.X` to `app.models.base.X`
 **Status**: COMPLETE ✅
 **Complexity**: LOW - Mechanical changes only
-**Files to Update**: 50+ files (42 files updated)
+**Files Updated**: 42 files
 **Breaking Changes**: YES - Code will not run until Service Layer is also updated
 
 **Critical Note**: Import updates alone will break the application because:
@@ -289,10 +301,12 @@ This is a distributed web application with microservices architecture:
 ---
 
 
+### 0.4: Service Layer Complete Rewrite (Week 2-3: 10 days) ✅ COMPLETED
+
 **Purpose**: Rewrite service layer logic to work with new vendor-neutral models
-**Status**: NOT STARTED
+**Status**: COMPLETE ✅
 **Complexity**: VERY HIGH - Complete logic rewrite required
-**Files to Update**: 8 service files
+**Files Updated**: 8 service files
 **Breaking Changes**: YES - Changes how APIs and Metrics are created and queried
 
 **Key Changes Required**:
@@ -424,12 +438,12 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-### 0.5: Adapter Layer Implementation (Week 4: 5 days)
+### 0.5: Adapter Layer Implementation (Week 4: 5 days) ✅ COMPLETED
 
 **Purpose**: Implement vendor-specific adapters that transform to vendor-neutral models
-**Status**: NOT STARTED
+**Status**: COMPLETE ✅
 **Complexity**: VERY HIGH - New WebMethods adapter from scratch
-**Files to Create/Update**: 3 adapter files
+**Files Created/Updated**: 4 adapter files
 **Breaking Changes**: YES - Changes how data is collected from gateways
 
 #### Base Adapter Enhancement (1 day)
@@ -787,10 +801,10 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-### 0.11: Testing & Validation (Week 9: 5 days)
+### 0.11: Testing & Validation (Week 9: 5 days) ⚠️ IN PROGRESS
 
 **Purpose**: Comprehensive testing of refactored application
-**Status**: IN PROGRESS (T090-R COMPLETE)
+**Status**: IN PROGRESS (T090-R COMPLETE, T091-R and T092-R PENDING)
 **Complexity**: HIGH - Test all layers and integrations
 **Files to Update**: 20+ test files
 
@@ -841,12 +855,12 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-### 0.12: Documentation (Week 9: 3 days)
+### 0.12: Documentation (Week 9: 3 days) ✅ COMPLETED
 
 **Purpose**: Update all documentation for new architecture
-**Status**: NOT STARTED
+**Status**: COMPLETE ✅
 **Complexity**: MEDIUM - Documentation updates
-**Files to Update**: 10+ documentation files
+**Files Updated**: 4 documentation files
 
 - [x] T097-R [P] [REFACTOR] Update docs/architecture.md for vendor-neutral design
   - **Changes**:
@@ -897,10 +911,10 @@ This is a distributed web application with microservices architecture:
 
 ---
 
-### 0.13: Final Validation & Deployment (Week 9-10: 5 days)
+### 0.13: Final Validation & Deployment (Week 9-10: 5 days) ⚠️ IN PROGRESS
 
 **Purpose**: Final validation and production deployment
-**Status**: IN PROGRESS
+**Status**: IN PROGRESS (3/5 tasks complete)
 **Complexity**: HIGH - Production deployment
 **Risk**: HIGH - Production impact
 
@@ -977,24 +991,25 @@ This is a distributed web application with microservices architecture:
 ## Phase 0 Summary
 
 **Total Duration**: 9 weeks (50 days)
-**Total Tasks**: 101 tasks
+**Total Tasks**: 105 tasks
+**Status**: MOSTLY COMPLETE ✅
 **Complexity**: VERY HIGH
 **Risk**: HIGH
 
 **Task Breakdown by Section**:
 - 0.1: Preparation & Planning: 5 tasks (SKIPPED)
-- 0.2: Model Updates: 5 tasks (COMPLETED)
-- 0.3: Import Path Updates: 36 tasks (5 days)
-- 0.4: Service Layer Rewrite: 10 tasks (10 days)
-- 0.5: Adapter Layer Implementation: 4 tasks (5 days)
-- 0.6: Repository Layer Updates: 4 tasks (5 days)
-- 0.7: Database Migrations: 6 tasks (2 days)
-- 0.8: Agent Layer Updates: 4 tasks (4 days)
-- 0.9: API Endpoint Updates: 4 tasks (3 days)
-- 0.10: Frontend Rewrite: 12 tasks (10 days)
-- 0.11: Testing & Validation: 3 tasks (5 days)
-- 0.12: Documentation: 4 tasks (3 days)
-- 0.13: Final Validation: 5 tasks (5 days)
+- 0.2: Model Updates: 5 tasks ✅ (COMPLETED)
+- 0.3: Import Path Updates: 42 tasks ✅ (COMPLETED)
+- 0.4: Service Layer Rewrite: 10 tasks ✅ (COMPLETED)
+- 0.5: Adapter Layer Implementation: 4 tasks ✅ (COMPLETED)
+- 0.6: Repository Layer Updates: 4 tasks ✅ (COMPLETED)
+- 0.7: Database Index Schemas: 6 tasks ✅ (COMPLETED)
+- 0.8: Agent Layer Updates: 4 tasks ✅ (COMPLETED)
+- 0.9: API Endpoint Updates: 4 tasks ✅ (COMPLETED)
+- 0.10: Frontend Rewrite: 12 tasks ✅ (COMPLETED)
+- 0.11: Testing & Validation: 3 tasks ⚠️ (1/3 complete - T090-R done)
+- 0.12: Documentation: 4 tasks ✅ (COMPLETED)
+- 0.13: Final Validation: 5 tasks ⚠️ (3/5 complete)
 
 **Critical Path**:
 1. Import Updates (Week 1)
@@ -1006,11 +1021,19 @@ This is a distributed web application with microservices architecture:
 7. Testing + Documentation (Week 9)
 8. Final Validation + Deployment (Week 9-10)
 
-**Risks**:
-- Application will be broken during Weeks 1-6 (import updates through adapter implementation)
-- Frontend will be broken during Weeks 1-8 (until frontend rewrite complete)
-- Starting with fresh data means no historical data preservation
-- Production deployment requires careful validation
+**Critical Blockers for Production**:
+1. Integration tests need updates (T091-R) - 2 days
+2. E2E tests need updates (T092-R) - 1 day
+3. Security issues must be fixed - 5.75 days
+4. Performance benchmarks must be executed - 1 day
+
+**Estimated Time to Production**: 2-4 weeks
+
+**Risks Mitigated**:
+- ✅ Application refactoring complete - all layers functional
+- ✅ Frontend rewrite complete - UI fully operational
+- ✅ Fresh data approach successful - no migration issues
+- ⚠️ Production deployment blocked by test updates and security fixes
 
 **Recommendations**:
 1. **Feature Branch**: Work on dedicated branch, merge only when complete
@@ -1336,10 +1359,10 @@ This is a distributed web application with microservices architecture:
 
 **Purpose**: Project initialization and basic structure
 
-- [X] T001 Create project directory structure per plan.md (backend/, frontend/, mcp-servers/, demo-gateway/, tests/, config/, k8s/, docs/)
+- [X] T001 Create project directory structure per plan.md (backend/, frontend/, mcp-servers/, gateway/, tests/, config/, k8s/, docs/)
 - [X] T002 Initialize Python backend project with requirements.txt (FastAPI, LangChain, LangGraph, FastMCP, LiteLLM, OpenSearch client, APScheduler, pytest)
 - [X] T003 [P] Initialize React frontend project with package.json (React 18, Vite, React Router, TanStack Query, Recharts, Tailwind CSS, TypeScript)
-- [X] T004 [P] Initialize Java Demo Gateway project with pom.xml (Spring Boot 3.2, OpenSearch Java client, Micrometer)
+- [X] T004 [P] Initialize Java Gateway project with pom.xml (Spring Boot 3.2, OpenSearch Java client, Micrometer)
 - [X] T005 [P] Create Docker Compose configuration in docker-compose.yml for local development
 - [X] T006 [P] Create environment configuration template in .env.example
 - [X] T007 [P] Setup linting and formatting tools (Black, isort, flake8 for Python; ESLint, Prettier for TypeScript)
@@ -1406,13 +1429,13 @@ This is a distributed web application with microservices architecture:
 - [X] T042 [P] Create shared OpenSearch client for MCP servers in mcp-servers/common/opensearch.py
 - [X] T043 [P] Setup MCP server health endpoint template in mcp-servers/common/health.py
 
-### Demo Gateway Foundation
+### Gateway Foundation
 
-- [X] T044 Create Spring Boot application entry point in demo-gateway/src/main/java/com/example/gateway/GatewayApplication.java
-- [X] T045 [P] Configure OpenSearch connection in demo-gateway/src/main/resources/application.yml
-- [X] T046 [P] Create base API model in demo-gateway/src/main/java/com/example/gateway/model/API.java
-- [X] T047 [P] Create base Policy model in demo-gateway/src/main/java/com/example/gateway/model/Policy.java
-- [X] T048 [P] Setup OpenSearch repository in demo-gateway/src/main/java/com/example/gateway/repository/APIRepository.java
+- [X] T044 Create Spring Boot application entry point in gateway/src/main/java/com/example/gateway/GatewayApplication.java
+- [X] T045 [P] Configure OpenSearch connection in gateway/src/main/resources/application.yml
+- [X] T046 [P] Create base API model in gateway/src/main/java/com/example/gateway/model/API.java
+- [X] T047 [P] Create base Policy model in gateway/src/main/java/com/example/gateway/model/Policy.java
+- [X] T048 [P] Setup OpenSearch repository in gateway/src/main/java/com/example/gateway/repository/APIRepository.java
 
 ### Frontend Foundation
 
@@ -1430,7 +1453,7 @@ This is a distributed web application with microservices architecture:
 
 **Goal**: Automatically discover all APIs (including shadow APIs) and continuously monitor their health
 
-**Independent Test**: Connect to Demo Gateway, observe automatic discovery of APIs, view real-time health metrics on dashboard
+**Independent Test**: Connect to Gateway, observe automatic discovery of APIs, view real-time health metrics on dashboard
 
 ### Backend - Discovery Service
 
@@ -1462,13 +1485,13 @@ This is a distributed web application with microservices architecture:
 - [X] T070 [P] [US1] Implement get_metrics_timeseries tool in mcp-servers/metrics_server.py per mcp-tools.md
 - [X] T071 [P] [US1] Implement analyze_trends tool in mcp-servers/metrics_server.py per mcp-tools.md
 
-### Demo Gateway - API Management
+### Gateway - API Management
 
-- [X] T072 [US1] Implement Gateway info endpoint in demo-gateway/src/main/java/com/example/gateway/controller/GatewayController.java (GET /gateway/info, GET /gateway/capabilities)
-- [X] T073 [US1] Implement API management endpoints in demo-gateway/src/main/java/com/example/gateway/controller/APIController.java (POST, GET, PUT, DELETE /apis)
-- [X] T074 [US1] Implement API service layer in demo-gateway/src/main/java/com/example/gateway/service/APIService.java
-- [X] T075 [US1] Implement metrics collection in demo-gateway/src/main/java/com/example/gateway/service/MetricsService.java
-- [X] T076 [US1] Implement metrics export endpoint in demo-gateway/src/main/java/com/example/gateway/controller/MetricsController.java (GET /metrics/apis, GET /metrics/apis/{id})
+- [X] T072 [US1] Implement Gateway info endpoint in gateway/src/main/java/com/example/gateway/controller/GatewayController.java (GET /gateway/info, GET /gateway/capabilities)
+- [X] T073 [US1] Implement API management endpoints in gateway/src/main/java/com/example/gateway/controller/APIController.java (POST, GET, PUT, DELETE /apis)
+- [X] T074 [US1] Implement API service layer in gateway/src/main/java/com/example/gateway/service/APIService.java
+- [X] T075 [US1] Implement metrics collection in gateway/src/main/java/com/example/gateway/service/MetricsService.java
+- [X] T076 [US1] Implement metrics export endpoint in gateway/src/main/java/com/example/gateway/controller/MetricsController.java (GET /metrics/apis, GET /metrics/apis/{id})
 
 ### Frontend - Dashboard & API Views
 
@@ -1532,8 +1555,7 @@ This is a distributed web application with microservices architecture:
 
 ### MCP - Optimization Server (Predictions)
 
-- [X] T102 [US2] Create Optimization MCP server in mcp-servers/optimization_server.py with FastMCP
-- [X] T103 [P] [US2] Implement generate_predictions tool in mcp-servers/optimization_server.py per mcp-tools.md
+- [X] T102-103 [US2] OBSOLETE - Migrated to unified_server.py
 
 ### Frontend - Predictions View
 
@@ -1584,22 +1606,19 @@ This is a distributed web application with microservices architecture:
 - [X] T117a [US3] Add 6 abstract security policy methods to backend/app/adapters/base.py (authentication, authorization, TLS, CORS, validation, security headers)
 - [X] T117b [US3] Implement 6 security policy methods in backend/app/adapters/native_gateway.py
 
-### Demo Gateway - Security Policies
+### Gateway - Security Policies
 
-- [X] T117c [US3] Create AuthenticationPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117d [US3] Create AuthorizationPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117e [US3] Create TlsPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117f [US3] Create CorsPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117g [US3] Create ValidationPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117h [US3] Create SecurityHeadersPolicy.java in demo-gateway/src/main/java/com/example/gateway/policy/
-- [X] T117i [US3] Create SecurityPolicyController.java with 6 REST endpoints in demo-gateway/src/main/java/com/example/gateway/controller/
+- [X] T117c [US3] Create AuthenticationPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117d [US3] Create AuthorizationPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117e [US3] Create TlsPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117f [US3] Create CorsPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117g [US3] Create ValidationPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117h [US3] Create SecurityHeadersPolicy.java in gateway/src/main/java/com/example/gateway/policy/
+- [X] T117i [US3] Create SecurityPolicyController.java with 6 REST endpoints in gateway/src/main/java/com/example/gateway/controller/
 
 ### MCP - Security Server
 
-- [X] T118 [US3] Create Security MCP server in mcp-servers/security_server.py with FastMCP
-- [X] T119 [P] [US3] Implement scan_api_security tool in mcp-servers/security_server.py per mcp-tools.md
-- [X] T120 [P] [US3] Implement remediate_vulnerability tool in mcp-servers/security_server.py per mcp-tools.md
-- [X] T121 [P] [US3] Implement get_security_posture tool in mcp-servers/security_server.py per mcp-tools.md
+- [X] T118-121 [US3] OBSOLETE - Migrated to unified_server.py
 
 ### Frontend - Security View
 
@@ -1655,10 +1674,7 @@ This is a distributed web application with microservices architecture:
 
 ### MCP - Compliance Server
 
-- [X] T128k [US4] Create Compliance MCP server in mcp-servers/compliance_server.py with FastMCP
-- [X] T128l [P] [US4] Implement scan_api_compliance tool in mcp-servers/compliance_server.py per mcp-tools.md
-- [X] T128m [P] [US4] Implement generate_audit_report tool in mcp-servers/compliance_server.py per mcp-tools.md
-- [X] T128n [P] [US4] Implement get_compliance_posture tool in mcp-servers/compliance_server.py per mcp-tools.md
+- [X] T128k-n [US4] OBSOLETE - Migrated to unified_server.py
 
 ### Frontend - Compliance View
 
@@ -1725,9 +1741,7 @@ This is a distributed web application with microservices architecture:
 
 ### MCP - Unified Optimization Server
 
-- [x] T136 [P] [US4] Implement generate_optimization_recommendations tool in mcp-servers/optimization_server.py per mcp-tools.md
-- [X] T136a [P] [US4] Implement manage_rate_limit tool in mcp-servers/optimization_server.py (already exists)
-- [X] T136b [P] [US4] Implement analyze_rate_limit_effectiveness tool in mcp-servers/optimization_server.py (already exists)
+- [x] T136 [P] [US4] OBSOLETE - All optimization tools migrated to unified_server.py
 
 ### Frontend - Unified Optimization View
 
@@ -1766,10 +1780,10 @@ This is a distributed web application with microservices architecture:
 - [x] T148 [US4] Implement apply_compression_policy() in backend/app/adapters/native_gateway.py
 - [x] T149 [US4] Implement remove_caching_policy() in backend/app/adapters/native_gateway.py
 - [x] T150 [US4] Implement remove_compression_policy() in backend/app/adapters/native_gateway.py
-- [x] T151 [US4] Add caching policy endpoint to demo-gateway/src/main/java/com/example/gateway/controller/PolicyController.java
-- [x] T152 [US4] Add compression policy endpoint to demo-gateway/src/main/java/com/example/gateway/controller/PolicyController.java
-- [x] T153 [US4] Implement caching policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java
-- [x] T154 [US4] Implement compression policy engine in demo-gateway/src/main/java/com/example/gateway/policy/CompressionPolicy.java
+- [x] T151 [US4] Add caching policy endpoint to gateway/src/main/java/com/example/gateway/controller/PolicyController.java
+- [x] T152 [US4] Add compression policy endpoint to gateway/src/main/java/com/example/gateway/controller/PolicyController.java
+- [x] T153 [US4] Implement caching policy engine in gateway/src/main/java/com/example/gateway/policy/CachingPolicy.java
+- [x] T154 [US4] Implement compression policy engine in gateway/src/main/java/com/example/gateway/policy/CompressionPolicy.java
 
 **Checkpoint**: User Story 5 complete - Unified performance optimization with policy application works independently
 
@@ -1849,7 +1863,7 @@ This is a distributed web application with microservices architecture:
 - [ ] T187 [P] Create Backend Kubernetes manifests in k8s/backend/
 - [ ] T188 [P] Create Frontend Kubernetes manifests in k8s/frontend/
 - [ ] T189 [P] Create MCP servers Kubernetes manifests in k8s/mcp-servers/
-- [ ] T190 [P] Create Demo Gateway Kubernetes manifests in k8s/demo-gateway/
+- [ ] T190 [P] Create Gateway Kubernetes manifests in k8s/gateway/
 - [ ] T191 [P] Create production Docker Compose file in docker-compose.prod.yml
 
 ### Testing & Validation
@@ -2066,13 +2080,13 @@ This is a distributed web application with microservices architecture:
 - [X] T303 [P] [US7] Implement GET /api/v1/analytics/logs endpoint (query raw transactional logs)
 - [X] T304 [P] [US7] Add gateway_id, api_id, application_id, time_range query parameters to all endpoints
 
-### Demo Gateway - Transactional Logs API
+### Gateway - Transactional Logs API
 
-- [X] T305 [US7] Create TransactionalLogController in demo-gateway/src/main/java/com/example/gateway/controller/TransactionalLogController.java
+- [X] T305 [US7] Create TransactionalLogController in gateway/src/main/java/com/example/gateway/controller/TransactionalLogController.java
 - [X] T306 [US7] Implement GET /gateway/logs endpoint (return transactional events)
-- [X] T307 [US7] Implement TransactionalLogService in demo-gateway/src/main/java/com/example/gateway/service/TransactionalLogService.java
-- [X] T308 [US7] Add transactional event generation logic to demo-gateway (capture all API requests)
-- [X] T309 [P] [US7] Store transactional events in OpenSearch from demo-gateway
+- [X] T307 [US7] Implement TransactionalLogService in gateway/src/main/java/com/example/gateway/service/TransactionalLogService.java
+- [X] T308 [US7] Add transactional event generation logic to gateway (capture all API requests)
+- [X] T309 [P] [US7] Store transactional events in OpenSearch from gateway
 
 ### Frontend - Analytics Dashboard
 
@@ -2158,7 +2172,7 @@ This is a distributed web application with microservices architecture:
 - Agents before schedulers
 - Backend endpoints before frontend components
 - MCP tools can be developed in parallel with backend services
-- Demo Gateway features can be developed in parallel with backend
+- Gateway features can be developed in parallel with backend
 - Frontend components marked [P] can be developed in parallel
 
 ### Parallel Opportunities

@@ -577,7 +577,7 @@ async def discover_apis(
 - **HTTP Client**: Axios 1.6+
 - **Code Quality**: ESLint 8.56+, Prettier 3.1+, TypeScript 5.3+
 
-### Demo Gateway
+### Gateway
 - **Framework**: Spring Boot 3.2+
 - **Database**: OpenSearch Java Client 2.8+
 - **Metrics**: Micrometer 1.12+
@@ -689,7 +689,7 @@ All operations are logged with:
    - Transport: HTTP/HTTPS
    - Purpose: Data persistence and search
 
-3. **Backend ↔ Demo Gateway**
+3. **Backend ↔ Gateway**
    - Protocol: REST API (JSON)
    - Authentication: None (MVP)
    - Transport: HTTP/HTTPS
@@ -762,12 +762,10 @@ Docker Compose (Core Application)
 ├── opensearch (9200)
 ├── backend (8000)
 ├── frontend (3000)
-└── demo-gateway (8080)
+└── gateway (8080)
 
 Optional (for AI agent integration):
-├── mcp-discovery (8001)
-├── mcp-metrics (8002)
-└── mcp-optimization (8004)
+└── mcp-unified (8007)
 ```
 
 ### Production Environment (Kubernetes)
@@ -777,7 +775,7 @@ Kubernetes Cluster
 ├── Namespace: api-intelligence-plane
 │   ├── Deployment: backend (3 replicas)
 │   ├── Deployment: frontend (2 replicas)
-│   ├── Deployment: demo-gateway (2 replicas)
+│   ├── Deployment: gateway (2 replicas)
 │   ├── StatefulSet: opensearch (3 nodes)
 │   ├── Service: backend-service
 │   ├── Service: frontend-service

@@ -1,867 +1,726 @@
 # Data Model: API Intelligence Plane
 
-**Date**: 2026-03-09  
+**Date**: 2026-04-28  
 **Feature**: API Intelligence Plane  
 **Phase**: 1 - Design & Contracts
 
 ## Overview
 
-This document defines the core entities, their attributes, relationships, validation rules, and state transitions for the API Intelligence Plane system. All entities are stored in OpenSearch with appropriate mappings and indices.
+This document defines the core data entities for the API Intelligence Plane system. All entities are stored in OpenSearch with vendor-neutral schemas that support multi-gateway deployments.
 
 ---
 
-## Entity Definitions
+## Core Entities
 
 ### 1. API
 
-Represents a discovered API with metadata, health metrics, security status, and performance characteristics.
+Represents a discovered API with its definition, endpoints, version information, policies, and health indicators.
 
-#### Attributes
+**Index**: `api-inventory`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `gateway_id` | string (UUID) | Yes | Reference to parent Gateway | Must exist in Gateway collection |
-| `name` | string | Yes | API name | 1-255 characters, alphanumeric + spaces |
-| `version` | string | No | API version | Semantic versioning (e.g., "1.2.3") |
-| `base_path` | string | Yes | Base URL path | Valid URL path format |
-| `endpoints` | array[Endpoint] | Yes | List of API endpoints | At least 1 endpoint |
-| `methods` | array[string] | Yes | HTTP methods supported | Valid HTTP methods (GET, POST, etc.) |
-| `authentication_type` | enum | Yes | Auth mechanism | One of: none, basic, bearer, oauth2, api_key, custom |
-| `authentication_config` | object | No | Auth configuration | JSON object, encrypted if contains secrets |
-| `ownership` | object | No | Ownership information | Contains: team, contact, repository |
-| `tags` | array[string] | No | Categorization tags | Max 20 tags, each 1-50 characters |
-| `is_shadow` | boolean | Yes | Shadow API flag | Default: false |
-| `discovery_method` | enum | Yes | How API was found | One of: registered, traffic_analysis, log_analysis |
-| `discovered_at` | timestamp | Yes | Discovery timestamp | ISO 8601 format |
-| `last_seen_at` | timestamp | Yes | Last activity timestamp | ISO 8601 format |
-| `status` | enum | Yes | Current status | One of: active, inactive, deprecated, failed |
-| `health_score` | float | Yes | Overall health (0-100) | 0.0 to 100.0 |
-| `current_metrics` | object | Yes | Latest metrics snapshot | See Metrics structure |
-| `metadata` | object | No | Additional metadata | JSON object, max 10KB |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-
-#### Endpoint Structure
-
-```json
+**Schema**:
+```python
 {
-  "path": "/users/{id}",
-  "method": "GET",
-  "description": "Get user by ID",
-  "parameters": [
-    {
-      "name": "id",
-      "type": "path",
-      "data_type": "integer",
-      "required": true
-    }
-  ],
-  "response_codes": [200, 404, 500]
+    "api_id": str,                    # Unique identifier (UUID)
+    "gateway_id": str,                # Reference to Gateway entity
+    "name": str,                      # API name
+    "version": str,                   # API version (e.g., "1.0.0")
+    "description": str,               # API description
+    "base_path": str,                 # Base URL path (e.g., "/api/v1/users")
+    "endpoints": [                    # List of endpoints
+        {
+            "path": str,              # Endpoint path
+            "method": str,            # HTTP method (GET, POST, etc.)
+            "description": str,       # Endpoint description
+            "parameters": [...]       # Request parameters
+        }
+    ],
+    "maturity_state": str,            # "active", "deprecated", "beta", "alpha"
+    "groups": [str],                  # API groups/tags
+    "policies": [                     # Applied policies
+        {
+            "policy_id": str,
+            "policy_type": str,       # "authentication", "rate_limit", etc.
+            "policy_action": str,     # Vendor-neutral action name
+            "configuration": dict     # Vendor-neutral config
+        }
+    ],
+    "openapi_spec": dict,             # OpenAPI 3.0 specification
+    "health_indicators": {
+        "health_score": float,        # 0-100 health score
+        "availability": float,        # Percentage uptime
+        "avg_response_time": float,   # Milliseconds
+        "error_rate": float,          # Percentage
+        "last_check": str             # ISO 8601 timestamp
+    },
+    "is_shadow_api": bool,            # True if undocumented/unregistered
+    "shadow_detection": {
+        "confidence": float,          # 0-1 confidence score
+        "detection_method": str,      # "traffic_analysis", "log_analysis"
+        "detected_at": str            # ISO 8601 timestamp
+    },
+    "risk_assessment": {
+        "risk_level": str,            # "critical", "high", "medium", "low"
+        "risk_factors": [str],        # List of risk factors
+        "last_assessed": str          # ISO 8601 timestamp
+    },
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str,                # ISO 8601 timestamp
+    "discovered_at": str              # ISO 8601 timestamp
 }
 ```
 
-#### Current Metrics Structure
+**Relationships**:
+- Belongs to one Gateway
+- Has many Metrics
+- Has many Predictions
+- Has many Vulnerabilities
+- Has many ComplianceViolations
+- Has many OptimizationRecommendations
+- Has many TransactionalLogs
 
-```json
-{
-  "response_time_p50": 45.2,
-  "response_time_p95": 120.5,
-  "response_time_p99": 250.0,
-  "error_rate": 0.02,
-  "throughput": 1500,
-  "availability": 99.95,
-  "last_error": "2026-03-09T10:30:00Z",
-  "measured_at": "2026-03-09T15:00:00Z"
-}
-```
+**Validation Rules**:
+- `api_id` must be unique
+- `gateway_id` must reference existing Gateway
+- `version` must follow semantic versioning
+- `health_score` must be 0-100
+- `maturity_state` must be one of: "active", "deprecated", "beta", "alpha"
 
-#### Relationships
-
-- **Belongs to**: One Gateway (many-to-one)
-- **Has many**: Metrics (one-to-many)
-- **Has many**: Predictions (one-to-many)
-- **Has many**: Vulnerabilities (one-to-many)
-- **Has many**: Optimization Recommendations (one-to-many)
-- **Has many**: Rate Limit Policies (one-to-many)
-
-#### State Transitions
-
-```
-discovered → active → inactive
-         ↓         ↓
-    deprecated ← failed
-```
-
-- **discovered → active**: When API responds successfully
-- **active → inactive**: When no traffic for 24 hours
-- **active → failed**: When health score < 20 or error rate > 50%
-- **active → deprecated**: Manual marking or Gateway indication
-- **inactive → active**: When traffic resumes
-- **failed → active**: When health restored
-
-#### Validation Rules
-
-1. `base_path` must start with `/`
-2. `endpoints` array cannot be empty
-3. `health_score` must be between 0 and 100
-4. `error_rate` must be between 0 and 1
-5. `availability` must be between 0 and 100
-6. `last_seen_at` must be >= `discovered_at`
-7. `updated_at` must be >= `created_at`
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "gateway_id": { "type": "keyword" },
-      "name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-      "version": { "type": "keyword" },
-      "base_path": { "type": "keyword" },
-      "endpoints": { "type": "nested" },
-      "methods": { "type": "keyword" },
-      "authentication_type": { "type": "keyword" },
-      "tags": { "type": "keyword" },
-      "is_shadow": { "type": "boolean" },
-      "discovery_method": { "type": "keyword" },
-      "discovered_at": { "type": "date" },
-      "last_seen_at": { "type": "date" },
-      "status": { "type": "keyword" },
-      "health_score": { "type": "float" },
-      "current_metrics": { "type": "object" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" }
-    }
-  }
-}
-```
+**State Transitions**:
+- New → Active (after successful discovery)
+- Active → Deprecated (manual or automated deprecation)
+- Active → Inactive (API removed from gateway)
+- Beta/Alpha → Active (promotion)
 
 ---
 
 ### 2. Gateway
 
-Represents a connected API Gateway with vendor information, connection details, capabilities, and associated APIs.
+Represents a connected API Gateway instance with vendor information, connection details, and capabilities.
 
-#### Attributes
+**Index**: `gateway-registry`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `name` | string | Yes | Gateway name | 1-255 characters |
-| `vendor` | enum | Yes | Gateway vendor | One of: native, kong, apigee, aws, azure, custom |
-| `version` | string | No | Gateway version | Semantic versioning |
-| `connection_url` | string | Yes | Gateway API endpoint | Valid HTTPS URL |
-| `connection_type` | enum | Yes | Connection method | One of: rest_api, grpc, graphql |
-| `credentials` | object | Yes | Authentication credentials | Encrypted, contains: type, username, password, api_key, token |
-| `capabilities` | array[string] | Yes | Supported features | List of capability names |
-| `status` | enum | Yes | Connection status | One of: connected, disconnected, error, maintenance |
-| `last_connected_at` | timestamp | No | Last successful connection | ISO 8601 format |
-| `last_error` | string | No | Last error message | Max 1000 characters |
-| `api_count` | integer | Yes | Number of APIs | Non-negative integer |
-| `metrics_enabled` | boolean | Yes | Metrics collection enabled | Default: true |
-| `security_scanning_enabled` | boolean | Yes | Security scanning enabled | Default: true |
-| `rate_limiting_enabled` | boolean | Yes | Rate limiting enabled | Default: false |
-| `configuration` | object | No | Vendor-specific config | JSON object, max 50KB |
-| `metadata` | object | No | Additional metadata | JSON object, max 10KB |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-
-#### Capabilities List
-
-```
-- api_discovery
-- metrics_collection
-- log_streaming
-- policy_management
-- rate_limiting
-- authentication_management
-- ssl_termination
-- caching
-- transformation
-- monitoring
-```
-
-#### Relationships
-
-- **Has many**: APIs (one-to-many)
-- **Has many**: Metrics (one-to-many, aggregated)
-
-#### State Transitions
-
-```
-disconnected → connected → maintenance
-     ↑              ↓
-     └──── error ←──┘
-```
-
-- **disconnected → connected**: Successful connection established
-- **connected → error**: Connection failure or timeout
-- **connected → maintenance**: Manual maintenance mode
-- **error → connected**: Connection restored
-- **maintenance → connected**: Maintenance complete
-
-#### Validation Rules
-
-1. `connection_url` must be HTTPS (except localhost)
-2. `credentials` must be encrypted at rest
-3. `api_count` must match actual API count
-4. `capabilities` must be non-empty
-5. `last_connected_at` must be <= current time
-
-#### OpenSearch Mapping
-
-```json
+**Schema**:
+```python
 {
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-      "vendor": { "type": "keyword" },
-      "version": { "type": "keyword" },
-      "connection_url": { "type": "keyword" },
-      "connection_type": { "type": "keyword" },
-      "capabilities": { "type": "keyword" },
-      "status": { "type": "keyword" },
-      "last_connected_at": { "type": "date" },
-      "api_count": { "type": "integer" },
-      "metrics_enabled": { "type": "boolean" },
-      "security_scanning_enabled": { "type": "boolean" },
-      "rate_limiting_enabled": { "type": "boolean" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" }
-    }
-  }
+    "gateway_id": str,                # Unique identifier (UUID)
+    "name": str,                      # Gateway name
+    "vendor": str,                    # "webmethods", "kong", "apigee"
+    "version": str,                   # Gateway version
+    "base_url": str,                  # Gateway management API URL
+    "connection_details": {
+        "host": str,
+        "port": int,
+        "protocol": str,              # "http", "https"
+        "auth_type": str,             # "basic", "token", "oauth2"
+        "credentials_ref": str        # Reference to secure credential store
+    },
+    "capabilities": {
+        "supports_discovery": bool,
+        "supports_metrics": bool,
+        "supports_policy_application": bool,
+        "supports_transactional_logs": bool,
+        "supported_policy_types": [str]
+    },
+    "status": str,                    # "connected", "disconnected", "error"
+    "health": {
+        "last_check": str,            # ISO 8601 timestamp
+        "response_time": float,       # Milliseconds
+        "error_message": str          # If status is "error"
+    },
+    "statistics": {
+        "total_apis": int,
+        "active_apis": int,
+        "shadow_apis": int,
+        "total_requests_24h": int
+    },
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str,                # ISO 8601 timestamp
+    "last_sync": str                  # ISO 8601 timestamp
 }
 ```
+
+**Relationships**:
+- Has many APIs
+- Has many Metrics
+- Has many TransactionalLogs
+
+**Validation Rules**:
+- `gateway_id` must be unique
+- `vendor` must be one of supported vendors
+- `base_url` must be valid URL
+- `status` must be one of: "connected", "disconnected", "error"
 
 ---
 
 ### 3. Metric
 
-Represents time-series performance metrics for APIs.
+Represents performance measurements for APIs at multiple time resolutions.
 
-#### Attributes
+**Indices**: 
+- `api-metrics-1min-{YYYY.MM}` (1-minute resolution, 7-day retention)
+- `api-metrics-5min-{YYYY.MM}` (5-minute resolution, 30-day retention)
+- `api-metrics-1hour-{YYYY.MM}` (1-hour resolution, 90-day retention)
+- `api-metrics-1day-{YYYY.MM}` (1-day resolution, 365-day retention)
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `api_id` | string (UUID) | Yes | Reference to API | Must exist in API collection |
-| `gateway_id` | string (UUID) | Yes | Reference to Gateway | Must exist in Gateway collection |
-| `timestamp` | timestamp | Yes | Metric timestamp | ISO 8601 format |
-| `response_time_p50` | float | Yes | 50th percentile (ms) | Non-negative |
-| `response_time_p95` | float | Yes | 95th percentile (ms) | Non-negative |
-| `response_time_p99` | float | Yes | 99th percentile (ms) | Non-negative |
-| `error_rate` | float | Yes | Error rate (0-1) | 0.0 to 1.0 |
-| `error_count` | integer | Yes | Total errors | Non-negative |
-| `request_count` | integer | Yes | Total requests | Positive |
-| `throughput` | float | Yes | Requests per second | Non-negative |
-| `availability` | float | Yes | Availability % | 0.0 to 100.0 |
-| `status_codes` | object | Yes | Status code distribution | Key: code, Value: count |
-| `endpoint_metrics` | array[object] | No | Per-endpoint metrics | Optional breakdown |
-| `metadata` | object | No | Additional metrics | JSON object |
-
-#### Relationships
-
-- **Belongs to**: One API (many-to-one)
-- **Belongs to**: One Gateway (many-to-one)
-
-#### Validation Rules
-
-1. `response_time_p99` >= `response_time_p95` >= `response_time_p50`
-2. `error_rate` = `error_count` / `request_count`
-3. `request_count` > 0
-4. `timestamp` must be within last 90 days (retention policy)
-
-#### OpenSearch Mapping
-
-```json
+**Schema**:
+```python
 {
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "api_id": { "type": "keyword" },
-      "gateway_id": { "type": "keyword" },
-      "timestamp": { "type": "date" },
-      "response_time_p50": { "type": "float" },
-      "response_time_p95": { "type": "float" },
-      "response_time_p99": { "type": "float" },
-      "error_rate": { "type": "float" },
-      "error_count": { "type": "integer" },
-      "request_count": { "type": "integer" },
-      "throughput": { "type": "float" },
-      "availability": { "type": "float" },
-      "status_codes": { "type": "object" }
+    "metric_id": str,                 # Unique identifier (UUID)
+    "gateway_id": str,                # Reference to Gateway
+    "api_id": str,                    # Reference to API
+    "timestamp": str,                 # ISO 8601 timestamp (bucket start)
+    "time_bucket": str,               # "1min", "5min", "1hour", "1day"
+    "response_time": {
+        "avg": float,                 # Average response time (ms)
+        "p50": float,                 # 50th percentile
+        "p95": float,                 # 95th percentile
+        "p99": float,                 # 99th percentile
+        "max": float,                 # Maximum response time
+        "min": float                  # Minimum response time
+    },
+    "error_rate": {
+        "total_requests": int,
+        "failed_requests": int,
+        "error_percentage": float,
+        "errors_by_code": {           # HTTP status code distribution
+            "4xx": int,
+            "5xx": int
+        }
+    },
+    "throughput": {
+        "requests_per_second": float,
+        "total_requests": int,
+        "bytes_sent": int,
+        "bytes_received": int
+    },
+    "availability": {
+        "uptime_percentage": float,
+        "downtime_seconds": int
+    },
+    "cache_effectiveness": {
+        "cache_hits": int,
+        "cache_misses": int,
+        "cache_hit_rate": float       # Percentage
+    },
+    "external_calls": {               # Calls to external services
+        "total_calls": int,
+        "avg_duration": float,
+        "failed_calls": int
     }
-  }
 }
 ```
 
-**Index Pattern**: `api-metrics-{YYYY.MM}` (monthly rotation)
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
+
+**Validation Rules**:
+- `timestamp` must be aligned to time bucket boundary
+- All percentages must be 0-100
+- All counts must be non-negative
 
 ---
 
 ### 4. Prediction
 
-Represents a failure prediction with target API, predicted failure time, confidence score, contributing factors, and recommended actions.
+Represents a failure prediction with target API, predicted failure time, confidence score, and recommended actions.
 
-#### Attributes
+**Index**: `api-predictions`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `api_id` | string (UUID) | Yes | Target API | Must exist in API collection |
-| `prediction_type` | enum | Yes | Type of prediction | One of: failure, degradation, capacity, security |
-| `predicted_at` | timestamp | Yes | When prediction made | ISO 8601 format |
-| `predicted_time` | timestamp | Yes | When event expected | ISO 8601 format, 24-48h from predicted_at |
-| `confidence_score` | float | Yes | Confidence (0-1) | 0.0 to 1.0 |
-| `severity` | enum | Yes | Impact severity | One of: critical, high, medium, low |
-| `status` | enum | Yes | Prediction status | One of: active, resolved, false_positive, expired |
-| `contributing_factors` | array[object] | Yes | Factors leading to prediction | At least 1 factor |
-| `recommended_actions` | array[string] | Yes | Suggested remediation | At least 1 action |
-| `actual_outcome` | enum | No | What actually happened | One of: occurred, prevented, false_alarm |
-| `actual_time` | timestamp | No | When event occurred | ISO 8601 format |
-| `accuracy_score` | float | No | Prediction accuracy | 0.0 to 1.0, calculated post-event |
-| `model_version` | string | Yes | ML model version | Semantic versioning |
-| `metadata` | object | No | Additional data | JSON object |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-
-#### Contributing Factor Structure
-
-```json
+**Schema**:
+```python
 {
-  "factor": "increasing_error_rate",
-  "current_value": 0.15,
-  "threshold": 0.10,
-  "trend": "increasing",
-  "weight": 0.35
+    "prediction_id": str,             # Unique identifier (UUID)
+    "api_id": str,                    # Reference to API
+    "gateway_id": str,                # Reference to Gateway
+    "prediction_type": str,           # "failure", "performance_degradation", "capacity_exhaustion"
+    "predicted_at": str,              # ISO 8601 timestamp (when prediction was made)
+    "predicted_failure_time": str,    # ISO 8601 timestamp (when failure expected)
+    "time_window": {
+        "start": str,                 # ISO 8601 timestamp
+        "end": str                    # ISO 8601 timestamp
+    },
+    "confidence_score": float,        # 0-1 confidence level
+    "severity": str,                  # "critical", "high", "medium", "low"
+    "contributing_factors": [         # Strongly-typed factors
+        {
+            "factor_type": str,       # "performance_degradation", "capacity_issues", etc.
+            "category": str,          # "performance", "capacity", "dependency", "pattern"
+            "description": str,
+            "impact_score": float,    # 0-1 impact on prediction
+            "metrics": dict           # Supporting metrics
+        }
+    ],
+    "recommended_actions": [
+        {
+            "action_type": str,       # "scale_up", "optimize_cache", "investigate_dependency"
+            "priority": str,          # "immediate", "high", "medium", "low"
+            "description": str,
+            "estimated_impact": str   # Expected outcome
+        }
+    ],
+    "ai_enhanced_explanation": {
+        "summary": str,               # Natural language summary
+        "detailed_analysis": str,     # Detailed explanation
+        "root_cause_analysis": str,   # Root cause explanation
+        "prevention_guidance": str,   # How to prevent
+        "enhanced_at": str,           # ISO 8601 timestamp
+        "model_used": str             # LLM model identifier
+    },
+    "status": str,                    # "active", "resolved", "false_positive", "expired"
+    "actual_outcome": {
+        "occurred": bool,
+        "occurred_at": str,           # ISO 8601 timestamp
+        "accuracy_score": float       # 0-1 prediction accuracy
+    },
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str                 # ISO 8601 timestamp
 }
 ```
 
-#### Relationships
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
 
-- **Belongs to**: One API (many-to-one)
-
-#### State Transitions
-
-```
-active → resolved
-   ↓
-false_positive
-   ↓
-expired
-```
-
-- **active → resolved**: Preventive action taken or event occurred
-- **active → false_positive**: Prediction did not materialize
-- **active → expired**: Prediction window passed without event
-
-#### Validation Rules
-
-1. `predicted_time` must be 24-48 hours after `predicted_at`
-2. `confidence_score` must be between 0 and 1
-3. `contributing_factors` array must not be empty
-4. `recommended_actions` array must not be empty
-5. If `actual_outcome` is set, `actual_time` must be set
-6. `accuracy_score` calculated as: 1 - |predicted_time - actual_time| / 48h
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "api_id": { "type": "keyword" },
-      "prediction_type": { "type": "keyword" },
-      "predicted_at": { "type": "date" },
-      "predicted_time": { "type": "date" },
-      "confidence_score": { "type": "float" },
-      "severity": { "type": "keyword" },
-      "status": { "type": "keyword" },
-      "contributing_factors": { "type": "nested" },
-      "recommended_actions": { "type": "text" },
-      "actual_outcome": { "type": "keyword" },
-      "actual_time": { "type": "date" },
-      "accuracy_score": { "type": "float" },
-      "model_version": { "type": "keyword" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" }
-    }
-  }
-}
-```
+**Validation Rules**:
+- `confidence_score` must be 0-1
+- `predicted_failure_time` must be 24-48 hours in future
+- `severity` must be one of: "critical", "high", "medium", "low"
+- `status` must be one of: "active", "resolved", "false_positive", "expired"
 
 ---
 
 ### 5. Vulnerability
 
-Represents a security vulnerability with affected API, severity level, description, remediation status, and remediation actions.
+Represents a security vulnerability with affected API, severity level, and remediation status.
 
-#### Attributes
+**Index**: `security-findings`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `api_id` | string (UUID) | Yes | Affected API | Must exist in API collection |
-| `vulnerability_type` | enum | Yes | Type of vulnerability | One of: authentication, authorization, injection, exposure, configuration, dependency |
-| `cve_id` | string | No | CVE identifier | CVE-YYYY-NNNNN format |
-| `severity` | enum | Yes | Severity level | One of: critical, high, medium, low |
-| `title` | string | Yes | Vulnerability title | 1-255 characters |
-| `description` | string | Yes | Detailed description | 1-5000 characters |
-| `affected_endpoints` | array[string] | No | Specific endpoints | List of endpoint paths |
-| `detection_method` | enum | Yes | How detected | One of: automated_scan, manual_review, external_report |
-| `detected_at` | timestamp | Yes | Detection timestamp | ISO 8601 format |
-| `status` | enum | Yes | Remediation status | One of: open, in_progress, remediated, accepted_risk, false_positive |
-| `remediation_type` | enum | No | Remediation approach | One of: automated, manual, configuration, upgrade |
-| `remediation_actions` | array[object] | No | Actions taken/planned | List of remediation steps |
-| `remediated_at` | timestamp | No | Remediation timestamp | ISO 8601 format |
-| `verification_status` | enum | No | Verification result | One of: verified, failed, pending |
-| `cvss_score` | float | No | CVSS score | 0.0 to 10.0 |
-| `references` | array[string] | No | External references | URLs to documentation |
-| `metadata` | object | No | Additional data | JSON object |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-
-#### Remediation Action Structure
-
-```json
+**Schema**:
+```python
 {
-  "action": "Update authentication middleware",
-  "type": "code_change",
-  "status": "completed",
-  "performed_at": "2026-03-09T14:30:00Z",
-  "performed_by": "automated_system"
+    "vulnerability_id": str,          # Unique identifier (UUID)
+    "api_id": str,                    # Reference to API
+    "gateway_id": str,                # Reference to Gateway
+    "vulnerability_type": str,        # "authentication", "encryption", "injection", etc.
+    "severity": str,                  # "critical", "high", "medium", "low"
+    "title": str,                     # Vulnerability title
+    "description": str,               # Detailed description
+    "cve_id": str,                    # CVE identifier (if applicable)
+    "cvss_score": float,              # 0-10 CVSS score
+    "detection_method": str,          # "rule_based", "ai_analysis", "hybrid"
+    "affected_endpoints": [str],      # List of affected endpoint paths
+    "evidence": {
+        "finding_details": str,
+        "sample_request": str,
+        "sample_response": str,
+        "log_references": [str]
+    },
+    "remediation": {
+        "status": str,                # "open", "in_progress", "remediated", "verified", "false_positive"
+        "auto_remediable": bool,
+        "remediation_type": str,      # "policy_application", "configuration_change", "manual"
+        "applied_policies": [         # If auto-remediated
+            {
+                "policy_id": str,
+                "policy_type": str,
+                "applied_at": str
+            }
+        ],
+        "verification": {
+            "verified": bool,
+            "verified_at": str,
+            "verification_method": str # "rescan", "manual_review"
+        },
+        "manual_ticket": {
+            "ticket_id": str,
+            "ticket_url": str,
+            "assigned_to": str
+        }
+    },
+    "priority": str,                  # "immediate", "high", "medium", "low"
+    "exploitability": str,            # "high", "medium", "low"
+    "business_impact": str,           # "critical", "high", "medium", "low"
+    "detected_at": str,               # ISO 8601 timestamp
+    "resolved_at": str,               # ISO 8601 timestamp (if resolved)
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str                 # ISO 8601 timestamp
 }
 ```
 
-#### Relationships
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
 
-- **Belongs to**: One API (many-to-one)
-
-#### State Transitions
-
-```
-open → in_progress → remediated → verified
-  ↓                       ↓
-accepted_risk      false_positive
-```
-
-- **open → in_progress**: Remediation started
-- **in_progress → remediated**: Fix applied
-- **remediated → verified**: Fix confirmed effective
-- **open → accepted_risk**: Risk accepted by security team
-- **open → false_positive**: Not a real vulnerability
-
-#### Validation Rules
-
-1. `severity` must match CVSS score ranges if provided
-2. If `status` is `remediated`, `remediated_at` must be set
-3. If `remediation_type` is `automated`, remediation must complete within 4 hours
-4. If `remediation_type` is `manual`, remediation must complete within 24 hours
-5. `cvss_score` must be between 0 and 10
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "api_id": { "type": "keyword" },
-      "vulnerability_type": { "type": "keyword" },
-      "cve_id": { "type": "keyword" },
-      "severity": { "type": "keyword" },
-      "title": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-      "description": { "type": "text" },
-      "affected_endpoints": { "type": "keyword" },
-      "detection_method": { "type": "keyword" },
-      "detected_at": { "type": "date" },
-      "status": { "type": "keyword" },
-      "remediation_type": { "type": "keyword" },
-      "remediation_actions": { "type": "nested" },
-      "remediated_at": { "type": "date" },
-      "verification_status": { "type": "keyword" },
-      "cvss_score": { "type": "float" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" }
-    }
-  }
-}
-```
+**Validation Rules**:
+- `severity` must be one of: "critical", "high", "medium", "low"
+- `cvss_score` must be 0-10
+- `remediation.status` must be one of: "open", "in_progress", "remediated", "verified", "false_positive"
 
 ---
 
-### 6. OptimizationRecommendation
+### 6. ComplianceViolation
 
-Represents a performance optimization opportunity with target API, recommendation type, estimated impact, implementation effort, and validation results.
+Represents a compliance violation with affected API, compliance standard, and audit trail.
 
-#### Attributes
+**Index**: `compliance-violations`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `api_id` | string (UUID) | Yes | Target API | Must exist in API collection |
-| `recommendation_type` | enum | Yes | Type of optimization | One of: caching, query_optimization, resource_allocation, rate_limiting, compression, connection_pooling |
-| `title` | string | Yes | Recommendation title | 1-255 characters |
-| `description` | string | Yes | Detailed description | 1-5000 characters |
-| `priority` | enum | Yes | Implementation priority | One of: critical, high, medium, low |
-| `estimated_impact` | object | Yes | Expected improvements | Contains: metric, current_value, expected_value, improvement_percentage |
-| `implementation_effort` | enum | Yes | Effort required | One of: low, medium, high |
-| `implementation_steps` | array[string] | Yes | How to implement | At least 1 step |
-| `status` | enum | Yes | Implementation status | One of: pending, in_progress, implemented, rejected, expired |
-| `implemented_at` | timestamp | No | Implementation timestamp | ISO 8601 format |
-| `validation_results` | object | No | Post-implementation metrics | Contains: actual_impact, success |
-| `cost_savings` | float | No | Estimated cost savings | USD per month |
-| `metadata` | object | No | Additional data | JSON object |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-| `expires_at` | timestamp | No | Recommendation expiry | ISO 8601 format |
-
-#### Estimated Impact Structure
-
-```json
+**Schema**:
+```python
 {
-  "metric": "response_time_p95",
-  "current_value": 250.0,
-  "expected_value": 150.0,
-  "improvement_percentage": 40.0,
-  "confidence": 0.85
+    "violation_id": str,              # Unique identifier (UUID)
+    "api_id": str,                    # Reference to API
+    "gateway_id": str,                # Reference to Gateway
+    "compliance_standard": str,       # "GDPR", "HIPAA", "SOC2", "PCI-DSS", "ISO27001"
+    "violation_type": str,            # "data_protection", "access_control", "encryption", etc.
+    "severity": str,                  # "critical", "high", "medium", "low"
+    "title": str,                     # Violation title
+    "description": str,               # Detailed description
+    "requirement_reference": str,     # Specific requirement violated (e.g., "GDPR Article 32")
+    "detection_method": str,          # "rule_based", "ai_analysis", "hybrid"
+    "affected_data_types": [str],     # Types of data affected (e.g., "PII", "PHI")
+    "evidence": {
+        "finding_details": str,
+        "policy_gaps": [str],
+        "configuration_issues": [str],
+        "log_references": [str]
+    },
+    "remediation": {
+        "status": str,                # "open", "in_progress", "remediated", "accepted_risk", "false_positive"
+        "remediation_plan": str,
+        "applied_controls": [
+            {
+                "control_id": str,
+                "control_type": str,
+                "applied_at": str
+            }
+        ],
+        "verification": {
+            "verified": bool,
+            "verified_at": str,
+            "verification_method": str,
+            "auditor_notes": str
+        }
+    },
+    "audit_trail": [
+        {
+            "timestamp": str,
+            "action": str,
+            "actor": str,
+            "details": str
+        }
+    ],
+    "risk_acceptance": {
+        "accepted": bool,
+        "accepted_by": str,
+            "accepted_at": str,
+        "justification": str,
+        "review_date": str
+    },
+    "detected_at": str,               # ISO 8601 timestamp
+    "resolved_at": str,               # ISO 8601 timestamp (if resolved)
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str                 # ISO 8601 timestamp
 }
 ```
 
-#### Validation Results Structure
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
 
-```json
-{
-  "actual_impact": {
-    "metric": "response_time_p95",
-    "before_value": 250.0,
-    "after_value": 160.0,
-    "actual_improvement": 36.0
-  },
-  "success": true,
-  "measured_at": "2026-03-09T16:00:00Z"
-}
-```
-
-#### Relationships
-
-- **Belongs to**: One API (many-to-one)
-
-#### State Transitions
-
-```
-pending → in_progress → implemented
-   ↓                         ↓
-rejected                 validated
-   ↓
-expired
-```
-
-- **pending → in_progress**: Implementation started
-- **in_progress → implemented**: Changes deployed
-- **implemented → validated**: Results measured and confirmed
-- **pending → rejected**: Recommendation declined
-- **pending → expired**: Recommendation no longer relevant
-
-#### Validation Rules
-
-1. `estimated_impact.improvement_percentage` must be positive
-2. If `status` is `implemented`, `implemented_at` must be set
-3. If `status` is `implemented`, `validation_results` should be set within 24 hours
-4. `priority` should correlate with `estimated_impact.improvement_percentage`
-5. `expires_at` must be > `created_at`
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "api_id": { "type": "keyword" },
-      "recommendation_type": { "type": "keyword" },
-      "title": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-      "description": { "type": "text" },
-      "priority": { "type": "keyword" },
-      "estimated_impact": { "type": "object" },
-      "implementation_effort": { "type": "keyword" },
-      "implementation_steps": { "type": "text" },
-      "status": { "type": "keyword" },
-      "implemented_at": { "type": "date" },
-      "validation_results": { "type": "object" },
-      "cost_savings": { "type": "float" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" },
-      "expires_at": { "type": "date" }
-    }
-  }
-}
-```
+**Validation Rules**:
+- `compliance_standard` must be one of: "GDPR", "HIPAA", "SOC2", "PCI-DSS", "ISO27001"
+- `severity` must be one of: "critical", "high", "medium", "low"
+- `remediation.status` must be one of: "open", "in_progress", "remediated", "accepted_risk", "false_positive"
 
 ---
 
-### 7. RateLimitPolicy
+### 7. OptimizationRecommendation
 
-Represents a rate limiting configuration with target API, limit thresholds, priority rules, and adaptation parameters.
+Represents a performance optimization opportunity with estimated impact and validation results.
 
-#### Attributes
+**Index**: `optimization-recommendations`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `api_id` | string (UUID) | Yes | Target API | Must exist in API collection |
-| `policy_name` | string | Yes | Policy name | 1-255 characters |
-| `policy_type` | enum | Yes | Type of policy | One of: fixed, adaptive, priority_based, burst_allowance |
-| `status` | enum | Yes | Policy status | One of: active, inactive, testing |
-| `limit_thresholds` | object | Yes | Rate limit values | Contains: requests_per_second, requests_per_minute, requests_per_hour |
-| `priority_rules` | array[object] | No | Priority-based rules | List of priority configurations |
-| `burst_allowance` | integer | No | Burst request allowance | Non-negative |
-| `adaptation_parameters` | object | No | Adaptive policy config | Contains: learning_rate, adjustment_frequency |
-| `consumer_tiers` | array[object] | No | Consumer tier definitions | List of tier configurations |
-| `enforcement_action` | enum | Yes | Action on limit breach | One of: throttle, reject, queue |
-| `applied_at` | timestamp | No | When policy activated | ISO 8601 format |
-| `last_adjusted_at` | timestamp | No | Last adaptation | ISO 8601 format |
-| `effectiveness_score` | float | No | Policy effectiveness | 0.0 to 1.0 |
-| `metadata` | object | No | Additional data | JSON object |
-| `created_at` | timestamp | Yes | Creation timestamp | ISO 8601 format |
-| `updated_at` | timestamp | Yes | Last update timestamp | ISO 8601 format |
-
-#### Limit Thresholds Structure
-
-```json
+**Schema**:
+```python
 {
-  "requests_per_second": 100,
-  "requests_per_minute": 5000,
-  "requests_per_hour": 250000,
-  "concurrent_requests": 50
+    "recommendation_id": str,         # Unique identifier (UUID)
+    "api_id": str,                    # Reference to API
+    "gateway_id": str,                # Reference to Gateway
+    "recommendation_type": str,       # "caching", "compression", "rate_limiting"
+    "title": str,                     # Recommendation title
+    "description": str,               # Detailed description
+    "priority": str,                  # "high", "medium", "low"
+    "estimated_impact": {
+        "response_time_improvement": float,  # Percentage
+        "bandwidth_reduction": float,        # Percentage
+        "error_rate_reduction": float,       # Percentage
+        "cost_savings": float                # Estimated cost savings
+    },
+    "implementation_effort": str,     # "low", "medium", "high"
+    "configuration": {                # Recommended configuration
+        "policy_type": str,
+        "policy_action": str,
+        "parameters": dict            # Vendor-neutral parameters
+    },
+    "ai_enhancement": {
+        "implementation_guidance": str,
+        "success_metrics": [str],
+        "potential_risks": [str],
+        "enhanced_at": str,
+        "model_used": str
+    },
+    "status": str,                    # "pending", "approved", "applied", "validated", "rejected"
+    "application": {
+        "applied_at": str,
+        "applied_by": str,
+        "policy_id": str,             # Reference to applied policy
+        "rollback_available": bool
+    },
+    "validation": {
+        "validated": bool,
+        "validated_at": str,
+        "actual_impact": {
+            "response_time_improvement": float,
+            "bandwidth_reduction": float,
+            "error_rate_reduction": float
+        },
+        "success": bool,
+        "notes": str
+    },
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str                 # ISO 8601 timestamp
 }
 ```
 
-#### Priority Rule Structure
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
 
-```json
-{
-  "tier": "premium",
-  "multiplier": 2.0,
-  "guaranteed_throughput": 200,
-  "burst_multiplier": 1.5
-}
-```
-
-#### Consumer Tier Structure
-
-```json
-{
-  "tier_name": "premium",
-  "tier_level": 1,
-  "rate_multiplier": 2.0,
-  "priority_score": 100
-}
-```
-
-#### Relationships
-
-- **Belongs to**: One API (many-to-one)
-
-#### State Transitions
-
-```
-inactive → testing → active
-              ↓         ↓
-           inactive ← inactive
-```
-
-- **inactive → testing**: Policy being evaluated
-- **testing → active**: Policy proven effective
-- **testing → inactive**: Policy ineffective
-- **active → inactive**: Policy disabled
-
-#### Validation Rules
-
-1. At least one threshold must be defined in `limit_thresholds`
-2. `burst_allowance` must be <= `requests_per_second` * 10
-3. `priority_rules` tier names must be unique
-4. `effectiveness_score` must be between 0 and 1
-5. If `policy_type` is `adaptive`, `adaptation_parameters` must be set
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "api_id": { "type": "keyword" },
-      "policy_name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-      "policy_type": { "type": "keyword" },
-      "status": { "type": "keyword" },
-      "limit_thresholds": { "type": "object" },
-      "priority_rules": { "type": "nested" },
-      "burst_allowance": { "type": "integer" },
-      "adaptation_parameters": { "type": "object" },
-      "consumer_tiers": { "type": "nested" },
-      "enforcement_action": { "type": "keyword" },
-      "applied_at": { "type": "date" },
-      "last_adjusted_at": { "type": "date" },
-      "effectiveness_score": { "type": "float" },
-      "created_at": { "type": "date" },
-      "updated_at": { "type": "date" }
-    }
-  }
-}
-```
+**Validation Rules**:
+- `recommendation_type` must be one of: "caching", "compression", "rate_limiting"
+- `priority` must be one of: "high", "medium", "low"
+- `status` must be one of: "pending", "approved", "applied", "validated", "rejected"
+- All impact percentages must be 0-100
 
 ---
 
 ### 8. Query
 
-Represents a natural language query with original text, interpreted intent, results, and user feedback.
+Represents a natural language query with interpreted intent and results.
 
-#### Attributes
+**Index**: `query-history`
 
-| Field | Type | Required | Description | Validation |
-|-------|------|----------|-------------|------------|
-| `id` | string (UUID) | Yes | Unique identifier | UUID v4 format |
-| `session_id` | string (UUID) | Yes | Conversation session | UUID v4 format |
-| `user_id` | string | No | User identifier | 1-255 characters |
-| `query_text` | string | Yes | Original query | 1-5000 characters |
-| `query_type` | enum | Yes | Classified query type | One of: status, trend, prediction, security, performance, comparison, general |
-| `interpreted_intent` | object | Yes | Parsed intent | Contains: action, entities, filters |
-| `opensearch_query` | object | No | Generated query DSL | OpenSearch query object |
-| `results` | object | Yes | Query results | Contains: data, count, execution_time |
-| `response_text` | string | Yes | Natural language response | 1-10000 characters |
-| `confidence_score` | float | Yes | Intent confidence | 0.0 to 1.0 |
-| `execution_time_ms` | integer | Yes | Query execution time | Non-negative |
-| `feedback` | enum | No | User feedback | One of: helpful, not_helpful, partially_helpful |
-| `feedback_comment` | string | No | Feedback details | Max 1000 characters |
-| `follow_up_queries` | array[string] | No | Suggested follow-ups | Max 5 suggestions |
-| `metadata` | object | No | Additional data | JSON object |
-| `created_at` | timestamp | Yes | Query timestamp | ISO 8601 format |
-
-#### Interpreted Intent Structure
-
-```json
+**Schema**:
+```python
 {
-  "action": "list",
-  "entities": ["api", "vulnerability"],
-  "filters": {
-    "severity": "critical",
-    "status": "open"
-  },
-  "time_range": {
-    "start": "2026-03-02T00:00:00Z",
-    "end": "2026-03-09T23:59:59Z"
-  }
+    "query_id": str,                  # Unique identifier (UUID)
+    "user_id": str,                   # User identifier
+    "query_text": str,                # Original natural language query
+    "interpreted_intent": {
+        "intent_type": str,           # "status", "trend", "prediction", "security", etc.
+        "entities": [                 # Extracted entities
+            {
+                "entity_type": str,   # "api", "gateway", "time_range", etc.
+                "entity_value": str
+            }
+        ],
+        "confidence": float           # 0-1 confidence in interpretation
+    },
+    "opensearch_query": dict,         # Generated OpenSearch query DSL
+    "results": {
+        "result_count": int,
+        "result_data": dict,          # Query results
+        "visualizations": [           # Suggested visualizations
+            {
+                "type": str,          # "chart", "table", "metric"
+                "config": dict
+            }
+        ]
+    },
+    "response": {
+        "natural_language": str,      # Generated natural language response
+        "summary": str,               # Brief summary
+        "recommendations": [str]      # Follow-up recommendations
+    },
+    "feedback": {
+        "helpful": bool,
+        "feedback_text": str,
+        "submitted_at": str
+    },
+    "execution_time": float,          # Milliseconds
+    "created_at": str,                # ISO 8601 timestamp
+    "updated_at": str                 # ISO 8601 timestamp
 }
 ```
 
-#### Results Structure
+**Validation Rules**:
+- `interpreted_intent.confidence` must be 0-1
+- `execution_time` must be non-negative
 
-```json
+---
+
+### 9. TransactionalLog
+
+Represents an individual API transaction with timing, request/response data, and external service calls.
+
+**Index**: `transactional-logs-{gateway_id}-{YYYY.MM.DD}`
+
+**Schema**:
+```python
 {
-  "data": [...],
-  "count": 15,
-  "execution_time": 245,
-  "aggregations": {...}
-}
-```
-
-#### Relationships
-
-- **Belongs to**: One Session (many-to-one, via session_id)
-- **May reference**: Multiple APIs, Predictions, Vulnerabilities, etc.
-
-#### Validation Rules
-
-1. `query_text` must not be empty
-2. `confidence_score` must be between 0 and 1
-3. `execution_time_ms` must be non-negative
-4. If `feedback` is set, query must have been executed
-5. `follow_up_queries` max 5 items
-
-#### OpenSearch Mapping
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "session_id": { "type": "keyword" },
-      "user_id": { "type": "keyword" },
-      "query_text": { "type": "text" },
-      "query_type": { "type": "keyword" },
-      "interpreted_intent": { "type": "object" },
-      "response_text": { "type": "text" },
-      "confidence_score": { "type": "float" },
-      "execution_time_ms": { "type": "integer" },
-      "feedback": { "type": "keyword" },
-      "feedback_comment": { "type": "text" },
-      "created_at": { "type": "date" }
+    "transaction_id": str,            # Unique identifier (UUID)
+    "gateway_id": str,                # Reference to Gateway
+    "api_id": str,                    # Reference to API
+    "timestamp": str,                 # ISO 8601 timestamp
+    "request": {
+        "method": str,                # HTTP method
+        "path": str,                  # Request path
+        "headers": dict,              # Request headers (sanitized)
+        "query_params": dict,         # Query parameters
+        "client_ip": str,             # Client IP address
+        "user_agent": str             # User agent string
+    },
+    "response": {
+        "status_code": int,           # HTTP status code
+        "headers": dict,              # Response headers
+        "body_size": int              # Response body size in bytes
+    },
+    "timing": {
+        "total_duration": float,      # Total request duration (ms)
+        "gateway_duration": float,    # Time spent in gateway (ms)
+        "backend_duration": float,    # Time spent in backend (ms)
+        "queue_time": float           # Time spent in queue (ms)
+    },
+    "external_calls": [               # Calls to external services
+        {
+            "service_name": str,
+            "service_url": str,
+            "method": str,
+            "duration": float,        # Milliseconds
+            "status_code": int,
+            "error": str              # If call failed
+        }
+    ],
+    "error": {
+        "occurred": bool,
+        "error_type": str,            # "client_error", "server_error", "gateway_error"
+        "error_code": str,
+        "error_message": str,
+        "stack_trace": str            # If available
+    },
+    "cache": {
+        "cache_hit": bool,
+        "cache_key": str
+    },
+    "client_info": {
+        "client_id": str,             # API consumer identifier
+        "client_tier": str,           # "premium", "standard", "free"
+        "authentication_method": str  # "oauth2", "api_key", "basic"
     }
-  }
 }
 ```
 
+**Relationships**:
+- Belongs to one API
+- Belongs to one Gateway
+- Has many ExternalCalls (embedded)
+
+**Validation Rules**:
+- `timestamp` must be valid ISO 8601
+- `response.status_code` must be valid HTTP status code
+- All durations must be non-negative
+
 ---
 
-## Entity Relationships Diagram
+### 10. ExternalCall
+
+Represents an external service call made during an API transaction (embedded in TransactionalLog).
+
+**Schema** (embedded in TransactionalLog):
+```python
+{
+    "service_name": str,              # External service name
+    "service_url": str,               # External service URL
+    "method": str,                    # HTTP method
+    "duration": float,                # Call duration in milliseconds
+    "status_code": int,               # HTTP status code
+    "error": str,                     # Error message (if failed)
+    "retry_count": int,               # Number of retries
+    "circuit_breaker_state": str      # "closed", "open", "half_open"
+}
+```
+
+**Validation Rules**:
+- `duration` must be non-negative
+- `status_code` must be valid HTTP status code
+- `retry_count` must be non-negative
+
+---
+
+## Index Lifecycle Management (ILM)
+
+### Retention Policies
+
+1. **API Inventory**: No automatic deletion (manual cleanup)
+2. **Gateway Registry**: No automatic deletion (manual cleanup)
+3. **Metrics**:
+   - 1-minute: 7 days
+   - 5-minute: 30 days
+   - 1-hour: 90 days
+   - 1-day: 365 days
+4. **Predictions**: 90 days
+5. **Security Findings**: 365 days (compliance requirement)
+6. **Compliance Violations**: 7 years (regulatory requirement)
+7. **Optimization Recommendations**: 90 days
+8. **Query History**: 30 days
+9. **Transactional Logs**: 30 days
+
+### Rollover Policies
+
+- **Metrics**: Monthly rollover (index per month)
+- **Transactional Logs**: Daily rollover (index per day per gateway)
+- **Other indices**: No rollover (single index)
+
+---
+
+## Data Relationships
 
 ```
-Gateway (1) ──────< (N) API
-                      │
-                      ├──< (N) Metric
-                      ├──< (N) Prediction
-                      ├──< (N) Vulnerability
-                      ├──< (N) OptimizationRecommendation
-                      └──< (N) RateLimitPolicy
-
-Session (1) ──────< (N) Query
+Gateway (1) ──< (N) API
+API (1) ──< (N) Metric
+API (1) ──< (N) Prediction
+API (1) ──< (N) Vulnerability
+API (1) ──< (N) ComplianceViolation
+API (1) ──< (N) OptimizationRecommendation
+API (1) ──< (N) TransactionalLog
+TransactionalLog (1) ──< (N) ExternalCall (embedded)
 ```
 
 ---
 
-## Index Strategy
+## Vendor-Neutral Design
 
-### Primary Indices
+All entities use vendor-neutral schemas. Gateway-specific data is transformed by adapters:
 
-1. **api-inventory**: API catalog (single index)
-2. **gateway-registry**: Gateway configurations (single index)
-3. **api-metrics-{YYYY.MM}**: Time-series metrics (monthly rotation)
-4. **api-predictions**: Failure predictions (single index)
-5. **security-findings**: Vulnerabilities (single index)
-6. **optimization-recommendations**: Performance recommendations (single index)
-7. **rate-limit-policies**: Rate limiting configurations (single index)
-8. **query-history**: Natural language queries (single index)
+1. **Discovery**: Vendor-specific API metadata → Vendor-neutral API entity
+2. **Metrics**: Vendor-specific metrics → Vendor-neutral Metric entity
+3. **Policies**: Vendor-neutral policy config → Vendor-specific policy application
+4. **Logs**: Vendor-specific log format → Vendor-neutral TransactionalLog entity
 
-### Index Lifecycle Management
-
-- **Metrics**: Monthly rotation, 90-day retention
-- **Queries**: 30-day retention
-- **All others**: No automatic deletion, manual archival
-
-### Backup Strategy
-
-- Daily snapshots of all indices
-- 30-day snapshot retention
-- Point-in-time recovery capability
+This ensures consistent data models regardless of gateway vendor.
 
 ---
 
-## Data Validation Summary
+## Next Steps
 
-All entities include:
-- **Type validation**: Field types enforced
-- **Range validation**: Numeric ranges checked
-- **Format validation**: Dates, UUIDs, URLs validated
-- **Relationship validation**: Foreign keys verified
-- **Business rule validation**: Domain-specific rules enforced
+1. ✅ Data model defined
+2. → Define interface contracts in `/contracts/`
+3. → Create quickstart.md
+4. → Update agent context
 
 ---
 
-**Data Model Complete**: 2026-03-09  
-**Next Phase**: Define interface contracts in /contracts/
+**Data Model Complete**: 2026-04-28  
+**Next Phase**: Interface Contracts

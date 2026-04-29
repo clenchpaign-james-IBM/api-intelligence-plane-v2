@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2026-03-11
 
 ## Active Technologies
+- OpenSearch 2.11+ for all data types (API inventory, metrics, predictions, security findings, compliance violations, optimization recommendations, transactional logs) (001-api-intelligence-plane)
 
 ### Backend (Python 3.11+)
 - **Framework**: FastAPI 0.109+
@@ -194,10 +195,10 @@ docker-compose build --no-cache
 - **Coverage**: Focus on integration and E2E coverage
 
 ## Recent Changes
+- 001-api-intelligence-plane: Added OpenSearch 2.11+ for all data types (API inventory, metrics, predictions, security findings, compliance violations, optimization recommendations, transactional logs)
 
 - 2026-04-14: Implemented unified policy conversion architecture (normalizer/denormalizer pattern)
 - 2026-03-11: Updated with comprehensive technology stack and architecture patterns
-- 2026-03-09: Added Python 3.11+ (Backend), JavaScript/TypeScript (Frontend), Java (Demo API Gateway)
 
 <!-- MANUAL ADDITIONS START -->
 ## Chat Instructions

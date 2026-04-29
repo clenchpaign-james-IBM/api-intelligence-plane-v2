@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: api-intelligence-plane
+  labels:
+    app: backend
+data:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  OPENSEARCH_USE_SSL: "true"
+  OPENSEARCH_VERIFY_CERTS: "false"
+  DISCOVERY_INTERVAL: "300"
+  METRICS_INTERVAL: "60"
+  PREDICTION_INTERVAL: "3600"
+  SECURITY_SCAN_INTERVAL: "3600"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: api-intelligence-plane
+  labels:
+    app: frontend
+data:
+  VITE_ENVIRONMENT: "production"
+  VITE_API_BASE_URL: "http://backend:8000"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-config
+  namespace: api-intelligence-plane
+  labels:
+    app: mcp-unified
+data:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  OPENSEARCH_USE_SSL: "true"
+  OPENSEARCH_VERIFY_CERTS: "false"
+
+# Made with Bob

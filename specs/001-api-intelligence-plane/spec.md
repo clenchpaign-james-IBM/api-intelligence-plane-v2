@@ -206,17 +206,20 @@ As a compliance officer, I need continuous compliance monitoring of all APIs wit
 
 ---
 
-### User Story 5 - Performance Optimization & Intelligent Rate Limiting (Priority: P2)
-
-**MERGED**: This user story combines real-time performance optimization recommendations with intelligent rate limiting, as both are gateway-level performance optimization techniques.
+### User Story 5 - Performance Optimization (Priority: P2)
 
 As a platform engineer, I need real-time recommendations for optimizing API performance (including caching, compression, and rate limiting) based on actual usage patterns, with the ability to apply these optimizations directly to the API Gateway, so that I can improve response times, prevent abuse, and ensure optimal resource utilization.
 
 **Why this priority**: Performance optimization delivers measurable business value (improved user experience, abuse prevention, better resource utilization) but requires the monitoring foundation from P1 stories.
 
+**Note**: Rate limiting is one of several optimization techniques (along with caching and compression) provided by this feature. It is not a separate capability but an integral part of the performance optimization toolkit.
+
 **How It Works**:
 - **Usage Analysis**: Analyzes actual API usage patterns to identify optimization opportunities
-- **Optimization Types**: Recommends caching (faster responses), compression (reduced bandwidth), and rate limiting (abuse prevention)
+- **Optimization Types**: Recommends three types of optimizations:
+  - **Caching**: Faster responses by storing frequently accessed data
+  - **Compression**: Reduced bandwidth usage and faster transfers
+  - **Rate Limiting**: Abuse prevention and resource protection
 - **Impact Estimation**: Provides estimated performance improvements for each recommendation
 - **Direct Application**: Can apply optimizations directly to your gateway with one click
 - **Validation**: Measures actual improvements after applying optimizations
@@ -360,8 +363,8 @@ As an API operations manager using WebMethods API Gateway, I need to collect and
 - **FR-031**: System MUST track compliance remediation with documentation suitable for audit evidence
 - **FR-032**: System MUST separate compliance violations from security vulnerabilities in reporting and user interface
 
-#### Performance Optimization & Rate Limiting
-- **FR-033**: System MUST analyze API usage patterns to identify optimization opportunities (caching, compression, rate limiting)
+#### Performance Optimization
+- **FR-033**: System MUST analyze API usage patterns to identify optimization opportunities including caching, compression, and rate limiting
 - **FR-034**: System MUST generate specific optimization recommendations with estimated impact for each API
 - **FR-035**: System MUST prioritize recommendations by expected impact and implementation effort
 - **FR-036**: System MUST measure and report performance improvements after optimizations are applied
@@ -433,7 +436,7 @@ As an API operations manager using WebMethods API Gateway, I need to collect and
 
 - **ComplianceViolation**: Represents a compliance violation with affected API, compliance standard (GDPR, HIPAA, SOC2, PCI-DSS, ISO 27001), violation type, evidence, audit trail, and remediation documentation.
 
-- **Optimization Recommendation**: Represents a performance optimization opportunity (caching, compression, or rate limiting) with target API, recommendation type, estimated impact, implementation effort, and validation results.
+- **Optimization Recommendation**: Represents a performance optimization opportunity with target API, recommendation type (caching, compression, or rate limiting), estimated impact, implementation effort, and validation results. Rate limiting is one of three optimization types, not a separate feature.
 
 - **Query**: Represents a natural language query with original text, interpreted intent, results, and user feedback.
 

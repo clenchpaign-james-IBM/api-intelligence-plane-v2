@@ -6,7 +6,7 @@ Orchestrates security scanning, vulnerability management, and automated remediat
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.agents.security_agent import SecurityAgent
 from app.config import Settings
@@ -27,6 +27,7 @@ from app.models.vulnerability import (
     Vulnerability,
     VulnerabilityStatus,
     VulnerabilityType,
+    VulnerabilitySeverity,
     RemediationType,
     RemediationAction,
     VerificationStatus,
@@ -976,6 +977,189 @@ class SecurityService:
         if not has_security_headers:
             missing_policies.append("Security headers policy missing")
         
+    async def create_ticket(
+        self,
+        vulnerability_id: UUID,
+        ticket_system: str = "jira",
+        assignee: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a manual ticket for non-remediable vulnerabilities.
+        
+        This method creates a ticket in an external ticketing system (e.g., Jira, ServiceNow)
+        for vulnerabilities that require manual intervention.
+        
+        Args:
+            vulnerability_id: Vulnerability to create ticket for
+            ticket_system: Target ticketing system (default: "jira")
+            assignee: Optional assignee for the ticket
+            
+        Returns:
+            Ticket creation result with ticket ID and URL
+        """
+        try:
+            logger.info(f"Creating manual ticket for vulnerability: {vulnerability_id}")
+            
+            # Get vulnerability details
+            vulnerability = self.vulnerability_repository.get(str(vulnerability_id))
+            if not vulnerability:
+                raise ValueError(f"Vulnerability not found: {vulnerability_id}")
+            
+            # Get API details
+            api = self.api_repository.get(str(vulnerability.api_id))
+            if not api:
+                raise ValueError(f"API not found: {vulnerability.api_id}")
+            
+            # Prepare ticket data
+            ticket_data = {
+                "title": f"[Security] {vulnerability.title} - {api.name}",
+                "description": self._format_ticket_description(vulnerability, api),
+                "priority": self._map_severity_to_priority(vulnerability.severity),
+                "labels": [
+                    "security",
+                    "vulnerability",
+                    vulnerability.vulnerability_type.value,
+                    vulnerability.severity.value,
+                ],
+                "vulnerability_id": str(vulnerability_id),
+                "api_id": str(api.id),
+                "api_name": api.name,
+            }
+            
+            if assignee:
+                ticket_data["assignee"] = assignee
+            
+            # Create ticket in external system
+            # Note: This is a placeholder for actual integration
+            # In production, this would call the actual ticketing system API
+            ticket_result = await self._create_external_ticket(
+                ticket_system=ticket_system,
+                ticket_data=ticket_data,
+            )
+            
+            # Update vulnerability with ticket reference
+            vulnerability.metadata = vulnerability.metadata or {}
+            vulnerability.metadata["ticket_id"] = ticket_result["ticket_id"]
+            vulnerability.metadata["ticket_url"] = ticket_result["ticket_url"]
+            vulnerability.metadata["ticket_system"] = ticket_system
+            vulnerability.updated_at = datetime.utcnow()
+            
+            self.vulnerability_repository.update(
+                str(vulnerability.id),
+                vulnerability.dict(exclude={"id"})
+            )
+            
+            logger.info(
+                f"Created ticket {ticket_result['ticket_id']} for vulnerability {vulnerability_id}"
+            )
+            
+            return {
+                "vulnerability_id": str(vulnerability_id),
+                "ticket_id": ticket_result["ticket_id"],
+                "ticket_url": ticket_result["ticket_url"],
+                "ticket_system": ticket_system,
+                "status": "created",
+                "message": f"Ticket created successfully in {ticket_system}",
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to create ticket for vulnerability {vulnerability_id}: {str(e)}")
+            raise
+    
+    def _format_ticket_description(
+        self,
+        vulnerability: Vulnerability,
+        api: API,
+    ) -> str:
+        """Format vulnerability details for ticket description."""
+        description = f"""
+# Security Vulnerability Report
+
+## Vulnerability Details
+- **Type**: {vulnerability.vulnerability_type.value}
+- **Severity**: {vulnerability.severity.value}
+- **Status**: {vulnerability.status.value}
+- **Detected**: {vulnerability.detected_at.strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+## Description
+{vulnerability.description}
+
+## Affected API
+- **Name**: {api.name}
+- **Base Path**: {api.base_path}
+- **Gateway ID**: {api.gateway_id}
+
+## Remediation Information
+"""
+        
+        if vulnerability.recommended_remediation:
+            description += "\n### Recommended Actions\n"
+            for action in vulnerability.recommended_remediation.get("actions", []):
+                description += f"- {action.get('action', 'N/A')}\n"
+            
+            if "estimated_time" in vulnerability.recommended_remediation:
+                description += f"\n**Estimated Time**: {vulnerability.recommended_remediation['estimated_time']}\n"
+        
+        if vulnerability.remediation_type:
+            description += f"\n**Remediation Type**: {vulnerability.remediation_type.value}\n"
+        
+        if vulnerability.affected_endpoints:
+            description += "\n### Affected Endpoints\n"
+            for endpoint in vulnerability.affected_endpoints:
+                description += f"- {endpoint}\n"
+        
+        if vulnerability.references:
+            description += "\n### References\n"
+            for ref in vulnerability.references:
+                description += f"- {ref}\n"
+        
+        return description.strip()
+    
+    def _map_severity_to_priority(self, severity: VulnerabilitySeverity) -> str:
+        """Map vulnerability severity to ticket priority."""
+        severity_to_priority = {
+            VulnerabilitySeverity.CRITICAL: "highest",
+            VulnerabilitySeverity.HIGH: "high",
+            VulnerabilitySeverity.MEDIUM: "medium",
+            VulnerabilitySeverity.LOW: "low",
+        }
+        return severity_to_priority.get(severity, "medium")
+    
+    async def _create_external_ticket(
+        self,
+        ticket_system: str,
+        ticket_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Create ticket in external ticketing system.
+        
+        This is a placeholder implementation. In production, this would integrate
+        with actual ticketing systems like Jira, ServiceNow, GitHub Issues, etc.
+        
+        Args:
+            ticket_system: Target ticketing system
+            ticket_data: Ticket data to create
+            
+        Returns:
+            Created ticket information
+        """
+        # Placeholder implementation
+        # In production, this would call the actual API:
+        # - Jira: Use jira-python library or REST API
+        # - ServiceNow: Use ServiceNow REST API
+        # - GitHub: Use PyGithub or GitHub REST API
+        
+        ticket_id = f"{ticket_system.upper()}-{uuid4().hex[:8]}"
+        ticket_url = f"https://{ticket_system}.example.com/browse/{ticket_id}"
+        
+        logger.info(
+            f"[PLACEHOLDER] Would create ticket in {ticket_system}: {ticket_id}"
+        )
+        
+        return {
+            "ticket_id": ticket_id,
+            "ticket_url": ticket_url,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+
         return missing_policies
 
 

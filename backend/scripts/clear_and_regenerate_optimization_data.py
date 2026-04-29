@@ -24,7 +24,7 @@ from app.db.client import get_client
 
 
 async def clear_optimization_data():
-    """Clear optimization recommendations and rate limit policies from OpenSearch."""
+    """Clear optimization recommendations from OpenSearch."""
     print("=" * 80)
     print("CLEARING PERFORMANCE OPTIMIZATION DATA")
     print("=" * 80)
@@ -34,7 +34,6 @@ async def clear_optimization_data():
     # Indices to clear
     indices = [
         "optimization-recommendations",
-        "rate-limit-policies",
     ]
     
     for index in indices:
@@ -58,7 +57,6 @@ async def recreate_indices():
     
     from app.db.schemas import (
         create_optimization_recommendations_index,
-        create_rate_limit_policies_index,
     )
     
     client = get_client()
@@ -69,13 +67,6 @@ async def recreate_indices():
         print("✅ optimization-recommendations index created")
     except Exception as e:
         print(f"⚠️  Error creating optimization-recommendations: {e}")
-    
-    try:
-        print("\n📋 Creating rate-limit-policies index...")
-        create_rate_limit_policies_index(client)
-        print("✅ rate-limit-policies index created")
-    except Exception as e:
-        print(f"⚠️  Error creating rate-limit-policies: {e}")
     
     print("\n" + "=" * 80)
     print("✅ INDICES RECREATED")
@@ -90,7 +81,6 @@ async def generate_optimization_data():
     
     scripts = [
         ("Unified Optimization Recommendations", "generate_mock_optimizations.py"),
-        ("Rate Limit Policies", "generate_mock_rate_limits.py"),
     ]
     
     for name, script in scripts:

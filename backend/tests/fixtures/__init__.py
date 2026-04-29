@@ -25,13 +25,6 @@ from .prediction_fixtures import (
     create_metrics_series,
     create_prediction_with_severity,
 )
-from .rate_limit_fixtures import (
-    create_adaptive_policy,
-    create_burst_allowance_policy,
-    create_fixed_policy,
-    create_priority_based_policy,
-    create_sample_rate_limit_policy,
-)
 __all__ = [
     # API fixtures
     "create_sample_api",
@@ -54,12 +47,6 @@ __all__ = [
     "create_sample_recommendation",
     "create_caching_recommendation",
     "create_compression_recommendation",
-    # Rate limit fixtures
-    "create_sample_rate_limit_policy",
-    "create_fixed_policy",
-    "create_adaptive_policy",
-    "create_priority_based_policy",
-    "create_burst_allowance_policy",
 ]
 
 # Made with Bob

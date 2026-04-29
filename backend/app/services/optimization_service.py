@@ -59,7 +59,6 @@ class OptimizationService:
         metrics_repository: MetricsRepository,
         api_repository: APIRepository,
         llm_service: "LLMService",
-        rate_limit_service: Any | None = None,
     ):
         """
         Initialize the Optimization Service.
@@ -69,13 +68,11 @@ class OptimizationService:
             metrics_repository: Repository for metrics operations
             api_repository: Repository for API operations
             llm_service: LLM service for AI-driven recommendations
-            rate_limit_service: Optional rate limiting service for integrated analysis
         """
         self.recommendation_repo = recommendation_repository
         self.metrics_repo = metrics_repository
         self.api_repo = api_repository
         self.llm_service = llm_service
-        self.rate_limit_service = rate_limit_service
 
         from app.agents.optimization_agent import OptimizationAgent
 

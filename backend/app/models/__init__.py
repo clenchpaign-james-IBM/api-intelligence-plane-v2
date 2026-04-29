@@ -47,16 +47,6 @@ from app.models.enhanced_intent import (
     EntityRelationship,
     ContextDependency,
 )
-from app.models.rate_limit import (
-    AdaptationParameters,
-    ConsumerTier,
-    EnforcementAction,
-    LimitThresholds,
-    PolicyStatus,
-    PolicyType,
-    PriorityRule,
-    RateLimitPolicy,
-)
 from app.models.recommendation import (
     ActualImpact,
     EstimatedImpact,
@@ -133,15 +123,6 @@ __all__ = [
     "EntityReference",
     "EntityRelationship",
     "ContextDependency",
-    # Rate Limit models
-    "AdaptationParameters",
-    "ConsumerTier",
-    "EnforcementAction",
-    "LimitThresholds",
-    "PolicyStatus",
-    "PolicyType",
-    "PriorityRule",
-    "RateLimitPolicy",
     # Recommendation models
     "ActualImpact",
     "EstimatedImpact",

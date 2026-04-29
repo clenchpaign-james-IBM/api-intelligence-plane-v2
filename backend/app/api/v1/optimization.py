@@ -1132,8 +1132,7 @@ async def validate_gateway_recommendation(
             recommendation_repository=recommendation_repo,
             metrics_repository=metrics_repo,
             api_repository=api_repo,
-            llm_service=llm_service,
-            rate_limit_service=None
+            llm_service=llm_service
         )
         
         # Validate recommendation

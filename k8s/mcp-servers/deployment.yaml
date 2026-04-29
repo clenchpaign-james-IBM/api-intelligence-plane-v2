@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-unified
+  namespace: api-intelligence-plane
+  labels:
+    app: mcp-unified
+    component: mcp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-unified
+  template:
+    metadata:
+      labels:
+        app: mcp-unified
+        component: mcp
+    spec:
+      containers:
+      - name: mcp-unified
+        image: api-intelligence-plane/mcp-servers:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+          protocol: TCP
+        env:
+        - name: BACKEND_URL
+          value: "http://backend:8000"
+        - name: OPENSEARCH_HOST
+          value: "opensearch-client"
+        - name: OPENSEARCH_PORT
+          value: "9200"
+        - name: OPENSEARCH_USER
+          value: "admin"
+        - name: OPENSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: opensearch-credentials
+              key: admin-password
+        - name: OPENSEARCH_USE_SSL
+          value: "true"
+        - name: OPENSEARCH_VERIFY_CERTS
+          value: "false"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always
+
+# Made with Bob

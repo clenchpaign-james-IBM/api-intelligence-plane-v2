@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-intelligence-plane
+  namespace: api-intelligence-plane
+  labels:
+    app: api-intelligence-plane
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api-intelligence-plane.example.com
+    secretName: api-intelligence-plane-tls
+  rules:
+  - host: api-intelligence-plane.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8000
+      - path: /mcp
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-unified
+            port:
+              number: 8001
+
+# Made with Bob

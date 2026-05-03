@@ -352,6 +352,11 @@ class SecurityService:
                 str(vulnerability.id),
                 vulnerability.dict(exclude={"id"})
             )
+            
+            # Force OpenSearch index refresh to make changes immediately visible
+            self.vulnerability_repository.client.indices.refresh(
+                index=self.vulnerability_repository.index_name
+            )
 
             # Verify remediation
             verification_result = await self.verify_remediation(vulnerability_id)
@@ -412,6 +417,11 @@ class SecurityService:
             self.vulnerability_repository.update(
                 str(vulnerability.id),
                 vulnerability.dict(exclude={"id"})
+            )
+            
+            # Force OpenSearch index refresh to make status change immediately visible
+            self.vulnerability_repository.client.indices.refresh(
+                index=self.vulnerability_repository.index_name
             )
 
             logger.info(

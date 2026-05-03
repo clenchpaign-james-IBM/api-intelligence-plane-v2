@@ -484,6 +484,8 @@ export interface Vulnerability {
   status: VulnerabilityStatus;
   detected_at: string;
   resolved_at?: string;
+  remediated_at?: string;
+  verification_status?: VerificationStatus;
   metadata?: Record<string, any>;
   
   // Per-vulnerability remediation plan fields (Option B implementation)
@@ -522,7 +524,8 @@ export interface RemediationPlanAction {
 export type VulnerabilityType = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'compliance' | 'data_protection' | 'other';
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type VulnerabilityCategory = 'authentication' | 'authorization' | 'injection' | 'data_exposure' | 'configuration' | 'dependency' | 'other';
-export type VulnerabilityStatus = 'open' | 'in_progress' | 'remediated' | 'verified' | 'false_positive' | 'accepted_risk';
+export type VulnerabilityStatus = 'open' | 'in_progress' | 'remediated' | 'false_positive' | 'accepted_risk';
+export type VerificationStatus = 'verified' | 'failed' | 'pending';
 export type RemediationType = 'automated' | 'manual' | 'assisted';
 export type ComplianceStandard = 'GDPR' | 'HIPAA' | 'PCI_DSS' | 'SOC2' | 'ISO_27001';
 

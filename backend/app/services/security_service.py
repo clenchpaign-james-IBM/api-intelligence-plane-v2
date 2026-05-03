@@ -514,9 +514,30 @@ class SecurityService:
                     severity, status, limit
                 )
             else:
-                return await self.vulnerability_repository.find_open_vulnerabilities(
-                    api_id, limit
+                # When no specific filters, respect the status filter if provided
+                # Otherwise return all vulnerabilities (not just open ones)
+                # Use OpenSearch query directly since we need status filtering
+                query: dict[str, Any] = {"bool": {"must": []}}
+                
+                if status:
+                    query["bool"]["must"].append({"term": {"status": status.value}})
+                else:
+                    # Match all documents
+                    query = {"match_all": {}}
+                
+                body = {
+                    "query": query,
+                    "sort": [{"detected_at": {"order": "desc"}}],
+                    "size": limit,
+                }
+                
+                response = self.vulnerability_repository.client.search(
+                    index=self.vulnerability_repository.index_name, body=body
                 )
+                return [
+                    Vulnerability(**hit["_source"])
+                    for hit in response["hits"]["hits"]
+                ]
 
         except Exception as e:
             logger.error(f"Failed to get vulnerabilities: {str(e)}")

@@ -53,13 +53,17 @@ export const Security: React.FC = () => {
     refetch: refetchVulnerabilities,
   } = useQuery<Vulnerability[]>({
     queryKey: ['vulnerabilities', severityFilter, statusFilter, typeFilter, selectedGatewayId],
-    queryFn: () =>
-      securityService.getVulnerabilities({
+    queryFn: () => {
+      const params = {
         gateway_id: selectedGatewayId || undefined,
         severity: severityFilter !== 'all' ? severityFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         limit: 1000,
-      }),
+      };
+      console.log('[Security.tsx] Fetching vulnerabilities with params:', params);
+      console.log('[Security.tsx] statusFilter value:', statusFilter);
+      return securityService.getVulnerabilities(params);
+    },
     staleTime: 0, // Always fetch fresh data
     refetchInterval: 30000,
   });

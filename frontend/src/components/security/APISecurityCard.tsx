@@ -31,7 +31,20 @@ export const APISecurityCard: React.FC<APISecurityCardProps> = ({
   const totalCount = vulnerabilities.length;
 
   const openCount = vulnerabilities.filter(v => v.status === 'open').length;
-  const remediatedCount = vulnerabilities.filter(v => v.status === 'remediated').length;
+  const remediatedCount = vulnerabilities.filter(v =>
+    v.status === 'remediated' || v.verification_status === 'verified'
+  ).length;
+  
+  // Debug logging
+  console.log(`[APISecurityCard] API: ${api.name}`);
+  console.log(`[APISecurityCard] Total vulnerabilities: ${vulnerabilities.length}`);
+  console.log(`[APISecurityCard] Vulnerabilities:`, vulnerabilities.map(v => ({
+    id: v.id,
+    title: v.title,
+    status: v.status,
+    verification_status: v.verification_status
+  })));
+  console.log(`[APISecurityCard] Open count: ${openCount}, Remediated count: ${remediatedCount}`);
 
   // Calculate risk score (0-100, higher is worse)
   const riskScore = Math.min(

@@ -171,15 +171,15 @@ function calculateRemediationStats(vulnerabilities: Vulnerability[]): Remediatio
   const openCount = vulnerabilities.filter((v) => v.status === 'open').length;
   const inProgressCount = vulnerabilities.filter((v) => v.status === 'in_progress').length;
   const remediatedCount = vulnerabilities.filter((v) => v.status === 'remediated').length;
-  const verifiedCount = vulnerabilities.filter((v) => v.status === 'verified').length;
+  const verifiedCount = vulnerabilities.filter((v) => v.verification_status === 'verified').length;
   
-  const remediationRate = totalCount > 0 
-    ? ((remediatedCount + verifiedCount) / totalCount) * 100 
+  const remediationRate = totalCount > 0
+    ? ((remediatedCount + verifiedCount) / totalCount) * 100
     : 0;
 
   // Recent remediations (last 10, sorted by resolved_at)
   const recentRemediations = vulnerabilities
-    .filter((v) => v.resolved_at && (v.status === 'remediated' || v.status === 'verified'))
+    .filter((v) => v.resolved_at && (v.status === 'remediated' || v.verification_status === 'verified'))
     .sort((a, b) => new Date(b.resolved_at!).getTime() - new Date(a.resolved_at!).getTime())
     .slice(0, 10);
 

@@ -371,11 +371,20 @@ class SecurityService:
 
             logger.info(f"Remediation completed for vulnerability: {vulnerability_id} (status: {vulnerability.status})")
 
+            # Immediately sync the API from Gateway to update policy_actions in inventory
+            if all_successful:
+                try:
+                    await self._sync_api_from_gateway(api)
+                    logger.info(f"Successfully synced API {api.id} from Gateway after remediation")
+                except Exception as sync_error:
+                    logger.error(f"Failed to sync API {api.id} from Gateway after remediation: {sync_error}")
+                    # Don't fail the remediation if sync fails - it will be picked up in next scheduled sync
+
             return {
                 "vulnerability_id": str(vulnerability_id),
                 "status": "remediation_applied",
                 "remediation_result": remediation_result,
-                "message": "Remediation applied successfully. Next security scan will validate the fix.",
+                "message": "Remediation applied successfully. API inventory updated from Gateway.",
             }
 
         except Exception as e:
@@ -564,6 +573,60 @@ class SecurityService:
             raise
 
     # Private helper methods
+
+    async def _sync_api_from_gateway(self, api: API) -> None:
+        """
+        Fetch API details from Gateway and update inventory with current policy_actions.
+        
+        This ensures the API inventory reflects the actual Gateway state immediately
+        after remediation/optimization, rather than waiting for the next scheduled sync.
+        
+        Args:
+            api: API to sync from Gateway
+        """
+        try:
+            # Get gateway
+            gateway = self.gateway_repository.get(str(api.gateway_id))
+            if not gateway:
+                raise ValueError(f"Gateway {api.gateway_id} not found")
+            
+            # Create adapter
+            from app.adapters.factory import GatewayAdapterFactory
+            adapter_factory = GatewayAdapterFactory()
+            adapter = adapter_factory.create_adapter(gateway)
+            
+            # Connect and fetch API details
+            await adapter.connect()
+            try:
+                # Get fresh API details from Gateway
+                fresh_api = await adapter.get_api_details(str(api.id))
+                
+                if fresh_api and fresh_api.policy_actions is not None:
+                    # Update inventory with fresh policy_actions from Gateway
+                    updates = {
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }
+                    
+                    # Handle policy_actions explicitly (same logic as discovery_service)
+                    if len(fresh_api.policy_actions) > 0:
+                        updates["policy_actions"] = [
+                            policy.model_dump(mode="json", exclude_none=True)
+                            for policy in fresh_api.policy_actions
+                        ]
+                    else:
+                        updates["policy_actions"] = []
+                    
+                    # Update API in inventory
+                    self.api_repository.update(str(api.id), updates)
+                    logger.info(f"Synced {len(fresh_api.policy_actions)} policies for API {api.id} from Gateway")
+                else:
+                    logger.warning(f"Could not fetch API {api.id} details from Gateway")
+            finally:
+                await adapter.disconnect()
+                
+        except Exception as e:
+            logger.error(f"Failed to sync API {api.id} from Gateway: {e}")
+            raise
 
     async def _apply_automated_remediation(
         self,

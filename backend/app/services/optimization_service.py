@@ -1301,13 +1301,21 @@ class OptimizationService:
                 f"to Gateway {gateway.id}"
             )
 
+            # Immediately sync the API from Gateway to update policy_actions in inventory
+            try:
+                await self._sync_api_from_gateway(api, gateway)
+                logger.info(f"Successfully synced API {api.id} from Gateway after optimization")
+            except Exception as sync_error:
+                logger.error(f"Failed to sync API {api.id} from Gateway after optimization: {sync_error}")
+                # Don't fail the optimization if sync fails - it will be picked up in next scheduled sync
+
             return {
                 "success": True,
                 "recommendation_id": str(recommendation.id),
                 "api_id": str(api.id),
                 "gateway_id": str(gateway.id),
                 "policy_type": policy_type,
-                "message": f"{policy_type.capitalize()} policy applied successfully to API '{api.name}' on Gateway '{gateway.name}'",
+                "message": f"{policy_type.capitalize()} policy applied successfully to API '{api.name}' on Gateway '{gateway.name}'. API inventory updated.",
                 "applied_at": implemented_at.isoformat(),
             }
 
@@ -1348,6 +1356,56 @@ class OptimizationService:
                 await adapter.disconnect()
             except Exception as e:
                 logger.warning(f"Failed to disconnect from Gateway: {e}")
+
+    async def _sync_api_from_gateway(self, api: API, gateway) -> None:
+        """
+        Fetch API details from Gateway and update inventory with current policy_actions.
+        
+        This ensures the API inventory reflects the actual Gateway state immediately
+        after remediation/optimization, rather than waiting for the next scheduled sync.
+        
+        Args:
+            api: API to sync from Gateway
+            gateway: Gateway instance
+        """
+        try:
+            # Create adapter
+            from app.adapters.factory import create_gateway_adapter
+            adapter = create_gateway_adapter(gateway)
+            
+            # Connect and fetch API details
+            await adapter.connect()
+            try:
+                # Get fresh API details from Gateway
+                fresh_api = await adapter.get_api_details(str(api.id))
+                
+                if fresh_api and fresh_api.policy_actions is not None:
+                    # Update inventory with fresh policy_actions from Gateway
+                    from datetime import datetime
+                    updates = {
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }
+                    
+                    # Handle policy_actions explicitly (same logic as discovery_service)
+                    if len(fresh_api.policy_actions) > 0:
+                        updates["policy_actions"] = [
+                            policy.model_dump(mode="json", exclude_none=True)
+                            for policy in fresh_api.policy_actions
+                        ]
+                    else:
+                        updates["policy_actions"] = []
+                    
+                    # Update API in inventory
+                    self.api_repo.update(str(api.id), updates)
+                    logger.info(f"Synced {len(fresh_api.policy_actions)} policies for API {api.id} from Gateway")
+                else:
+                    logger.warning(f"Could not fetch API {api.id} details from Gateway")
+            finally:
+                await adapter.disconnect()
+                
+        except Exception as e:
+            logger.error(f"Failed to sync API {api.id} from Gateway: {e}")
+            raise
 
     async def remove_recommendation_policy(
         self,

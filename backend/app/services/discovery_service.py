@@ -335,27 +335,61 @@ class DiscoveryService:
                     )
                     
                     if existing_api:
-                        # Update existing API with latest discovery data.
-                        # This must replace policy/auth/vendor metadata fields as well,
-                        # otherwise removed gateway policies remain stale in inventory.
-                        updates = {
-                            "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
-                            "status": APIStatus.ACTIVE.value,
-                            "is_active": True,
-                            "endpoints": [ep.model_dump() for ep in api.endpoints],
-                            "methods": api.methods,
-                            "authentication_type": api.authentication_type.value,
-                            "authentication_config": api.authentication_config,
-                            "policy_actions": (
-                                [policy.model_dump(mode="json", exclude_none=True) for policy in api.policy_actions]
-                                if api.policy_actions is not None
-                                else None
-                            ),
-                            "vendor_metadata": api.vendor_metadata,
-                            "updated_at": datetime.utcnow().isoformat(),
-                        }
-                        self.api_repo.update(str(existing_api.id), updates)
-                        updated_apis += 1
+                        # Check if API has actually changed before updating
+                        has_changes = self._detect_api_changes(existing_api, api)
+                        
+                        if has_changes:
+                            # Update existing API with latest discovery data.
+                            # This must replace policy/auth/vendor metadata fields as well,
+                            # otherwise removed gateway policies remain stale in inventory.
+                            # Serialize vendor_metadata properly (including nested Pydantic models)
+                            vendor_metadata_dict = None
+                            if api.vendor_metadata:
+                                if hasattr(api.vendor_metadata, 'model_dump'):
+                                    # It's a Pydantic model - use getattr for type safety
+                                    model_dump = getattr(api.vendor_metadata, 'model_dump')
+                                    vendor_metadata_dict = model_dump(mode="json", exclude_none=True)
+                                else:
+                                    # It's already a dict
+                                    vendor_metadata_dict = api.vendor_metadata
+                                
+                                # Recursively serialize nested Pydantic models in vendor_metadata
+                                vendor_metadata_dict = self._serialize_nested_models(vendor_metadata_dict)
+                            
+                            updates = {
+                                "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
+                                "status": APIStatus.ACTIVE.value,
+                                "is_active": True,
+                                "endpoints": [ep.model_dump() for ep in api.endpoints],
+                                "methods": api.methods,
+                                "authentication_type": api.authentication_type.value,
+                                "authentication_config": api.authentication_config,
+                                "vendor_metadata": vendor_metadata_dict,
+                                "updated_at": datetime.utcnow().isoformat(),
+                            }
+                            
+                            # Handle policy_actions explicitly to ensure proper replacement
+                            # OpenSearch partial updates don't clear arrays when set to None/empty
+                            if api.policy_actions is not None and len(api.policy_actions) > 0:
+                                # Replace with new policies
+                                updates["policy_actions"] = [
+                                    policy.model_dump(mode="json", exclude_none=True)
+                                    for policy in api.policy_actions
+                                ]
+                            else:
+                                # Explicitly clear policies by setting to empty array
+                                # Setting to None doesn't work with OpenSearch partial updates
+                                updates["policy_actions"] = []
+                            
+                            self.api_repo.update(str(existing_api.id), updates)
+                            updated_apis += 1
+                            logger.debug(f"Updated API {api.name} (ID: {api.id}) - changes detected")
+                        else:
+                            # No changes, just update last_seen_at timestamp
+                            self.api_repo.update(str(existing_api.id), {
+                                "intelligence_metadata.last_seen_at": datetime.utcnow().isoformat(),
+                            })
+                            logger.debug(f"API {api.name} (ID: {api.id}) unchanged - only updated last_seen_at")
                     else:
                         # Create new API using the API's own ID as document ID
                         # This ensures gateway_id + api.id uniqueness
@@ -407,7 +441,9 @@ class DiscoveryService:
                 "status": GatewayStatus.ERROR.value,
                 "last_error": str(e),
             })
+            
             raise
+            
         except Exception as e:
             logger.error(f"Discovery failed for gateway {gateway_id}: {e}")
             
@@ -418,6 +454,100 @@ class DiscoveryService:
             })
             
             raise RuntimeError(f"Failed to discover APIs from gateway {gateway_id}: {e}")
+    
+    def _serialize_nested_models(self, obj):
+        """
+        Recursively serialize nested Pydantic models to JSON-serializable dicts.
+        
+        Args:
+            obj: Object to serialize (can be dict, list, Pydantic model, or primitive)
+            
+        Returns:
+            JSON-serializable version of the object
+        """
+        if obj is None:
+            return None
+        
+        # Handle Pydantic models
+        if hasattr(obj, 'model_dump'):
+            model_dump = getattr(obj, 'model_dump')
+            obj = model_dump(mode="json", exclude_none=True)
+        
+        # Handle dictionaries
+        if isinstance(obj, dict):
+            return {key: self._serialize_nested_models(value) for key, value in obj.items()}
+        
+        # Handle lists
+        if isinstance(obj, list):
+            return [self._serialize_nested_models(item) for item in obj]
+        
+        # Return primitives as-is
+        return obj
+    
+    def _detect_api_changes(self, existing_api: API, new_api: API) -> bool:
+        """
+        Detect if an API has meaningful changes that warrant an update.
+        
+        Compares key fields to determine if the API has actually changed.
+        Ignores timestamps and intelligence metadata.
+        
+        Args:
+            existing_api: Current API in inventory
+            new_api: Newly discovered API from Gateway
+            
+        Returns:
+            True if changes detected, False otherwise
+        """
+        # Compare policy_actions (most common change)
+        existing_policies = existing_api.policy_actions or []
+        new_policies = new_api.policy_actions or []
+        
+        if len(existing_policies) != len(new_policies):
+            return True
+        
+        # Compare policy configurations (deep comparison)
+        for i, (existing_policy, new_policy) in enumerate(zip(existing_policies, new_policies)):
+            # Compare action types
+            if existing_policy.action_type != new_policy.action_type:
+                logger.debug(f"Policy {i}: action_type changed from {existing_policy.action_type} to {new_policy.action_type}")
+                return True
+            
+            # Compare configurations (serialize to dict for comparison)
+            existing_config = existing_policy.model_dump(mode="json", exclude_none=True)
+            new_config = new_policy.model_dump(mode="json", exclude_none=True)
+            
+            # Remove fields that don't indicate real changes (at policy level)
+            for config in [existing_config, new_config]:
+                config.pop("id", None)
+                config.pop("created_at", None)
+                config.pop("updated_at", None)
+            
+            if existing_config != new_config:
+                logger.debug(f"Policy {i} ({existing_policy.action_type}): config changed")
+                logger.debug(f"  Existing: {existing_config}")
+                logger.debug(f"  New: {new_config}")
+                return True
+        
+        # Compare endpoints
+        if len(existing_api.endpoints) != len(new_api.endpoints):
+            return True
+        
+        # Compare methods
+        existing_methods = set(existing_api.methods or [])
+        new_methods = set(new_api.methods or [])
+        if existing_methods != new_methods:
+            return True
+        
+        # Compare authentication
+        if existing_api.authentication_type != new_api.authentication_type:
+            return True
+        
+        # Compare status
+        if existing_api.status != new_api.status:
+            return True
+        
+        # No significant changes detected
+        return False
     
     # COMMENTED OUT: Redundant method - shadow API detection is handled by detect_shadow_apis_job
     # in backend/app/scheduler/intelligence_metadata_jobs.py

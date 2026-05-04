@@ -423,6 +423,48 @@ export const AuditReportGenerator: React.FC<AuditReportGeneratorProps> = ({
               </div>
             </div>
           )}
+
+          {/* Detailed Violations */}
+          {(generatedReport as any).detailed_violations && (generatedReport as any).detailed_violations.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Detailed Violations (Showing {(generatedReport as any).detailed_violations.length})
+              </h3>
+              <div className="space-y-3">
+                {(generatedReport as any).detailed_violations.map((violation: any, index: number) => (
+                  <div key={violation.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          violation.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                          violation.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                          violation.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {violation.severity?.toUpperCase()}
+                        </span>
+                        <span className="ml-2 inline-block px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          {violation.compliance_standard?.toUpperCase()}
+                        </span>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        violation.status === 'open' ? 'bg-red-100 text-red-800' :
+                        violation.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {violation.status?.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                    <h4 className="font-medium text-gray-900 mb-1">{violation.violation_type?.replace(/_/g, ' ')}</h4>
+                    <p className="text-sm text-gray-600 mb-2">{violation.description}</p>
+                    <div className="text-xs text-gray-500">
+                      API ID: {violation.api_id} | Detected: {new Date(violation.detected_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

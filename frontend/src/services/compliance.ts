@@ -267,9 +267,18 @@ export const generateAuditReport = async (
       throw new Error('gateway_id is required for audit report generation');
     }
     
+    // Remove gateway_id from request body since it's only needed in the path
+    const { gateway_id, ...requestBody } = request;
+    
+    // Convert standards to lowercase to match backend enum values
+    const normalizedBody = {
+      ...requestBody,
+      standards: requestBody.standards?.map(s => s.toLowerCase()),
+    };
+    
     const response = await apiClient.post(
-      `/api/v1/gateways/${request.gateway_id}/compliance/reports/audit`,
-      request
+      `/api/v1/gateways/${gateway_id}/compliance/reports/audit`,
+      normalizedBody
     );
     // Handle both wrapped (response.data) and unwrapped (response) formats
     const data = response.data || response;

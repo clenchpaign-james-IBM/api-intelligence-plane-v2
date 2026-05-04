@@ -439,6 +439,7 @@ async def generate_gateway_audit_report(
         logger.info(f"Generating audit report for gateway {gateway_id}")
 
         report = await compliance_service.generate_audit_report(
+            gateway_id=gateway_id,
             api_ids=request.api_ids,
             standards=request.standards,
             start_date=request.start_date,

@@ -289,14 +289,16 @@ class ComplianceService:
 
     async def generate_audit_report(
         self,
+        gateway_id: UUID,
         api_ids: Optional[List[UUID]] = None,
         standards: Optional[List[ComplianceStandard]] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
-        """Generate comprehensive audit report.
+        """Generate comprehensive audit report for a gateway.
 
         Args:
+            gateway_id: Gateway UUID (required for scoping)
             api_ids: Optional API filters (multiple)
             standards: Optional compliance standard filters (multiple)
             start_date: Report start date (default: 90 days ago)
@@ -306,59 +308,182 @@ class ComplianceService:
             Comprehensive audit report with evidence
         """
         try:
-            logger.info("Generating audit report")
+            from uuid import uuid4
+            
+            logger.info(f"Generating audit report for gateway {gateway_id}")
 
             # Set default date range
             if not end_date:
-                end_date = datetime.utcnow()
-            if not start_date:
-                start_date = end_date - timedelta(days=90)
-
-            # Get audit report data from repository
-            # If multiple standards specified, aggregate data
-            if standards and len(standards) > 0:
-                # Aggregate data for multiple standards
-                all_report_data = []
-                for standard in standards:
-                    data = await self.compliance_repository.generate_audit_report_data(
-                        standard=standard,
-                        start_date=start_date,
-                        end_date=end_date
-                    )
-                    all_report_data.append(data)
-                
-                # Merge report data
-                report_data = self._merge_report_data(all_report_data)
+                # Use end of current day to include today's violations
+                end_date = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
             else:
-                # Get data for all standards
-                report_data = await self.compliance_repository.generate_audit_report_data(
-                    standard=None,
-                    start_date=start_date,
-                    end_date=end_date
-                )
+                # If end_date is provided but has no time component (midnight), set to end of day
+                if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0:
+                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
             
-            # If api_ids specified, filter violations
+            if not start_date:
+                # Use start of day 90 days ago
+                start_date = (end_date - timedelta(days=90)).replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                # Ensure start_date is at start of day
+                if start_date.hour != 0 or start_date.minute != 0 or start_date.second != 0:
+                    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            logger.info(f"Using date range: {start_date.isoformat()} to {end_date.isoformat()}")
+
+            # Query violations directly from OpenSearch by gateway_id
+            # This is more efficient than iterating through APIs
+            query = {
+                "bool": {
+                    "must": [
+                        {"term": {"gateway_id": str(gateway_id)}}
+                    ]
+                }
+            }
+            
+            # Add API filter if specified
             if api_ids and len(api_ids) > 0:
-                # Get violations for specific APIs
-                all_violations = []
-                for api_id in api_ids:
-                    violations = await self.compliance_repository.find_by_api_id(api_id)
-                    all_violations.extend(violations)
-                report_data["api_specific_violations"] = [v.dict() for v in all_violations]
+                logger.info(f"Filtering by {len(api_ids)} specific APIs")
+                query["bool"]["must"].append({
+                    "terms": {"api_id": [str(api_id) for api_id in api_ids]}
+                })
+            
+            # Query OpenSearch
+            body = {
+                "query": query,
+                "size": 10000,  # Get all violations
+                "sort": [{"detected_at": {"order": "desc"}}]
+            }
+            
+            response = self.compliance_repository.client.search(
+                index=self.compliance_repository.index_name,
+                body=body
+            )
+            
+            # Convert to ComplianceViolation objects
+            all_violations = [
+                self.compliance_repository.model_class(**hit["_source"])
+                for hit in response["hits"]["hits"]
+            ]
+            
+            logger.info(f"Total violations found for gateway: {len(all_violations)}")
+            
+            # Filter by date range
+            filtered_violations = []
+            logger.info(f"Date range filter: {start_date.isoformat()} to {end_date.isoformat()}")
+            
+            for v in all_violations:
+                try:
+                    # Handle both datetime objects and ISO strings
+                    if isinstance(v.detected_at, str):
+                        # Remove timezone info and parse
+                        detected_str = v.detected_at.replace('Z', '').replace('+00:00', '')
+                        if '.' in detected_str:
+                            # Has microseconds
+                            detected_dt = datetime.strptime(detected_str.split('.')[0], '%Y-%m-%dT%H:%M:%S')
+                        else:
+                            detected_dt = datetime.strptime(detected_str, '%Y-%m-%dT%H:%M:%S')
+                    else:
+                        detected_dt = v.detected_at
+                        # Make timezone-naive for comparison
+                        if detected_dt.tzinfo is not None:
+                            detected_dt = detected_dt.replace(tzinfo=None)
+                    
+                    # Log first few for debugging
+                    if len(filtered_violations) < 3:
+                        logger.info(f"Violation {v.id} detected_at: {detected_dt.isoformat()}, in range: {start_date <= detected_dt <= end_date}")
+                    
+                    if start_date <= detected_dt <= end_date:
+                        filtered_violations.append(v)
+                except Exception as e:
+                    logger.warning(f"Failed to parse detected_at '{v.detected_at}' for violation {v.id}: {e}")
+                    # Include violation if we can't parse the date - better to include than exclude
+                    filtered_violations.append(v)
+            
+            all_violations = filtered_violations
+            logger.info(f"Total violations after date filtering: {len(all_violations)}")
+            
+            # Filter by standards if specified
+            if standards and len(standards) > 0:
+                standard_values = [s.value for s in standards]
+                logger.info(f"Filtering by standards: {standard_values}")
+                all_violations = [
+                    v for v in all_violations
+                    if v.compliance_standard in standard_values
+                ]
+                logger.info(f"Total violations after standard filtering: {len(all_violations)}")
+            
+            # Calculate aggregations
+            total_violations = len(all_violations)
+            by_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            by_standard = {}
+            by_status = {"open": 0, "in_progress": 0, "resolved": 0, "accepted_risk": 0, "false_positive": 0}
+            remediated_count = 0
+            open_count = 0
+            
+            for v in all_violations:
+                # Count by severity
+                if v.severity in by_severity:
+                    by_severity[v.severity] += 1
+                
+                # Count by standard
+                std = v.compliance_standard
+                by_standard[std] = by_standard.get(std, 0) + 1
+                
+                # Count by status
+                if v.status in by_status:
+                    by_status[v.status] += 1
+                
+                if v.status == "resolved":
+                    remediated_count += 1
+                elif v.status == "open":
+                    open_count += 1
+            
+            remediation_rate = (remediated_count / total_violations * 100) if total_violations > 0 else 0
 
             # Get violations needing audit attention
             violations_needing_audit = await self.compliance_repository.find_violations_needing_audit(
                 days_until_audit=30
             )
+            # Filter to this gateway
+            violations_needing_audit = [
+                v for v in violations_needing_audit
+                if str(v.gateway_id) == str(gateway_id)
+            ]
+
+            # Build report data structure
+            report_data = {
+                "summary": {
+                    "total_violations": total_violations,
+                    "remediated_violations": remediated_count,
+                    "open_violations": open_count,
+                    "remediation_rate": round(remediation_rate, 2),
+                },
+                "by_severity": by_severity,
+                "by_standard": by_standard,
+                "by_status": by_status,
+            }
 
             # Enhance with AI-generated executive summary if enabled
             executive_summary = await self._generate_executive_summary(
                 report_data,
                 violations_needing_audit
             )
+            
+            # Generate recommendations based on violations
+            recommendations = []
+            if by_severity.get("critical", 0) > 0:
+                recommendations.append(f"Address {by_severity['critical']} critical violations immediately to reduce compliance risk")
+            if by_severity.get("high", 0) > 0:
+                recommendations.append(f"Prioritize remediation of {by_severity['high']} high-severity violations")
+            if remediation_rate < 50:
+                recommendations.append(f"Current remediation rate is {remediation_rate:.1f}%. Increase remediation efforts to improve compliance posture")
+            for standard, count in by_standard.items():
+                if count > 0:
+                    recommendations.append(f"Review {count} {standard.upper()} violations for regulatory compliance")
 
             return {
-                "report_id": str(UUID(int=0)),  # Generate proper report ID
+                "report_id": str(uuid4()),  # Generate proper unique report ID
                 "generated_at": datetime.utcnow().isoformat(),
                 "report_period": {
                     "start": start_date.isoformat(),
@@ -375,8 +500,9 @@ class ComplianceService:
                     "remediation_rate": report_data.get("summary", {}).get("remediation_rate", 0),
                 },
                 "violations_needing_audit": [v.dict() for v in violations_needing_audit],
-                "audit_evidence": report_data.get("audit_evidence", []),
-                "recommendations": report_data.get("recommendations", []),
+                "audit_evidence": [],
+                "recommendations": recommendations,
+                "detailed_violations": [v.dict() for v in all_violations[:50]],  # Include first 50 violations for details
             }
 
         except Exception as e:

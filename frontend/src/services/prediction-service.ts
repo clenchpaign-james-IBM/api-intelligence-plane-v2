@@ -1,12 +1,20 @@
 /**
  * Prediction Service Client
- * 
+ *
  * Provides API methods for prediction-related operations.
  * Extends the base API client with prediction-specific functionality.
  */
 
 import { api } from './api';
-import type { Prediction, PredictionSeverity, PredictionStatus } from '../types';
+import type {
+  Prediction,
+  PredictionSeverity,
+  PredictionStatus,
+  PredictionRemediationPlan,
+  PredictionRemediationAction
+} from '../types';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export interface PredictionListParams {
   severity?: PredictionSeverity;
@@ -36,6 +44,43 @@ export interface PredictionExplanationResponse {
     trend: string;
     weight: number;
   }>;
+}
+
+// Remediation Request/Response Types
+export interface RemediationPlanResponse {
+  prediction_id: string;
+  plan: PredictionRemediationPlan;
+  requires_approval: boolean;
+  estimated_time_minutes: number;
+}
+
+export interface RemediationRequest {
+  remediation_strategy?: 'conservative' | 'balanced' | 'aggressive';
+  auto_approve?: boolean;
+  override_config?: Record<string, any>;
+}
+
+export interface RemediationExecutionResponse {
+  prediction_id: string;
+  status: string;
+  actions: PredictionRemediationAction[];
+  message: string;
+}
+
+export interface VerificationResponse {
+  prediction_id: string;
+  verified: boolean;
+  effectiveness_score: number;
+  verification_method: string;
+  verification_time: string;
+  details: Record<string, any>;
+}
+
+export interface RollbackResponse {
+  prediction_id: string;
+  status: string;
+  rolled_back_actions: string[];
+  message: string;
 }
 
 /**
@@ -128,6 +173,119 @@ export const predictionService = {
    */
   getCritical: (params?: Omit<PredictionListParams, 'severity'>): Promise<PredictionListResponse> => {
     return api.predictions.list({ ...params, severity: 'critical' });
+  },
+
+  /**
+   * Generate remediation plan for a prediction
+   *
+   * @param gatewayId - Gateway ID
+   * @param predictionId - Prediction ID
+   * @param forceRegenerate - Force regeneration of plan
+   * @returns Promise resolving to remediation plan
+   */
+  generateRemediationPlan: async (
+    gatewayId: string,
+    predictionId: string,
+    forceRegenerate: boolean = false
+  ): Promise<RemediationPlanResponse> => {
+    const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/predictions/${predictionId}/remediation-plan?force_regenerate=${forceRegenerate}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to generate remediation plan: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Execute remediation for a prediction
+   *
+   * @param gatewayId - Gateway ID
+   * @param predictionId - Prediction ID
+   * @param request - Remediation request parameters
+   * @returns Promise resolving to execution response
+   */
+  remediate: async (
+    gatewayId: string,
+    predictionId: string,
+    request: RemediationRequest = {}
+  ): Promise<RemediationExecutionResponse> => {
+    const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/predictions/${predictionId}/remediate`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to remediate prediction: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Verify remediation effectiveness
+   *
+   * @param gatewayId - Gateway ID
+   * @param predictionId - Prediction ID
+   * @param verificationMethod - Verification method (automated or manual)
+   * @returns Promise resolving to verification response
+   */
+  verifyRemediation: async (
+    gatewayId: string,
+    predictionId: string,
+    verificationMethod: 'automated' | 'manual' = 'automated'
+  ): Promise<VerificationResponse> => {
+    const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/predictions/${predictionId}/verify-remediation?verification_method=${verificationMethod}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to verify remediation: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Rollback remediation actions
+   *
+   * @param gatewayId - Gateway ID
+   * @param predictionId - Prediction ID
+   * @param actionId - Optional specific action ID to rollback
+   * @returns Promise resolving to rollback response
+   */
+  rollback: async (
+    gatewayId: string,
+    predictionId: string,
+    actionId?: string
+  ): Promise<RollbackResponse> => {
+    const url = `${API_BASE_URL}/api/v1/gateways/${gatewayId}/predictions/${predictionId}/rollback${actionId ? `?action_id=${actionId}` : ''}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to rollback remediation: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 };
 

@@ -55,6 +55,38 @@ def create_predictions_index(client: OpenSearch):
                 "accuracy_score": {"type": "float"},
                 "model_version": {"type": "keyword"},
                 "metadata": {"type": "object", "enabled": True},
+                
+                # Remediation fields
+                "remediation_type": {"type": "keyword"},
+                "remediation_actions": {
+                    "type": "nested",
+                    "properties": {
+                        "action": {"type": "text"},
+                        "type": {"type": "keyword"},
+                        "status": {"type": "keyword"},
+                        "performed_at": {"type": "date"},
+                        "performed_by": {"type": "keyword"},
+                        "gateway_policy_id": {"type": "keyword"},
+                        "configuration_before": {"type": "object", "enabled": False},
+                        "configuration_after": {"type": "object", "enabled": False},
+                        "effectiveness_score": {"type": "float"},
+                        "error_message": {"type": "text"},
+                        "rollback_available": {"type": "boolean"},
+                        "rollback_performed_at": {"type": "date"},
+                    },
+                },
+                "remediation_effectiveness": {"type": "float"},
+                
+                # Per-prediction remediation plan fields
+                "recommended_remediation": {"type": "object", "enabled": True},
+                "recommended_priority": {"type": "keyword"},
+                "recommended_verification_steps": {"type": "text"},
+                "recommended_estimated_time_minutes": {"type": "float"},
+                "plan_generated_at": {"type": "date"},
+                "plan_source": {"type": "keyword"},
+                "plan_version": {"type": "keyword"},
+                "plan_status": {"type": "keyword"},
+                
                 "created_at": {"type": "date"},
                 "updated_at": {"type": "date"},
             }

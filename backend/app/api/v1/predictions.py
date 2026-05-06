@@ -37,6 +37,7 @@ class PredictionResponse(BaseModel):
     """Response model for a single prediction."""
     
     id: str
+    gateway_id: str
     api_id: str
     api_name: Optional[str] = None
     prediction_type: str
@@ -125,6 +126,7 @@ async def list_all_predictions(
         predictions_response = [
             PredictionResponse(
                 id=str(p.id),
+                gateway_id=str(p.gateway_id),
                 api_id=str(p.api_id),
                 api_name=p.api_name,
                 prediction_type=p.prediction_type,
@@ -249,6 +251,7 @@ async def list_gateway_predictions(
         predictions_response = [
             PredictionResponse(
                 id=str(p.id),
+                gateway_id=str(p.gateway_id),
                 api_id=str(p.api_id),
                 api_name=p.api_name,
                 prediction_type=p.prediction_type.value,
@@ -458,6 +461,7 @@ async def get_gateway_prediction(
         # Convert to response model
         return PredictionResponse(
             id=str(prediction.id),
+            gateway_id=str(prediction.gateway_id),
             api_id=str(prediction.api_id),
             api_name=api_name or f"API {str(prediction.api_id)[:8]}",
             prediction_type=prediction.prediction_type.value,
@@ -768,6 +772,7 @@ async def search_predictions(
                 PredictionResponse(
                     id=str(pred.id),
                     api_id=str(pred.api_id),
+                    gateway_id=str(pred.gateway_id),
                     api_name=api_name_str,
                     prediction_type=pred.prediction_type.value,
                     predicted_at=pred.predicted_at.isoformat(),
@@ -799,6 +804,356 @@ async def search_predictions(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search predictions: {str(e)}",
+        )
+
+
+
+# ============================================================================
+# Remediation Endpoints
+# ============================================================================
+
+# Request/Response Models for Remediation
+class RemediationActionResponse(BaseModel):
+    """Response model for a remediation action."""
+    
+    action: str
+    type: str
+    status: str
+    performed_at: Optional[str] = None
+    performed_by: Optional[str] = None
+    gateway_policy_id: Optional[str] = None
+    effectiveness_score: Optional[float] = None
+    error_message: Optional[str] = None
+    rollback_available: bool = True
+
+
+class RemediationPlanResponse(BaseModel):
+    """Response model for remediation plan."""
+    
+    prediction_id: str
+    plan_exists: bool
+    plan: dict
+    generated_at: Optional[str] = None
+
+
+class RemediationRequest(BaseModel):
+    """Request model for executing remediation."""
+    
+    remediation_strategy: Optional[str] = None
+    auto_approve: bool = False
+    override_config: Optional[dict] = None
+
+
+class RemediationExecutionResponse(BaseModel):
+    """Response model for remediation execution."""
+    
+    prediction_id: str
+    actions_executed: int
+    actions_successful: int
+    actions_failed: int
+    overall_status: str
+    remediation_actions: list[RemediationActionResponse]
+
+
+class VerificationResponse(BaseModel):
+    """Response model for remediation verification."""
+    
+    prediction_id: str
+    verification_method: str
+    effectiveness_score: Optional[float] = None
+    metrics_improved: bool
+    verification_details: dict
+
+
+class RollbackResponse(BaseModel):
+    """Response model for remediation rollback."""
+    
+    prediction_id: str
+    actions_rolled_back: int
+    rollback_status: str
+    message: str
+
+
+@router.post(
+    "/gateways/{gateway_id}/predictions/{prediction_id}/remediation-plan",
+    response_model=RemediationPlanResponse,
+    summary="Generate remediation plan for a prediction",
+    description="Generate AI-powered remediation plan with API-level gateway policy recommendations"
+)
+async def generate_remediation_plan(
+    gateway_id: UUID,
+    prediction_id: UUID,
+    force_regenerate: bool = Query(False, description="Force regeneration even if plan exists"),
+):
+    """Generate remediation plan for a prediction.
+    
+    Creates an AI-powered remediation plan with specific API-level gateway
+    policy recommendations to prevent or mitigate the predicted failure.
+    
+    Args:
+        gateway_id: Gateway UUID
+        prediction_id: Prediction UUID
+        force_regenerate: Force regeneration even if plan exists
+        
+    Returns:
+        Generated remediation plan with actions and verification steps
+        
+    Raises:
+        HTTPException: If prediction not found or generation fails
+    """
+    try:
+        logger.info(f"Generating remediation plan for prediction {prediction_id}")
+        
+        # Get dependencies
+        prediction_repo = PredictionRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Import service (avoid circular import)
+        from app.services.prediction_service import PredictionService
+        prediction_service = PredictionService(
+            prediction_repository=prediction_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo
+        )
+        
+        # Generate plan
+        result = await prediction_service.generate_remediation_plan(
+            prediction_id=prediction_id,
+            force_regenerate=force_regenerate
+        )
+        
+        return RemediationPlanResponse(**result)
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate remediation plan: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate remediation plan: {str(e)}"
+        )
+
+
+@router.post(
+    "/gateways/{gateway_id}/predictions/{prediction_id}/remediate",
+    response_model=RemediationExecutionResponse,
+    summary="Execute automated remediation for a prediction",
+    description="Apply API-level gateway policies to prevent or mitigate predicted failure"
+)
+async def remediate_prediction(
+    gateway_id: UUID,
+    prediction_id: UUID,
+    request: RemediationRequest,
+):
+    """Execute automated remediation for a prediction.
+    
+    Applies API-level gateway configuration changes (rate limiting, throttling,
+    caching, validation) to prevent or mitigate the predicted failure.
+    
+    Args:
+        gateway_id: Gateway UUID
+        prediction_id: Prediction UUID
+        request: Remediation request with strategy and configuration
+        
+    Returns:
+        Remediation execution results with action statuses
+        
+    Raises:
+        HTTPException: If prediction not found or execution fails
+    """
+    try:
+        logger.info(f"Executing remediation for prediction {prediction_id}")
+        
+        # Get dependencies
+        prediction_repo = PredictionRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Import service
+        from app.services.prediction_service import PredictionService
+        prediction_service = PredictionService(
+            prediction_repository=prediction_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo
+        )
+        
+        # Execute remediation
+        result = await prediction_service.remediate_prediction(
+            prediction_id=prediction_id,
+            remediation_strategy=request.remediation_strategy,
+            auto_approve=request.auto_approve,
+            override_config=request.override_config
+        )
+        
+        # Convert to response model
+        return RemediationExecutionResponse(
+            prediction_id=str(prediction_id),
+            actions_executed=0,  # TODO: Get from result
+            actions_successful=0,
+            actions_failed=0,
+            overall_status=result.get("status", "pending"),
+            remediation_actions=[]
+        )
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to execute remediation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to execute remediation: {str(e)}"
+        )
+
+
+@router.post(
+    "/gateways/{gateway_id}/predictions/{prediction_id}/verify-remediation",
+    response_model=VerificationResponse,
+    summary="Verify effectiveness of remediation",
+    description="Check if remediation successfully prevented or mitigated the predicted issue"
+)
+async def verify_remediation(
+    gateway_id: UUID,
+    prediction_id: UUID,
+    verification_method: str = Query("automated", description="Verification method (automated, manual)"),
+):
+    """Verify effectiveness of remediation actions.
+    
+    Checks current metrics against prediction thresholds to determine if
+    the remediation successfully prevented or mitigated the predicted issue.
+    
+    Args:
+        gateway_id: Gateway UUID
+        prediction_id: Prediction UUID
+        verification_method: How to verify (automated, manual)
+        
+    Returns:
+        Verification results with effectiveness scores
+        
+    Raises:
+        HTTPException: If prediction not found or verification fails
+    """
+    try:
+        logger.info(f"Verifying remediation for prediction {prediction_id}")
+        
+        # Get dependencies
+        prediction_repo = PredictionRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Import service
+        from app.services.prediction_service import PredictionService
+        prediction_service = PredictionService(
+            prediction_repository=prediction_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo
+        )
+        
+        # Verify remediation
+        result = await prediction_service.verify_remediation(
+            prediction_id=prediction_id,
+            verification_method=verification_method
+        )
+        
+        # Convert to response model
+        return VerificationResponse(
+            prediction_id=str(prediction_id),
+            verification_method=verification_method,
+            effectiveness_score=None,  # TODO: Get from result
+            metrics_improved=False,
+            verification_details=result
+        )
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to verify remediation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to verify remediation: {str(e)}"
+        )
+
+
+@router.post(
+    "/gateways/{gateway_id}/predictions/{prediction_id}/rollback",
+    response_model=RollbackResponse,
+    summary="Rollback remediation actions",
+    description="Revert API-level gateway policies to previous configuration"
+)
+async def rollback_remediation(
+    gateway_id: UUID,
+    prediction_id: UUID,
+    action_id: Optional[str] = Query(None, description="Specific action to rollback (or all if None)"),
+):
+    """Rollback remediation actions for a prediction.
+    
+    Reverts API-level gateway configuration changes if remediation was
+    ineffective or caused issues.
+    
+    Args:
+        gateway_id: Gateway UUID
+        prediction_id: Prediction UUID
+        action_id: Specific action to rollback (or all if None)
+        
+    Returns:
+        Rollback results with status
+        
+    Raises:
+        HTTPException: If prediction not found or rollback fails
+    """
+    try:
+        logger.info(f"Rolling back remediation for prediction {prediction_id}")
+        
+        # Get dependencies
+        prediction_repo = PredictionRepository()
+        metrics_repo = MetricsRepository()
+        api_repo = APIRepository()
+        
+        # Import service
+        from app.services.prediction_service import PredictionService
+        prediction_service = PredictionService(
+            prediction_repository=prediction_repo,
+            metrics_repository=metrics_repo,
+            api_repository=api_repo
+        )
+        
+        # Rollback remediation
+        result = await prediction_service.rollback_remediation(
+            prediction_id=prediction_id,
+            action_id=action_id
+        )
+        
+        # Convert to response model
+        return RollbackResponse(
+            prediction_id=str(prediction_id),
+            actions_rolled_back=0,  # TODO: Get from result
+            rollback_status=result.get("status", "pending"),
+            message=result.get("message", "Rollback initiated")
+        )
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to rollback remediation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rollback remediation: {str(e)}"
         )
 
 

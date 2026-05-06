@@ -997,6 +997,572 @@ class PredictionService:
         if count > 0:
             logger.info(f"Expired {count} old predictions")
 
+
+    async def generate_remediation_plan(
+        self,
+        prediction_id: UUID,
+        force_regenerate: bool = False
+    ) -> Dict[str, Any]:
+        """Generate AI-powered remediation plan for a prediction.
+        
+        Uses LLM to analyze the prediction and generate API-scoped
+        remediation recommendations for webMethods gateway.
+        
+        Args:
+            prediction_id: Prediction to generate plan for
+            force_regenerate: Force regeneration even if plan exists
+            
+        Returns:
+            Generated remediation plan with actions and verification steps
+            
+        Raises:
+            ValueError: If prediction not found or invalid
+        """
+        logger.info(f"Generating remediation plan for prediction {prediction_id}")
+        
+        # Fetch prediction
+        prediction = self.prediction_repo.get_prediction(str(prediction_id))
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        
+        # Check if plan already exists
+        if prediction.recommended_remediation and not force_regenerate:
+            logger.info(f"Remediation plan already exists for prediction {prediction_id}")
+            return {
+                "prediction_id": str(prediction_id),
+                "plan_exists": True,
+                "plan": prediction.recommended_remediation,
+                "generated_at": prediction.plan_generated_at.isoformat() if prediction.plan_generated_at else None
+            }
+        
+        # Get current gateway configuration (for context)
+        gateway_config = {}  # TODO: Fetch from gateway adapter
+        
+        # Generate plan using prediction agent
+        if self._prediction_agent:
+            plan = await self._prediction_agent.generate_remediation_plan(
+                prediction=prediction,
+                gateway_config=gateway_config
+            )
+        else:
+            # Fallback to rule-based plan generation
+            plan = self._generate_rule_based_remediation_plan(prediction)
+        
+        # Update prediction with plan
+        updates = {
+            "recommended_remediation": plan,
+            "recommended_priority": plan.get("priority", "medium"),
+            "recommended_verification_steps": plan.get("verification_steps", []),
+            "recommended_estimated_time_minutes": plan.get("estimated_minutes", 30.0),
+            "plan_generated_at": datetime.utcnow(),
+            "plan_source": "llm" if self._prediction_agent else "rule_based",
+            "plan_version": "1.0.0",
+            "plan_status": "generated",
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Persist updated prediction
+        self.prediction_repo.update(str(prediction.id), updates)
+        
+        logger.info(f"Generated remediation plan for prediction {prediction_id}")
+        
+        return {
+            "prediction_id": str(prediction_id),
+            "plan_exists": False,
+            "plan": plan,
+            "generated_at": prediction.plan_generated_at.isoformat()
+        }
+    
+    def _generate_rule_based_remediation_plan(self, prediction: Prediction) -> Dict[str, Any]:
+        """Generate rule-based remediation plan when LLM is unavailable.
+        
+        Args:
+            prediction: Prediction to generate plan for
+            
+        Returns:
+            Rule-based remediation plan
+        """
+        # Map prediction type to remediation actions
+        action_map = {
+            PredictionType.FAILURE: ["rate_limiting", "validation_policy"],
+            PredictionType.DEGRADATION: ["rate_limiting", "throttling", "cache_config"],
+            PredictionType.CAPACITY: ["rate_limiting", "throttling", "cache_config"],
+            PredictionType.SECURITY: ["rate_limiting", "validation_policy"]
+        }
+        
+        actions = action_map.get(prediction.prediction_type, ["rate_limiting"])
+        
+        # Build plan
+        plan = {
+            "summary": f"Apply {', '.join(actions)} to prevent {prediction.prediction_type.value}",
+            "priority": "high" if prediction.severity in [PredictionSeverity.CRITICAL, PredictionSeverity.HIGH] else "medium",
+            "actions": [
+                {
+                    "type": action,
+                    "description": f"Apply {action.replace('_', ' ')} policy to API",
+                    "estimated_minutes": 10
+                }
+                for action in actions
+            ],
+            "verification_steps": [
+                f"Monitor {prediction.prediction_type.value} metrics for 30 minutes",
+                "Verify API remains stable",
+                "Check for any side effects"
+            ],
+            "estimated_minutes": len(actions) * 10
+        }
+        
+        return plan
+
+    async def remediate_prediction(
+        self,
+        prediction_id: UUID,
+        remediation_strategy: Optional[str] = None,
+        auto_approve: bool = False,
+        override_config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Execute automated remediation for a prediction.
+        
+        Applies API-level gateway configuration changes to prevent or mitigate
+        the predicted failure.
+        
+        Args:
+            prediction_id: Prediction to remediate
+            remediation_strategy: Specific strategy to use (optional)
+            auto_approve: Skip approval step for semi-automated actions
+            override_config: Manual override configuration
+            
+        Returns:
+            Remediation execution results with action statuses
+            
+        Raises:
+            ValueError: If prediction not found or invalid state
+        """
+        logger.info(f"Starting remediation for prediction {prediction_id}")
+        
+        # Fetch prediction
+        prediction = self.prediction_repo.get_prediction(str(prediction_id))
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        
+        # Validate prediction is still active
+        if prediction.status != PredictionStatus.ACTIVE:
+            raise ValueError(f"Prediction {prediction_id} is not active (status: {prediction.status})")
+        
+        # Ensure remediation plan exists
+        if not prediction.recommended_remediation:
+            logger.info(f"No remediation plan found, generating one")
+            await self.generate_remediation_plan(prediction_id)
+            prediction = self.prediction_repo.get_prediction(str(prediction_id))
+        
+        # Get API details
+        api = self.api_repo.get(str(prediction.api_id))
+        if not api:
+            raise ValueError(f"API {prediction.api_id} not found")
+        
+        # Initialize remediation_actions from recommended plan if not already set
+        if not prediction.remediation_actions:
+            from app.models.prediction import RemediationAction
+            recommended_actions = prediction.recommended_remediation.get("actions", [])
+            prediction.remediation_actions = [
+                RemediationAction(
+                    action=action.get("description", action.get("type", "Unknown action")),
+                    type=action.get("type", "configuration"),
+                    status="pending",
+                )
+                for action in recommended_actions
+            ]
+        
+        # Perform automated remediation
+        remediation_result = await self._apply_automated_remediation(
+            api=api,
+            prediction=prediction,
+            strategy=remediation_strategy,
+            override_config=override_config,
+        )
+        
+        # Check if remediation was successful
+        result_actions = remediation_result.get("actions", [])
+        all_successful = all(
+            action.status == "completed"
+            for action in result_actions
+        )
+        
+        # Update prediction status based on remediation success
+        if all_successful:
+            prediction.status = PredictionStatus.MITIGATED
+            prediction.remediated_at = datetime.utcnow()
+            prediction.verification_status = "pending"
+        else:
+            prediction.status = PredictionStatus.IN_PROGRESS
+        
+        # Update remediation actions
+        if result_actions:
+            prediction.remediation_actions = result_actions
+        
+        prediction.updated_at = datetime.utcnow()
+        
+        # Update plan status if plan was used
+        if prediction.recommended_remediation and prediction.plan_status == "generated":
+            prediction.plan_status = "approved"  # Mark as approved when remediation starts
+        
+        # Persist updated prediction
+        self.prediction_repo.update(
+            str(prediction.id),
+            prediction.dict(exclude={"id"})
+        )
+        
+        # Force OpenSearch index refresh
+        self.prediction_repo.client.indices.refresh(
+            index=self.prediction_repo.index_name
+        )
+        
+        logger.info(f"Remediation completed for prediction {prediction_id} (status: {prediction.status})")
+        
+        return remediation_result
+    
+    async def _apply_automated_remediation(
+        self,
+        api: API,
+        prediction: Prediction,
+        strategy: Optional[str] = None,
+        override_config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Apply automated remediation for a prediction via Gateway adapter.
+        
+        Args:
+            api: API to remediate
+            prediction: Prediction to fix
+            strategy: Optional remediation strategy
+            override_config: Optional override configuration
+            
+        Returns:
+            Remediation result with actions
+        """
+        from app.models.prediction import RemediationAction
+        from app.models.base.policy_configs import (
+            RateLimitConfig,
+            ValidationConfig,
+        )
+        
+        actions = []
+        
+        # Get gateway adapter for this API
+        gateway = self.gateway_repo.get(str(api.gateway_id))
+        if not gateway:
+            raise ValueError(f"Gateway not found for API: {api.id}")
+        
+        # Get adapter from factory
+        from app.adapters.factory import GatewayAdapterFactory
+        gateway_adapter = GatewayAdapterFactory.create_adapter(gateway)
+        await gateway_adapter.connect()
+        
+        try:
+            # Get recommended actions from plan
+            recommended_actions = prediction.recommended_remediation.get("actions", [])
+            
+            for action_spec in recommended_actions:
+                action_type = action_spec.get("type", "rate_limiting")
+                
+                try:
+                    if action_type == "rate_limiting":
+                        # Apply rate limiting policy
+                        default_config = RateLimitConfig(
+                            requests_per_second=None,
+                            requests_per_minute=100,
+                            requests_per_hour=None,
+                            requests_per_day=None,
+                            concurrent_requests=None,
+                            burst_allowance=20,
+                            rate_limit_key="ip",
+                            custom_key_header=None,
+                            enforcement_action="reject",
+                            include_rate_limit_headers=True,
+                            consumer_tiers=None,
+                        )
+                        
+                        # Apply overrides if provided
+                        if override_config and "rate_limiting" in override_config:
+                            final_config_dict = default_config.dict()
+                            final_config_dict.update(override_config["rate_limiting"])
+                            final_config = RateLimitConfig(**final_config_dict)
+                        else:
+                            final_config = default_config
+                        
+                        policy = PolicyAction(
+                            action_type=PolicyActionType.RATE_LIMITING,
+                            enabled=True,
+                            stage="request",
+                            config=final_config,
+                            vendor_config={},
+                            name=f"Rate Limit Policy for {api.name}",
+                            description=f"Prediction remediation for {prediction.id}",
+                        )
+                        success = await gateway_adapter.apply_rate_limit_policy(
+                            str(api.id), policy
+                        )
+                        
+                        actions.append(
+                            RemediationAction(
+                                action=f"Applied rate limiting policy (100 req/min)",
+                                type="gateway_policy",
+                                status="completed" if success else "failed",
+                                performed_at=datetime.utcnow(),
+                                performed_by="prediction_agent",
+                                gateway_policy_id=f"ratelimit-{api.id}" if success else None,
+                                configuration_before=None,
+                                configuration_after=final_config.dict() if success else None,
+                                effectiveness_score=None,
+                                error_message=None if success else "Failed to apply policy",
+                                rollback_available=success,
+                                rollback_performed_at=None,
+                            )
+                        )
+                        
+                    elif action_type == "throttling":
+                        # Apply throttling policy
+                        default_config = ThrottlingConfig(
+                            max_concurrent_requests=10,
+                            queue_size=100,
+                            queue_timeout_seconds=30,
+                            throttle_by="ip",
+                            custom_throttle_key=None,
+                            rejection_status_code=429,
+                            rejection_message=None,
+                        )
+                        
+                        if override_config and "throttling" in override_config:
+                            final_config_dict = default_config.dict()
+                            final_config_dict.update(override_config["throttling"])
+                            final_config = ThrottlingConfig(**final_config_dict)
+                        else:
+                            final_config = default_config
+                        
+                        policy = PolicyAction(
+                            action_type=PolicyActionType.THROTTLING,
+                            enabled=True,
+                            stage="request",
+                            config=final_config,
+                            vendor_config={},
+                            name=f"Throttling Policy for {api.name}",
+                            description=f"Prediction remediation for {prediction.id}",
+                        )
+                        success = await gateway_adapter.apply_throttling_policy(
+                            str(api.id), policy
+                        )
+                        
+                        actions.append(
+                            RemediationAction(
+                                action=f"Applied throttling policy (max 10 concurrent)",
+                                type="gateway_policy",
+                                status="completed" if success else "failed",
+                                performed_at=datetime.utcnow(),
+                                performed_by="prediction_agent",
+                                gateway_policy_id=f"throttle-{api.id}" if success else None,
+                                error_message=None if success else "Failed to apply policy",
+                            )
+                        )
+                        
+                    elif action_type == "cache_config":
+                        # Apply caching policy
+                        default_config = CacheConfig(
+                            cache_enabled=True,
+                            cache_ttl_seconds=300,
+                            cache_key_template=None,
+                            cache_by_headers=None,
+                            cache_by_query_params=None,
+                            cache_response_codes=[200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501],
+                            cache_methods=["GET", "HEAD"],
+                            vary_by_headers=None,
+                            cache_control_override=None,
+                        )
+                        
+                        if override_config and "cache_config" in override_config:
+                            final_config_dict = default_config.dict()
+                            final_config_dict.update(override_config["cache_config"])
+                            final_config = CacheConfig(**final_config_dict)
+                        else:
+                            final_config = default_config
+                        
+                        policy = PolicyAction(
+                            action_type=PolicyActionType.CACHING,
+                            enabled=True,
+                            stage="response",
+                            config=final_config,
+                            vendor_config={},
+                            name=f"Cache Policy for {api.name}",
+                            description=f"Prediction remediation for {prediction.id}",
+                        )
+                        success = await gateway_adapter.apply_cache_policy(
+                            str(api.id), policy
+                        )
+                        
+                        actions.append(
+                            RemediationAction(
+                                action=f"Applied caching policy (TTL: 5 min)",
+                                type="gateway_policy",
+                                status="completed" if success else "failed",
+                                performed_at=datetime.utcnow(),
+                                performed_by="prediction_agent",
+                                gateway_policy_id=f"cache-{api.id}" if success else None,
+                                error_message=None if success else "Failed to apply policy",
+                            )
+                        )
+                        
+                    elif action_type == "validation_policy":
+                        # Apply validation policy
+                        default_config = ValidationConfig(
+                            validate_request_body=True,
+                            validate_request_headers=True,
+                            validate_request_query_params=True,
+                            validate_response_body=False,
+                            validate_response_headers=False,
+                            schema_validation_enabled=True,
+                            schema_format="openapi3",
+                            schema_url=None,
+                            schema_content=None,
+                            strict_validation=True,
+                            allow_additional_properties=False,
+                            validation_error_status_code=400,
+                            validation_error_message=None,
+                        )
+                        
+                        if override_config and "validation_policy" in override_config:
+                            final_config_dict = default_config.dict()
+                            final_config_dict.update(override_config["validation_policy"])
+                            final_config = ValidationConfig(**final_config_dict)
+                        else:
+                            final_config = default_config
+                        
+                        policy = PolicyAction(
+                            action_type=PolicyActionType.VALIDATION,
+                            enabled=True,
+                            stage="request",
+                            config=final_config,
+                            vendor_config={},
+                            name=f"Validation Policy for {api.name}",
+                            description=f"Prediction remediation for {prediction.id}",
+                        )
+                        success = await gateway_adapter.apply_validation_policy(
+                            str(api.id), policy
+                        )
+                        
+                        actions.append(
+                            RemediationAction(
+                                action=f"Applied validation policy (strict mode)",
+                                type="gateway_policy",
+                                status="completed" if success else "failed",
+                                performed_at=datetime.utcnow(),
+                                performed_by="prediction_agent",
+                                gateway_policy_id=f"validation-{api.id}" if success else None,
+                                error_message=None if success else "Failed to apply policy",
+                            )
+                        )
+                        
+                except Exception as e:
+                    logger.error(f"Failed to apply {action_type} policy: {e}")
+                    actions.append(
+                        RemediationAction(
+                            action=f"Failed to apply {action_type} policy",
+                            type="gateway_policy",
+                            status="failed",
+                            performed_at=datetime.utcnow(),
+                            performed_by="prediction_agent",
+                            gateway_policy_id=None,
+                            error_message=str(e),
+                        )
+                    )
+            
+            # Disconnect adapter
+            await gateway_adapter.disconnect()
+            
+            return {
+                "actions": actions,
+                "overall_status": "completed" if all(a.status == "completed" for a in actions) else "partial",
+            }
+            
+        except Exception as e:
+            logger.error(f"Remediation failed: {e}")
+            await gateway_adapter.disconnect()
+            raise
+
+    async def verify_remediation(
+        self,
+        prediction_id: UUID,
+        verification_method: str = "automated"
+    ) -> Dict[str, Any]:
+        """Verify effectiveness of remediation actions.
+        
+        Checks if the remediation successfully prevented or mitigated
+        the predicted issue.
+        
+        Args:
+            prediction_id: Prediction to verify
+            verification_method: How to verify (automated, manual)
+            
+        Returns:
+            Verification results with effectiveness scores
+            
+        Raises:
+            ValueError: If prediction not found
+        """
+        logger.info(f"Verifying remediation for prediction {prediction_id}")
+        
+        # Fetch prediction
+        prediction = self.prediction_repo.get_prediction(str(prediction_id))
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        
+        # TODO: Check current metrics vs. prediction thresholds
+        # TODO: Calculate effectiveness scores
+        # TODO: Update prediction with verification results
+        
+        logger.warning("Remediation verification not yet implemented - placeholder only")
+        
+        return {
+            "prediction_id": str(prediction_id),
+            "status": "pending_implementation",
+            "message": "Remediation verification will be implemented in Phase 2"
+        }
+
+    async def rollback_remediation(
+        self,
+        prediction_id: UUID,
+        action_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Rollback remediation actions for a prediction.
+        
+        Reverts API-level gateway configuration changes if remediation was
+        ineffective or caused issues.
+        
+        Args:
+            prediction_id: Prediction to rollback
+            action_id: Specific action to rollback (or all if None)
+            
+        Returns:
+            Rollback results
+            
+        Raises:
+            ValueError: If prediction not found
+        """
+        logger.info(f"Rolling back remediation for prediction {prediction_id}")
+        
+        # Fetch prediction
+        prediction = self.prediction_repo.get_prediction(str(prediction_id))
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        
+        # TODO: Identify actions to rollback
+        # TODO: Restore previous gateway configurations
+        # TODO: Update action statuses
+        
+        logger.warning("Remediation rollback not yet implemented - placeholder only")
+        
+        return {
+            "prediction_id": str(prediction_id),
+            "status": "pending_implementation",
+            "message": "Remediation rollback will be implemented in Phase 2"
+        }
         return count
 
 # Made with Bob

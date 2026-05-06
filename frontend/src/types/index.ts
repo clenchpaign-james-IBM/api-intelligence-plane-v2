@@ -413,6 +413,7 @@ export interface EndpointMetric {
 // Prediction Entity
 export interface Prediction {
   id: string;
+  gateway_id: string;
   api_id: string;
   api_name?: string;
   prediction_type: PredictionType;
@@ -431,6 +432,45 @@ export interface Prediction {
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
+  
+  // Auto-remediation fields
+  remediation_type?: 'automated' | 'manual' | 'hybrid';
+  remediation_strategy?: 'conservative' | 'balanced' | 'aggressive';
+  remediation_plan?: PredictionRemediationPlan;
+  remediation_actions?: PredictionRemediationAction[];
+  remediation_status?: 'not_started' | 'plan_generated' | 'in_progress' | 'completed' | 'failed' | 'rolled_back';
+  remediation_started_at?: string;
+  remediation_completed_at?: string;
+  remediation_verified?: boolean;
+  remediation_verification_time?: string;
+  remediation_effectiveness_score?: number;
+  auto_approve_enabled?: boolean;
+}
+
+// Prediction Remediation Plan
+export interface PredictionRemediationPlan {
+  prediction_id: string;
+  summary: string;
+  actions: PredictionRemediationAction[];
+  estimated_time_minutes: number;
+  risk_level: 'low' | 'medium' | 'high';
+  requires_approval: boolean;
+  rollback_supported: boolean;
+  generated_at: string;
+  generated_by: 'llm' | 'rule_based';
+}
+
+// Prediction Remediation Action
+export interface PredictionRemediationAction {
+  action_id: string;
+  action_type: 'rate_limiting' | 'throttling' | 'cache_config' | 'validation_policy';
+  description: string;
+  config: Record<string, any>;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'rolled_back';
+  applied_at?: string;
+  gateway_policy_id?: string;
+  error_message?: string;
+  rollback_config?: Record<string, any>;
 }
 
 export interface ContributingFactor {

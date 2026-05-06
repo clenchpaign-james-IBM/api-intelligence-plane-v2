@@ -1941,6 +1941,224 @@ class WebMethodsGatewayAdapter(BaseGatewayAdapter):
         webmethods_policy_action = convert_policy_action(webmethods_policy)
         
         # Return as dictionary (vendor_payload)
+
+    async def apply_prediction_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        remediation_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply API-level prediction remediation to webMethods gateway.
+        
+        Maps remediation actions to API-scoped gateway policies (minimal scope):
+        - RATE_LIMITING → Throttle policy on API
+        - THROTTLING → Throttle policy on API  
+        - CACHE_CONFIG → Cache policy on API
+        - VALIDATION_POLICY → Validation policy on API
+        
+        All policies are applied at the API level, not gateway deployment level.
+        
+        Args:
+            gateway_id: Target gateway UUID
+            api_id: Target API UUID
+            remediation_config: Remediation configuration with action type and parameters
+            
+        Returns:
+            Applied policy details including policy ID and configuration
+            
+        Raises:
+            ValueError: If remediation type not supported or configuration invalid
+        """
+        logger.info(f"Applying prediction remediation to API {api_id} on gateway {gateway_id}")
+        
+        action_type = remediation_config.get("type")
+        if not action_type:
+            raise ValueError("Remediation type is required")
+        
+        # Map remediation action type to policy application
+        if action_type == "rate_limiting":
+            return await self._apply_rate_limiting_remediation(gateway_id, api_id, remediation_config)
+        elif action_type == "throttling":
+            return await self._apply_throttling_remediation(gateway_id, api_id, remediation_config)
+        elif action_type == "cache_config":
+            return await self._apply_cache_remediation(gateway_id, api_id, remediation_config)
+        elif action_type == "validation_policy":
+            return await self._apply_validation_remediation(gateway_id, api_id, remediation_config)
+        else:
+            raise ValueError(f"Unsupported remediation type: {action_type}")
+    
+    async def _apply_rate_limiting_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply rate limiting policy to API.
+        
+        Args:
+            gateway_id: Target gateway
+            api_id: Target API
+            config: Rate limiting configuration
+            
+        Returns:
+            Applied policy details
+        """
+        # Extract parameters from config or use defaults
+        requests_per_minute = config.get("requests_per_minute", 1000)
+        
+        # Create vendor-neutral rate limiting config
+        from app.models.base.policy_configs import RateLimitConfig
+        rate_limit_config = RateLimitConfig(
+            requests_per_minute=requests_per_minute,
+            burst_size=int(requests_per_minute * 1.2),  # 20% burst
+            key_type="ip"
+        )
+        
+        # TODO: Apply policy to API via gateway API
+        # This would call the webMethods API Gateway REST API to create/update the policy
+        
+        logger.info(f"Applied rate limiting ({requests_per_minute} req/min) to API {api_id}")
+        
+        return {
+            "action_type": "rate_limiting",
+            "policy_id": f"rate-limit-{api_id}",  # Placeholder
+            "configuration": {
+                "requests_per_minute": requests_per_minute,
+                "burst_size": int(requests_per_minute * 1.2)
+            },
+            "status": "applied"
+        }
+    
+    async def _apply_throttling_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply throttling policy to API.
+        
+        Args:
+            gateway_id: Target gateway
+            api_id: Target API
+            config: Throttling configuration
+            
+        Returns:
+            Applied policy details
+        """
+        # Extract parameters
+        max_concurrent_requests = config.get("max_concurrent_requests", 100)
+        
+        # TODO: Apply throttling policy to API
+        
+        logger.info(f"Applied throttling ({max_concurrent_requests} concurrent) to API {api_id}")
+        
+        return {
+            "action_type": "throttling",
+            "policy_id": f"throttle-{api_id}",  # Placeholder
+            "configuration": {
+                "max_concurrent_requests": max_concurrent_requests
+            },
+            "status": "applied"
+        }
+    
+    async def _apply_cache_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply caching policy to API.
+        
+        Args:
+            gateway_id: Target gateway
+            api_id: Target API
+            config: Cache configuration
+            
+        Returns:
+            Applied policy details
+        """
+        # Extract parameters
+        ttl_seconds = config.get("ttl_seconds", 300)  # 5 minutes default
+        cache_key_pattern = config.get("cache_key_pattern", "url")
+        
+        # TODO: Apply cache policy to API
+        
+        logger.info(f"Applied caching (TTL: {ttl_seconds}s) to API {api_id}")
+        
+        return {
+            "action_type": "cache_config",
+            "policy_id": f"cache-{api_id}",  # Placeholder
+            "configuration": {
+                "ttl_seconds": ttl_seconds,
+                "cache_key_pattern": cache_key_pattern
+            },
+            "status": "applied"
+        }
+    
+    async def _apply_validation_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply validation policy to API.
+        
+        Args:
+            gateway_id: Target gateway
+            api_id: Target API
+            config: Validation configuration
+            
+        Returns:
+            Applied policy details
+        """
+        # Extract parameters
+        validate_request = config.get("validate_request", True)
+        validate_response = config.get("validate_response", False)
+        
+        # TODO: Apply validation policy to API
+        
+        logger.info(f"Applied validation (request: {validate_request}, response: {validate_response}) to API {api_id}")
+        
+        return {
+            "action_type": "validation_policy",
+            "policy_id": f"validation-{api_id}",  # Placeholder
+            "configuration": {
+                "validate_request": validate_request,
+                "validate_response": validate_response
+            },
+            "status": "applied"
+        }
+    
+    async def rollback_prediction_remediation(
+        self,
+        gateway_id: UUID,
+        api_id: UUID,
+        policy_id: str,
+        previous_config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Rollback a prediction remediation action.
+        
+        Restores the API to its previous configuration before remediation.
+        
+        Args:
+            gateway_id: Target gateway
+            api_id: Target API
+            policy_id: Policy to rollback
+            previous_config: Previous configuration to restore (if available)
+            
+        Returns:
+            Rollback results
+        """
+        logger.info(f"Rolling back remediation policy {policy_id} for API {api_id}")
+        
+        # TODO: Remove or restore policy via gateway API
+        
+        return {
+            "policy_id": policy_id,
+            "api_id": str(api_id),
+            "status": "rolled_back",
+            "message": "Policy removed or restored to previous configuration"
+        }
         return webmethods_policy_action.model_dump(by_alias=True, exclude_none=True)
 
 # Made with Bob

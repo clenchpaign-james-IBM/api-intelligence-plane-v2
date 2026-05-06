@@ -128,6 +128,142 @@ class ContributingFactorType(str, Enum):
     ABNORMAL_TRAFFIC_PATTERN = "abnormal_traffic_pattern"
 
 
+class RemediationType(str, Enum):
+    """Approach used to remediate the predicted issue.
+    
+    Categorizes remediation methods for tracking and automation.
+    Gateway-scoped only - no backend service modifications.
+    
+    Attributes:
+        AUTOMATED: Fully automated gateway policy changes without human approval.
+        SEMI_AUTOMATED: Requires approval before execution of gateway changes.
+        MANUAL: Manual intervention required, no automation available.
+        PREVENTIVE: Proactive measures applied before issue threshold is reached.
+    """
+    
+    AUTOMATED = "automated"
+    SEMI_AUTOMATED = "semi_automated"
+    MANUAL = "manual"
+    PREVENTIVE = "preventive"
+
+
+class RemediationActionType(str, Enum):
+    """Types of API-level gateway remediation actions.
+    
+    Minimal scope for MVP - only essential API-level policies that can be
+    safely automated for prediction remediation.
+    
+    Attributes:
+        RATE_LIMITING: Apply rate limits to specific API to prevent overload.
+        THROTTLING: Throttle requests to specific API to control traffic.
+        CACHE_CONFIG: Configure response caching for specific API to reduce load.
+        VALIDATION_POLICY: Add request/response validation to specific API.
+    """
+    
+    RATE_LIMITING = "rate_limiting"
+    THROTTLING = "throttling"
+    CACHE_CONFIG = "cache_config"
+    VALIDATION_POLICY = "validation_policy"
+
+
+class RemediationStatus(str, Enum):
+    """Status of a remediation action.
+    
+    Tracks the lifecycle of a remediation action from planning through execution.
+    
+    Attributes:
+        PENDING: Awaiting execution or approval.
+        APPROVED: Approved by operator, ready for execution.
+        IN_PROGRESS: Currently being executed.
+        COMPLETED: Successfully completed.
+        FAILED: Execution failed with errors.
+        ROLLED_BACK: Action was rolled back due to issues.
+        SKIPPED: Skipped (e.g., prediction resolved before execution).
+    """
+    
+    PENDING = "pending"
+    APPROVED = "approved"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ROLLED_BACK = "rolled_back"
+    SKIPPED = "skipped"
+
+
+class RemediationAction(BaseModel):
+    """Gateway-level remediation action for a prediction.
+    
+    Records specific API-level gateway configuration changes made to prevent
+    or mitigate a predicted failure. All actions are scoped to a single API.
+    
+    Attributes:
+        action: Description of the remediation action taken (e.g., 'Applied rate limiting: 1000 req/min').
+        type: Category of gateway action from RemediationActionType enum.
+        status: Current status of the action from RemediationStatus enum.
+        performed_at: UTC timestamp when the action was performed.
+        performed_by: Identifier of who/what performed the action (user ID, 'auto_remediation_agent', 'system').
+        gateway_policy_id: ID of the gateway policy created or modified to implement this action.
+        configuration_before: Snapshot of API policy configuration before remediation was applied.
+        configuration_after: Snapshot of API policy configuration after remediation was applied.
+        effectiveness_score: Measured effectiveness of this action in preventing the issue (0.0-1.0).
+                           Calculated after verification period.
+        error_message: Error details if the action failed during execution.
+        rollback_available: Whether this action can be safely rolled back to previous state.
+        rollback_performed_at: UTC timestamp when rollback was performed (if applicable).
+    """
+    
+    action: str = Field(
+        ...,
+        description="Description of the remediation action (e.g., 'Applied rate limiting: 1000 req/min')"
+    )
+    type: RemediationActionType = Field(
+        ...,
+        description="Category of gateway action"
+    )
+    status: RemediationStatus = Field(
+        ...,
+        description="Current status of the action"
+    )
+    performed_at: Optional[datetime] = Field(
+        None,
+        description="UTC timestamp when action was performed"
+    )
+    performed_by: Optional[str] = Field(
+        None,
+        description="Identifier of who performed the action (user, system, or 'auto_remediation_agent')"
+    )
+    gateway_policy_id: Optional[str] = Field(
+        None,
+        description="ID of the gateway policy created or modified"
+    )
+    configuration_before: Optional[dict[str, Any]] = Field(
+        None,
+        description="API policy configuration snapshot before remediation"
+    )
+    configuration_after: Optional[dict[str, Any]] = Field(
+        None,
+        description="API policy configuration snapshot after remediation"
+    )
+    effectiveness_score: Optional[float] = Field(
+        None,
+        ge=0,
+        le=1,
+        description="Effectiveness of this action in preventing the issue (0-1)"
+    )
+    error_message: Optional[str] = Field(
+        None,
+        description="Error details if the action failed"
+    )
+    rollback_available: bool = Field(
+        True,
+        description="Whether this action can be rolled back"
+    )
+    rollback_performed_at: Optional[datetime] = Field(
+        None,
+        description="When rollback was performed (if applicable)"
+    )
+
+
 class ContributingFactor(BaseModel):
     """Factor contributing to the prediction.
     
@@ -222,6 +358,58 @@ class Prediction(BaseModel):
     )
     model_version: str = Field(..., description="ML model version")
     metadata: Optional[dict[str, Any]] = Field(None, description="Additional data")
+    
+    # Remediation fields (prediction-centric architecture)
+    remediation_type: Optional[RemediationType] = Field(
+        None,
+        description="Approach used for remediation (automated, semi-automated, manual, preventive)"
+    )
+    remediation_actions: Optional[list[RemediationAction]] = Field(
+        None,
+        description="List of API-level gateway remediation actions taken or planned"
+    )
+    remediation_effectiveness: Optional[float] = Field(
+        None,
+        ge=0,
+        le=1,
+        description="Overall effectiveness of all remediation actions (0-1)"
+    )
+    
+    # Per-prediction remediation plan fields
+    recommended_remediation: Optional[dict[str, Any]] = Field(
+        None,
+        description="Structured remediation recommendation for this prediction"
+    )
+    recommended_priority: Optional[str] = Field(
+        None,
+        description="Remediation priority (critical, high, medium, low)"
+    )
+    recommended_verification_steps: Optional[list[str]] = Field(
+        None,
+        description="Steps to verify remediation effectiveness"
+    )
+    recommended_estimated_time_minutes: Optional[float] = Field(
+        None,
+        ge=0,
+        description="Estimated time to complete remediation (minutes)"
+    )
+    plan_generated_at: Optional[datetime] = Field(
+        None,
+        description="Timestamp of latest recommendation generation"
+    )
+    plan_source: Optional[str] = Field(
+        None,
+        description="Origin of recommendation (llm, rule_based, hybrid, manual_override)"
+    )
+    plan_version: Optional[str] = Field(
+        None,
+        description="Version identifier for recommendation schema/prompt"
+    )
+    plan_status: Optional[str] = Field(
+        None,
+        description="Status of recommendation (generated, reviewed, approved, superseded, rejected)"
+    )
+    
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Creation timestamp"
     )

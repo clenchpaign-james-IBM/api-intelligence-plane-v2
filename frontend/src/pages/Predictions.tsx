@@ -256,6 +256,8 @@ const Predictions = () => {
                 key={prediction.id}
                 prediction={prediction}
                 onClick={() => setSelectedPrediction(prediction)}
+                gatewayId={selectedGatewayId || undefined}
+                onUpdate={() => queryClient.invalidateQueries({ queryKey: ['predictions'] })}
               />
             ))}
           </div>
@@ -277,6 +279,15 @@ const Predictions = () => {
                 prediction={selectedPrediction}
                 detailed
                 onClick={() => {}}
+                gatewayId={selectedPrediction.gateway_id}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: ['predictions'] });
+                  // Refresh the selected prediction
+                  const updatedPrediction = predictions.find((p: Prediction) => p.id === selectedPrediction.id);
+                  if (updatedPrediction) {
+                    setSelectedPrediction(updatedPrediction);
+                  }
+                }}
               />
             </div>
           </div>

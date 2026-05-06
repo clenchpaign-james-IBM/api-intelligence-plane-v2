@@ -27,14 +27,10 @@ Following the vulnerability-centric pattern from Security (see [`docs/vulnerabil
 ### 1.2 Gateway-Only Remediation Scope
 
 **IN SCOPE** (webMethods Gateway - API-Level Policies):
-- Circuit breaker policies (per-API)
 - Rate limiting policies (per-API)
 - Request throttling (per-API)
-- Timeout configurations (per-API)
 - Caching policies (per-API)
 - Request/response validation (per-API)
-- Retry policies (per-API)
-- Load balancing algorithms (per-API)
 
 **OUT OF SCOPE**:
 - Gateway instance scaling (deployment-level, not API-level)
@@ -66,15 +62,14 @@ class RemediationType(str, Enum):
     PREVENTIVE = "preventive"
 
 class RemediationActionType(str, Enum):
-    """Types of API-level gateway remediation actions."""
-    CIRCUIT_BREAKER = "circuit_breaker"           # Enable circuit breaker for API
+    """Types of API-level gateway remediation actions.
+    
+    Minimal scope for MVP - only essential API-level policies.
+    """
     RATE_LIMITING = "rate_limiting"               # Apply rate limits to API
     THROTTLING = "throttling"                     # Throttle API requests
-    TIMEOUT_CONFIG = "timeout_config"             # Modify API timeout settings
     CACHE_CONFIG = "cache_config"                 # Modify API caching policies
-    RETRY_POLICY = "retry_policy"                 # Configure retry behavior
     VALIDATION_POLICY = "validation_policy"       # Add request/response validation
-    LOAD_BALANCING = "load_balancing"             # Adjust API load balancing
 
 class RemediationStatus(str, Enum):
     """Status of a remediation action."""
@@ -416,19 +411,19 @@ Use existing policy converters from [`backend/app/utils/webmethods/policy_conver
 
 2. Generate Remediation Plan (Automatic)
    - LLM analyzes prediction
-   - Generates API-scoped actions:
-     * Enable circuit breaker on API (effectiveness: 0.85)
-     * Apply rate limiting to API (effectiveness: 0.70)
-     * Enable response caching on API (effectiveness: 0.60)
+   - Generates API-scoped actions (minimal scope):
+     * Apply rate limiting to API (effectiveness: 0.85)
+     * Enable response caching on API (effectiveness: 0.70)
+     * Add request validation on API (effectiveness: 0.60)
 
 3. Approval (Semi-Automated)
    - Operator reviews plan
-   - Approves circuit breaker + rate limiting for this API
-   - Defers caching for manual review
+   - Approves rate limiting + caching for this API
+   - Defers validation for manual review
 
 4. Execute Remediation
-   - Apply circuit breaker policy to API 550e8400-e29b-41d4-a716-446655440001
    - Apply rate limiting policy to API 550e8400-e29b-41d4-a716-446655440001
+   - Apply caching policy to API 550e8400-e29b-41d4-a716-446655440001
    - Record actions with before/after API policy configs
 
 5. Verify Effectiveness

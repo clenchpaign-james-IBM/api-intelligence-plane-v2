@@ -115,14 +115,25 @@ class PredictionRepository(BaseRepository[Prediction]):
         Returns:
             Prediction if found, None otherwise
         """
-        # Search by the id field, not the OpenSearch _id
+        # Try direct document get first (fastest)
+        try:
+            result = self.client.get(
+                index=self.index_name,
+                id=prediction_id
+            )
+            if result['found']:
+                return self.model_class(**result['_source'])
+        except Exception as e:
+            logger.debug(f"Direct get failed for prediction {prediction_id}, trying search: {e}")
+        
+        # Fallback to search by id field
         try:
             result = self.client.search(
                 index=self.index_name,
                 body={
                     "query": {
                         "term": {
-                            "id.keyword": prediction_id  # Use .keyword for exact match on UUID string
+                            "id": prediction_id  # Try without .keyword first
                         }
                     },
                     "size": 1
@@ -135,7 +146,7 @@ class PredictionRepository(BaseRepository[Prediction]):
             return None
             
         except Exception as e:
-            logger.error(f"Failed to get prediction {prediction_id}: {e}")
+            logger.error(f"Failed to get prediction {prediction_id}: {e}", exc_info=True)
             return None
 
     def list_predictions(

@@ -2,12 +2,15 @@ import { AlertTriangle, Clock, TrendingUp, CheckCircle, XCircle, Sparkles } from
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FactorsChart from './FactorsChart';
+import PredictionRemediationPanel from './PredictionRemediationPanel';
 import type { Prediction } from '../../types';
 
 interface PredictionCardProps {
   prediction: Prediction;
   onClick?: () => void;
   detailed?: boolean;
+  gatewayId?: string;
+  onUpdate?: () => void;
 }
 
 /**
@@ -20,7 +23,17 @@ interface PredictionCardProps {
  * - Contributing factors
  * - Recommended actions
  */
-const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCardProps) => {
+const PredictionCard = ({ prediction, onClick, detailed = false, gatewayId, onUpdate }: PredictionCardProps) => {
+  // Debug logging
+  console.log('[PredictionCard] Render:', {
+    predictionId: prediction.id,
+    detailed,
+    gatewayId,
+    predictionGatewayId: prediction.gateway_id,
+    shouldShowPanel: detailed && (gatewayId || prediction.gateway_id),
+    onUpdate: !!onUpdate
+  });
+  
   // AI explanation is already in metadata, no need to fetch
   const aiExplanation = prediction.metadata?.ai_explanation as string | undefined;
   const isAiEnhanced = prediction.metadata?.ai_enhanced === true;
@@ -240,6 +253,17 @@ const PredictionCard = ({ prediction, onClick, detailed = false }: PredictionCar
               {Math.round(prediction.accuracy_score * 100)}%
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Auto-Remediation Panel (detailed view only) */}
+      {detailed && (gatewayId || prediction.gateway_id) && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <PredictionRemediationPanel
+            prediction={prediction}
+            gatewayId={gatewayId || prediction.gateway_id}
+            onUpdate={onUpdate}
+          />
         </div>
       )}
     </div>

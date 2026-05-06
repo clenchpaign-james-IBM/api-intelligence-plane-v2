@@ -453,4 +453,288 @@ Recent Trend (last 5 points):
         
         return summary
 
+    async def generate_remediation_plan(
+        self,
+        prediction: Prediction,
+        gateway_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Generate AI-powered remediation plan for a prediction.
+        
+        Uses LLM to analyze the prediction and generate API-scoped
+        remediation recommendations for webMethods gateway.
+        
+        Args:
+            prediction: Prediction entity to generate plan for
+            gateway_config: Current gateway configuration for context
+            
+        Returns:
+            Structured remediation plan with actions and verification steps
+        """
+        logger.info(f"Generating remediation plan for prediction {prediction.id}")
+        
+        try:
+            # Build context for LLM
+            context = self._build_remediation_context(prediction, gateway_config)
+            
+            # Generate plan using LLM
+            response = await self.llm_service.generate_completion(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_remediation_planning_prompt()
+                    },
+                    {
+                        "role": "user",
+                        "content": context
+                    }
+                ],
+                temperature=0.2,  # Low temperature for consistent, focused plans
+                max_tokens=1000,
+            )
+            
+            # Parse LLM response into structured plan
+            plan_text = response.get("content", "")
+            plan = self._parse_remediation_plan(plan_text, prediction)
+            
+            logger.info(f"Generated remediation plan with {len(plan.get('actions', []))} actions")
+            
+            return plan
+            
+        except Exception as e:
+            logger.error(f"Failed to generate remediation plan: {e}")
+            # Fallback to rule-based plan
+            return self._generate_fallback_remediation_plan(prediction)
+    
+    def _get_remediation_planning_prompt(self) -> str:
+        """Get system prompt for remediation planning.
+        
+        Returns:
+            System prompt for LLM
+        """
+        return """You are an expert API gateway engineer specializing in preventive remediation.
+
+Your task is to analyze API failure predictions and generate actionable remediation plans.
+
+SCOPE: API-level policies only (webMethods API Gateway)
+- Rate limiting policies
+- Request throttling
+- Response caching
+- Request/response validation
+
+DO NOT suggest:
+- Gateway deployment scaling
+- Backend service changes
+- Infrastructure modifications
+- Code changes
+
+For each prediction, provide:
+1. A clear summary of the remediation approach
+2. Specific actions with estimated time and effectiveness
+3. Verification steps to confirm success
+4. Priority level (critical, high, medium, low)
+
+Format your response as JSON:
+{
+  "summary": "Brief description of remediation approach",
+  "priority": "high",
+  "actions": [
+    {
+      "type": "rate_limiting",
+      "description": "Apply rate limiting: 1000 requests/minute",
+      "estimated_minutes": 10,
+      "effectiveness_estimate": 0.85,
+      "configuration": {
+        "requests_per_minute": 1000
+      }
+    }
+  ],
+  "verification_steps": [
+    "Monitor error rate for 30 minutes",
+    "Verify API remains stable"
+  ],
+  "estimated_minutes": 20,
+  "rollback_plan": "Remove rate limiting policy if ineffective"
+}
+
+Be specific, actionable, and focused on prevention."""
+    
+    def _build_remediation_context(
+        self,
+        prediction: Prediction,
+        gateway_config: Dict[str, Any]
+    ) -> str:
+        """Build context for remediation planning.
+        
+        Args:
+            prediction: Prediction to remediate
+            gateway_config: Current gateway configuration
+            
+        Returns:
+            Formatted context string for LLM
+        """
+        # Format contributing factors
+        factors_text = "\n".join([
+            f"- {f.factor.value}: current={f.current_value}, threshold={f.threshold}, trend={f.trend}"
+            for f in prediction.contributing_factors
+        ])
+        
+        context = f"""Prediction Analysis:
+
+API: {prediction.api_name or prediction.api_id}
+Prediction Type: {prediction.prediction_type.value}
+Severity: {prediction.severity.value}
+Confidence: {prediction.confidence_score:.2f}
+Predicted Time: {prediction.predicted_time.isoformat()}
+
+Contributing Factors:
+{factors_text}
+
+Current Recommended Actions:
+{chr(10).join(f"- {action}" for action in prediction.recommended_actions)}
+
+Gateway Configuration:
+{gateway_config.get('summary', 'No configuration available')}
+
+Generate a remediation plan to prevent this {prediction.prediction_type.value} prediction."""
+        
+        return context
+    
+    def _parse_remediation_plan(
+        self,
+        plan_text: str,
+        prediction: Prediction
+    ) -> Dict[str, Any]:
+        """Parse LLM response into structured remediation plan.
+        
+        Args:
+            plan_text: LLM response text
+            prediction: Original prediction
+            
+        Returns:
+            Structured remediation plan
+        """
+        import json
+        import re
+        
+        try:
+            # Try to extract JSON from response
+            json_match = re.search(r'\{.*\}', plan_text, re.DOTALL)
+            if json_match:
+                plan = json.loads(json_match.group())
+                return plan
+            else:
+                # Fallback if no JSON found
+                logger.warning("No JSON found in LLM response, using fallback")
+                return self._generate_fallback_remediation_plan(prediction)
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response as JSON: {e}")
+            return self._generate_fallback_remediation_plan(prediction)
+    
+    def _generate_fallback_remediation_plan(
+        self,
+        prediction: Prediction
+    ) -> Dict[str, Any]:
+        """Generate fallback remediation plan when LLM fails.
+        
+        Args:
+            prediction: Prediction to remediate
+            
+        Returns:
+            Rule-based remediation plan
+        """
+        from app.models.prediction import PredictionType, PredictionSeverity
+        
+        # Map prediction type to actions
+        action_map = {
+            PredictionType.FAILURE: [
+                {
+                    "type": "rate_limiting",
+                    "description": "Apply rate limiting to prevent overload",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.75,
+                    "configuration": {"requests_per_minute": 1000}
+                },
+                {
+                    "type": "validation_policy",
+                    "description": "Add request validation to catch errors early",
+                    "estimated_minutes": 15,
+                    "effectiveness_estimate": 0.65,
+                    "configuration": {"validate_request": True}
+                }
+            ],
+            PredictionType.DEGRADATION: [
+                {
+                    "type": "rate_limiting",
+                    "description": "Apply rate limiting to reduce load",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.80,
+                    "configuration": {"requests_per_minute": 800}
+                },
+                {
+                    "type": "cache_config",
+                    "description": "Enable response caching to reduce backend load",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.70,
+                    "configuration": {"ttl_seconds": 300}
+                }
+            ],
+            PredictionType.CAPACITY: [
+                {
+                    "type": "throttling",
+                    "description": "Apply request throttling to manage capacity",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.85,
+                    "configuration": {"max_concurrent_requests": 100}
+                },
+                {
+                    "type": "cache_config",
+                    "description": "Enable caching to reduce backend requests",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.75,
+                    "configuration": {"ttl_seconds": 600}
+                }
+            ],
+            PredictionType.SECURITY: [
+                {
+                    "type": "rate_limiting",
+                    "description": "Apply strict rate limiting for security",
+                    "estimated_minutes": 10,
+                    "effectiveness_estimate": 0.80,
+                    "configuration": {"requests_per_minute": 500}
+                },
+                {
+                    "type": "validation_policy",
+                    "description": "Add strict request validation",
+                    "estimated_minutes": 15,
+                    "effectiveness_estimate": 0.70,
+                    "configuration": {"validate_request": True, "validate_response": False}
+                }
+            ]
+        }
+        
+        actions = action_map.get(prediction.prediction_type, action_map[PredictionType.DEGRADATION])
+        
+        # Determine priority based on severity
+        priority_map = {
+            PredictionSeverity.CRITICAL: "critical",
+            PredictionSeverity.HIGH: "high",
+            PredictionSeverity.MEDIUM: "medium",
+            PredictionSeverity.LOW: "low"
+        }
+        priority = priority_map.get(prediction.severity, "medium")
+        
+        return {
+            "summary": f"Apply {len(actions)} API-level policies to prevent {prediction.prediction_type.value}",
+            "priority": priority,
+            "actions": actions,
+            "verification_steps": [
+                f"Monitor {prediction.prediction_type.value} metrics for 30 minutes",
+                "Verify API remains stable and responsive",
+                "Check for any unintended side effects"
+            ],
+            "estimated_minutes": sum(a["estimated_minutes"] for a in actions),
+            "rollback_plan": "Remove applied policies if prediction was false positive or remediation causes issues"
+        }
+
 # Made with Bob
